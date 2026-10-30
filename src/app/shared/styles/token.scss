@@ -1,0 +1,185 @@
+/* ==========================================================================
+   Cairn IDE: design tokens (common variables)
+   Source: "Cairn token sheet" (Tokens / TokensLight) + values observed in screens.
+
+   Theming: dark is the default. Light is applied with
+     <html data-theme="light">
+   Components only reference these variables, never raw hex.
+
+   Legend:
+     [sheet]       on the token sheet
+     [screens]     not on the sheet, used by the screens
+     [derived]     light value derived by diffing Main/MainLight, Review/ReviewLight
+     [PROVISIONAL] no design exists, placeholder: needs a decision
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* ---------- Surfaces ---------- */
+  --color-surface-base: #1c1a17; /* [sheet] base, editor */
+  --color-surface-panel: #211e1a; /* [sheet] panel, left panel */
+  --color-surface-raised: #2a2620; /* [sheet] raised, selected */
+  --color-surface-hover: #2e2a24; /* [sheet] hover */
+  --color-surface-raised-hover: #3a352d; /* [screens] hover row inside a raised surface (menus) */
+  --color-surface-annotation: #24211b; /* [screens] band behind doc/usage lines in the editor */
+  --color-surface-diff: #201d19; /* [screens] diff container */
+  --color-surface-diff-empty: #1b1916; /* [screens] empty side of a diff row */
+  --color-scrim: #141210; /* [screens] app dimmed behind a modal */
+
+  /* ---------- Lines ---------- */
+  --color-divider: #2e2a24; /* [sheet] "hover, divider": same value, separate role */
+  --color-border: #3a352d; /* [sheet] */
+  --color-border-strong: #4a443a; /* [sheet] */
+
+  /* ---------- Text ---------- */
+  --color-text-primary: #e8e2d6; /* [sheet] */
+  --color-text-secondary: #c9c1b0; /* [sheet] */
+  --color-text-muted: #a39b8b; /* [sheet] */
+  --color-text-faint: #7f7868; /* [sheet] line numbers */
+  --color-text-prose: #d8d0c0; /* [screens] body prose + code */
+  --color-text-code-comment: #8a8374; /* [screens] code comments */
+  --color-text-on-action: #1c1a17; /* [derived] text on a primary button = base surface */
+
+  /* ---------- Attention and actions ---------- */
+  --color-attention: #e2a93b; /* [sheet] only for things that need you */
+  --color-action: #e8e2d6; /* [sheet] primary button fill */
+  --color-action-hover: #f5f0e6; /* [sheet] */
+  --color-focus: #e8e2d6; /* [sheet] 2px outline, 2px offset */
+
+  /* ---------- Status (always paired with a shape) ---------- */
+  --color-status-todo: #a39b8b; /* [sheet] ring */
+  --color-status-running: #7fb0d9; /* [sheet] half ring */
+  --color-status-review: #e2a93b; /* [sheet] diamond, = attention */
+  --color-status-done: #6f8f6b; /* [sheet] dot */
+  --color-status-blocked: #d49a8a; /* [sheet] dashed square */
+
+  /* ---------- Feedback tints (bg / fg) ---------- */
+  --color-added-bg: #1f2a1e; /* [sheet] */
+  --color-added-fg: #b9d2ae;
+  --color-removed-bg: #2e1d1b; /* [sheet] */
+  --color-removed-fg: #e0b0a6;
+  --color-warning-bg: #382f1c; /* [sheet] */
+  --color-warning-fg: #e2c27b;
+  --color-error-bg: #3a2420; /* [sheet] */
+  --color-error-fg: #e0b0a6;
+
+  --color-terminal-pass: #9db58a; /* [screens] "PASS" in the terminal pane */
+
+  /* ---------- Elevation ---------- */
+  --shadow-float: 0 2px 8px rgba(0, 0, 0, 0.4); /* [screens] floating chip */
+  --shadow-overlay: 0 4px 14px rgba(0, 0, 0, 0.53); /* [screens] menu, toast, modal (modal was 16px, normalised) */
+
+  /* ---------- Typography ---------- */
+  --font-sans: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+
+  --font-size-display: 32px; /* [sheet] */
+  --font-size-page-title: 26px; /* [sheet] (screens use 28 for the task title: drift) */
+  --font-size-section-title: 18px; /* [sheet] */
+  --font-size-prose: 14px; /* [sheet] */
+  --font-size-ui: 13px; /* [sheet] interface */
+  --font-size-small: 12px; /* [sheet] */
+  --font-size-label: 11px; /* [sheet] caps label */
+  --font-size-micro: 10px; /* [screens] badges */
+  --font-size-code: 13px; /* [sheet] editor, diff */
+  --font-size-code-sm: 12px; /* [screens] terminal, file paths (12 / 12.5 normalised) */
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  --letter-spacing-label: 0.08em;
+
+  --line-height-prose: 1.6; /* [sheet] (screens use 1.55 to 1.65) */
+  --line-height-ui: 1.45; /* [screens] toasts, notes, menus */
+  --line-height-code: 22px; /* [screens] editor */
+  --line-height-diff: 24px; /* [screens] diff, review code */
+
+  /* ---------- Spacing ---------- */
+  --space-4: 4px; /* [sheet] */
+  --space-8: 8px; /* [sheet] */
+  --space-12: 12px; /* [sheet] */
+  --space-16: 16px; /* [sheet] */
+  --space-24: 24px; /* [sheet] */
+  --space-32: 32px; /* [sheet] */
+  /* Off-scale steps the screens use repeatedly. Candidates to snap onto the scale later. */
+  --space-2: 2px;
+  --space-6: 6px; /* 33 uses as gap */
+  --space-9: 9px; /* 81 uses: glyph-to-label gap */
+  --space-10: 10px;
+  --space-14: 14px; /* 14px side padding on rows, headers */
+
+  /* ---------- Radii (named by role, as on the sheet) ---------- */
+  --radius-chip: 4px; /* [sheet] */
+  --radius-control: 6px; /* [sheet] buttons, inputs */
+  --radius-panel: 8px; /* [sheet] */
+  --radius-modal: 10px; /* [sheet] */
+  --radius-badge: 3px; /* [screens] status letters, inline marks */
+  --radius-button-sm: 5px; /* [screens] 18 uses; 1px off control. Drift candidate. */
+  --radius-pill: 14px; /* [screens] state pills */
+  --radius-round: 50%;
+
+  /* ---------- Shell dimensions (from the screens) ---------- */
+  --titlebar-height: 38px;
+  --statusbar-height: 26px;
+  --left-panel-width: 280px;
+  --tabs-height: 36px; /* tab strip, also the empty strip when nothing is open */
+  --bottom-panel-height: 236px; /* default; user can drag it */
+  --inspector-width: 340px;
+  --window-control-width: 46px;
+}
+
+/* ==========================================================================
+   Light theme: overrides only. Names and roles are identical.
+   ========================================================================== */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-surface-base: #fbf8f2;
+  --color-surface-panel: #f3efe6;
+  --color-surface-raised: #ece6d8;
+  --color-surface-hover: #e4decf;
+  --color-surface-raised-hover: #d9d2c1; /* [derived] */
+  --color-surface-annotation: #f0ebdf; /* [derived] */
+  --color-surface-diff: #f7f3ea; /* [derived] */
+  --color-surface-diff-empty: #efeadd; /* [derived] */
+  --color-scrim: rgba(42, 38, 32, 0.35); /* [PROVISIONAL] no light modal screen exists */
+
+  --color-divider: #e4decf;
+  --color-border: #d9d2c1;
+  --color-border-strong: #c4bca8;
+
+  --color-text-primary: #2a2620;
+  --color-text-secondary: #4a443a;
+  --color-text-muted: #6e6657;
+  --color-text-faint: #8a8372;
+  --color-text-prose: #3a352d; /* [derived] */
+  --color-text-code-comment: #7a7362; /* [derived] */
+  --color-text-on-action: #fbf8f2; /* [derived] */
+
+  --color-attention: #9a610a;
+  --color-action: #2a2620;
+  --color-action-hover: #3a352d;
+  --color-focus: #2a2620;
+
+  --color-status-todo: #6e6657;
+  --color-status-running: #2f73a8;
+  --color-status-review: #9a610a;
+  --color-status-done: #4e7a4a;
+  --color-status-blocked: #a5533e;
+
+  --color-added-bg: #e3f0dd;
+  --color-added-fg: #2f5e2a;
+  --color-removed-bg: #f8e1dc;
+  --color-removed-fg: #8f3a2b;
+  --color-warning-bg: #f6ecc9;
+  --color-warning-fg: #7a5a0c;
+  --color-error-bg: #f6d9d2;
+  --color-error-fg: #8f3a2b;
+
+  --color-terminal-pass: #4e7a4a; /* [PROVISIONAL] terminal has no light design */
+
+  --shadow-float: 0 2px 8px rgba(42, 38, 32, 0.16); /* [derived] */
+  --shadow-overlay: 0 4px 14px rgba(42, 38, 32, 0.22); /* [PROVISIONAL] only the float shadow exists in light */
+}

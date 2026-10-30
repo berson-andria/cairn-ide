@@ -1,0 +1,34 @@
+// 6px hit area sitting on the inside edge of the panel it resizes.
+// (Inside, not straddling, because panels clip their overflow.)
+:host {
+  position: absolute;
+  z-index: 2;
+  touch-action: none;
+}
+
+:host(.handle--x) { top: 0; bottom: 0; width: 6px; cursor: col-resize; }
+:host(.handle--y) { left: 0; right: 0; height: 6px; cursor: row-resize; }
+
+:host(.handle--x.handle--end)   { right: 0; }
+:host(.handle--x.handle--start) { left: 0; }
+:host(.handle--y.handle--start) { top: 0; }
+:host(.handle--y.handle--end)   { bottom: 0; }
+
+// 2px indicator line, only while hovering or dragging.
+:host::after {
+  content: '';
+  position: absolute;
+  background: transparent;
+}
+:host(.handle--x)::after { top: 0; bottom: 0; width: 2px; }
+:host(.handle--y)::after { left: 0; right: 0; height: 2px; }
+:host(.handle--x.handle--end)::after   { right: 0; }
+:host(.handle--x.handle--start)::after { left: 0; }
+:host(.handle--y.handle--start)::after { top: 0; }
+:host(.handle--y.handle--end)::after   { bottom: 0; }
+
+:host(:hover)::after { background: var(--color-border-strong); }
+:host(.is-dragging)::after { background: var(--color-text-muted); }
+
+// The global focus ring would be clipped by the panel's overflow: draw it inside.
+:host(:focus-visible) { outline-offset: -2px; }

@@ -1,0 +1,7 @@
+<app-resize-handle
+  axis="x"
+  edge="end"
+  [min]="minWidth"
+  [max]="maxWidth"
+  (sizeChange)="width.set($event)"
+/>

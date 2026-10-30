@@ -1,0 +1,12 @@
+:host {
+  position: relative; // anchor for the resize handle
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: var(--left-panel-width);
+  max-width: 50%;     // safety net if the window shrinks after a drag
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-surface-panel);
+  border-right: 1px solid var(--color-divider);
+}

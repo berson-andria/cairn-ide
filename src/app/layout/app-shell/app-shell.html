@@ -1,0 +1,174 @@
+<!--
+  data-tauri-drag-region does not cascade: it is set on the bar and on each
+  non-interactive zone/text. Buttons do not carry it, so they stay clickable.
+-->
+<header class="title-bar" data-tauri-drag-region>
+  <div class="title-bar__start" data-tauri-drag-region>
+    <button class="title-bar__menu" type="button" aria-label="Cairn menu">Cairn ▾</button>
+
+    <button class="icon-btn" type="button" aria-label="Back">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M10 3L5 8l5 5" />
+      </svg>
+    </button>
+    <button class="icon-btn" type="button" aria-label="Forward" disabled>
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M6 3l5 5-5 5" />
+      </svg>
+    </button>
+
+    <span class="title-bar__project" data-tauri-drag-region>{{ project }}</span>
+  </div>
+
+  <button class="title-bar__search" type="button" aria-label="Search">
+    <span>Search files, text, tasks, symbols</span>
+    <span class="chip">Ctrl P</span>
+  </button>
+
+  <div class="title-bar__end" data-tauri-drag-region>
+    <button class="title-bar__action" type="button" aria-label="New chat">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 14 14"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.3"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M2 3h10v7H6l-3 2.5V10H2z" />
+      </svg>
+      + Chat
+    </button>
+    <button class="title-bar__chats" type="button" aria-label="Chat list">Chats ▾</button>
+
+    <button class="icon-btn" type="button" aria-label="Settings">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <path d="M2 4h12M2 8h12M2 12h12" />
+        <circle class="title-bar__knob" cx="10" cy="4" r="1.6" />
+        <circle class="title-bar__knob" cx="5" cy="8" r="1.6" />
+        <circle class="title-bar__knob" cx="11" cy="12" r="1.6" />
+      </svg>
+    </button>
+
+    <div class="title-bar__window-controls">
+      <button
+        class="title-bar__window-control"
+        type="button"
+        aria-label="Minimize"
+        (click)="minimize()"
+      >
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          stroke="currentColor"
+          stroke-width="1.2"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path d="M0 5h10" />
+        </svg>
+      </button>
+      <button
+        class="title-bar__window-control"
+        type="button"
+        aria-label="Maximize"
+        (click)="toggleMaximize()"
+      >
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          stroke="currentColor"
+          stroke-width="1.2"
+          fill="none"
+          aria-hidden="true"
+        >
+          <rect x=".6" y=".6" width="8.8" height="8.8" />
+        </svg>
+      </button>
+      <button class="title-bar__window-control" type="button" aria-label="Close" (click)="close()">
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          stroke="currentColor"
+          stroke-width="1.2"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path d="M0 0l10 10M10 0L0 10" />
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="app-shell__body">
+  <left-panel />
+  <main-panel />
+</div>
+
+<footer class="status-bar">
+  <div class="status-bar__group">
+    <button
+      class="status-bar__item status-bar__item--strong"
+      type="button"
+      aria-label="Toggle bottom panel"
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 14 14"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.3"
+        aria-hidden="true"
+      >
+        <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
+        <path d="M1.5 8.5h11" />
+      </svg>
+      Panel <span class="status-bar__hint">Ctrl J</span>
+    </button>
+    <button class="status-bar__item status-bar__item--strong" type="button" aria-label="Open Git">
+      Git <span class="status-bar__hint">{{ gitChanged }} changed</span>
+    </button>
+    <span>Problems {{ problems }}</span>
+  </div>
+
+  <div class="status-bar__group">
+    <span class="status-bar__strong">Next: review {{ nextReview }} ›</span>
+    <span>model {{ model }}</span>
+  </div>
+</footer>

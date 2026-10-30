@@ -1,0 +1,24 @@
+:host {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+// Fixed-height strip. Keeps its height when empty (nothing open).
+.tabs-container {
+  flex: none;
+  min-height: var(--tabs-height);
+  border-bottom: 1px solid var(--color-divider);
+}
+
+// Takes the remaining space. Whatever is rendered here owns its own scrolling.
+.workspace-content {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}

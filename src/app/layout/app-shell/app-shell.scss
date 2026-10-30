@@ -1,0 +1,162 @@
+// Window = title bar on top, body fills the rest, status bar at the bottom.
+:host {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+// min-height/min-width: 0 lets children shrink and scroll instead of
+// pushing the window past 100vh/100vw.
+.app-shell__body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
+
+// ---------------------------------------------------------------------------
+// Title bar: [start] [ search ] [end] on a 3-column grid.
+// - the two outer columns are equal (1fr) but never narrower than their content,
+// - the search column is up to 460px and is the one that shrinks on narrow windows.
+// (The bar's 16px left padding is part of the design, so the search sits 8px
+// right of the window centre.)
+// ---------------------------------------------------------------------------
+.title-bar {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 460px) 1fr;
+  align-items: center;
+  flex: none;
+  height: var(--titlebar-height);
+  padding-left: var(--space-16);
+  border-bottom: 1px solid var(--color-divider);
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+.title-bar__start,
+.title-bar__end {
+  display: flex;
+  align-items: center;
+  // no min-width: 0 here on purpose: the grid must keep each zone at least as wide as its content
+}
+.title-bar__start {
+  gap: var(--space-2);
+}
+.title-bar__end {
+  justify-content: flex-end;
+}
+
+.title-bar__menu {
+  margin-right: var(--space-6);
+  padding: 3px var(--space-10);
+  border-radius: var(--radius-chip);
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.title-bar__project {
+  margin-left: var(--space-8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title-bar__search {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  height: 26px;
+  padding: 0 var(--space-10);
+  background: var(--color-surface-base);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  color: var(--color-text-muted);
+
+  span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.title-bar__action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  margin-right: var(--space-4);
+  padding: var(--space-4) var(--space-10);
+  border-radius: var(--radius-button-sm);
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.title-bar__chats {
+  margin-right: var(--space-10);
+  padding: var(--space-4) var(--space-8);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+// Knobs of the settings icon punch through the lines: they match the bar's surface.
+.title-bar__knob {
+  fill: var(--color-surface-base);
+}
+
+.title-bar__window-controls {
+  display: flex;
+  margin-left: var(--space-8);
+}
+.title-bar__window-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--window-control-width);
+  height: var(--titlebar-height);
+  color: var(--color-text-muted);
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Status bar
+// ---------------------------------------------------------------------------
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  height: var(--statusbar-height);
+  padding: 0 var(--space-14);
+  border-top: 1px solid var(--color-divider);
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.status-bar__group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  min-width: 0;
+}
+
+.status-bar__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+.status-bar__item--strong,
+.status-bar__strong {
+  color: var(--color-text-primary);
+}
+.status-bar__hint {
+  margin-left: var(--space-4);
+  color: var(--color-text-muted);
+}

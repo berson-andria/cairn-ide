@@ -1,0 +1,7 @@
+<app-resize-handle
+  axis="y"
+  edge="start"
+  [min]="minHeight"
+  [max]="maxHeight"
+  (sizeChange)="height.set($event)"
+/>
