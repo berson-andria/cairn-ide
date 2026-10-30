@@ -138,6 +138,20 @@ button:disabled {
   color: var(--color-attention);
 }
 
+.tab {
+  color: var(--color-text-muted);
+  height: 100%;
+  line-height: 100%;
+  &:hover {
+    color: var(--color-text-secondary);
+  }
+}
+.tab--active {
+  color: var(--color-text-primary);
+  border-bottom: 2px solid var(--color-focus);
+  box-sizing: border-box;
+}
+
 // button {
 //   margin: 0;
 //   border: 0;
