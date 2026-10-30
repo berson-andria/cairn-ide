@@ -1,0 +1,25 @@
+:host {
+  height: 100%;
+}
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.btn-group {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+.chat {
+  flex-grow: 1;
+}
+
+button {
+  ng-icon {
+    font-size: 1.25rem;
+  }
+  &:hover {
+    color: white;
+  }
+}

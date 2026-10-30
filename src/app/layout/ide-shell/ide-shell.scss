@@ -1,0 +1,374 @@
+:host {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ide-shell-container {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 36px; /* Content viewport + Fixed Telemetry Bottom Bar */
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.ide-main-row {
+  display: flex;
+  flex-direction: row;
+  box-sizing: border-box;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.activity-bar {
+  flex: 0 0 38px;
+  background-color: var(--activity-bar-bg);
+  color: var(--activity-bar-text);
+  border-top: 1px solid #3e4451;
+}
+
+/* Swapped sides: activity bar goes to the right and needs its own seam */
+.ide-shell-container[data-side='swapped'] {
+  .ide-main-row {
+    flex-direction: row-reverse;
+  }
+  .activity-bar {
+    border-left: 1px solid #3e4451;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Workspace: one grid. Sizes are CSS variables written by             */
+/* LayoutService. Layout variants only change grid-template-areas.     */
+/* ------------------------------------------------------------------ */
+.workspace {
+  /* Density tokens. Default = compact: no gap, no radius. */
+  --panel-gap: 0px;
+  --panel-radius: 0px;
+  --hit: 6px; /* gutter grab area, centred on the seam */
+  --gutter-accent: #61afef;
+
+  --explorer-w: 280px;
+  --agent-w: 320px;
+  --terminal-h: 320px;
+
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: var(--explorer-w) minmax(0, 1fr) var(--agent-w);
+  grid-template-rows: minmax(0, 1fr) var(--terminal-h);
+  grid-template-areas:
+    'explorer editor agent'
+    'terminal terminal terminal';
+  /* Spacing = margins on the panels (not grid gap), so a collapsed track leaves no gap behind */
+  padding: calc(var(--panel-gap) / 2);
+  box-sizing: border-box;
+  overflow: hidden;
+
+  &[data-density='comfortable'] {
+    --panel-gap: 6px;
+    --panel-radius: 8px;
+  }
+}
+
+.explorer-panel {
+  grid-area: explorer;
+}
+.editor-panel {
+  grid-area: editor;
+}
+.agent-panel {
+  grid-area: agent;
+}
+.terminal-panel {
+  grid-area: terminal;
+}
+
+.panel {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  margin: calc(var(--panel-gap) / 2);
+  overflow: hidden;
+  background: var(--base-bg) !important;
+  border: 1px solid var(--agent-panel-border);
+  border-radius: var(--panel-radius);
+
+  /* A collapsed panel sits in a 0-size track and drops borders / padding / margins */
+  &.collapsed {
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}
+
+.explorer-panel {
+  color: var(--explorer-text) !important;
+}
+.editor-panel {
+  padding: 0.25em 0;
+}
+.agent-panel {
+  padding: 0.25em;
+  color: var(--agent-panel-text);
+}
+
+/* Compact (no gap): panels touch, so each seam is drawn once: top + left border only */
+.workspace[data-density='compact'] .panel {
+  border-width: 1px 0 0 1px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Terminal span x side: only the areas change, never the DOM.         */
+/* ------------------------------------------------------------------ */
+@mixin layout($cols, $row1, $row2) {
+  .workspace {
+    grid-template-columns: $cols;
+    grid-template-areas: $row1 $row2;
+  }
+}
+
+/* normal side: explorer | editor | agent */
+.ide-shell-container[data-side='normal'] {
+  &[data-span='all'] {
+    @include layout(
+      var(--explorer-w) minmax(0, 1fr) var(--agent-w),
+      'explorer editor agent',
+      'terminal terminal terminal'
+    );
+  }
+  &[data-span='editor'] {
+    @include layout(
+      var(--explorer-w) minmax(0, 1fr) var(--agent-w),
+      'explorer editor agent',
+      'explorer terminal agent'
+    );
+  }
+  &[data-span='with-explorer'] {
+    @include layout(
+      var(--explorer-w) minmax(0, 1fr) var(--agent-w),
+      'explorer editor agent',
+      'terminal terminal agent'
+    );
+  }
+  &[data-span='with-agent'] {
+    @include layout(
+      var(--explorer-w) minmax(0, 1fr) var(--agent-w),
+      'explorer editor agent',
+      'explorer terminal terminal'
+    );
+  }
+}
+
+/* swapped side: agent | editor | explorer */
+.ide-shell-container[data-side='swapped'] {
+  &[data-span='all'] {
+    @include layout(
+      var(--agent-w) minmax(0, 1fr) var(--explorer-w),
+      'agent editor explorer',
+      'terminal terminal terminal'
+    );
+  }
+  &[data-span='editor'] {
+    @include layout(
+      var(--agent-w) minmax(0, 1fr) var(--explorer-w),
+      'agent editor explorer',
+      'agent terminal explorer'
+    );
+  }
+  &[data-span='with-explorer'] {
+    @include layout(
+      var(--agent-w) minmax(0, 1fr) var(--explorer-w),
+      'agent editor explorer',
+      'agent terminal terminal'
+    );
+  }
+  &[data-span='with-agent'] {
+    @include layout(
+      var(--agent-w) minmax(0, 1fr) var(--explorer-w),
+      'agent editor explorer',
+      'terminal terminal explorer'
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Gutters: zero-size grid items placed in their own panel's area and  */
+/* pinned to its trailing edge. That edge is the middle of the gap     */
+/* (panels carry the margins), and the gutter automatically spans      */
+/* only as many rows / columns as its panel. Grab area = ::before,     */
+/* visible line = ::after (hover / drag only).                         */
+/* ------------------------------------------------------------------ */
+.gutter {
+  position: relative;
+  z-index: 5;
+  touch-action: none;
+  user-select: none;
+  will-change: transform;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+  }
+
+  &::after {
+    border-radius: 2px;
+    background-color: transparent;
+    transition: background-color 0.15s; /* paint only, never layout */
+    pointer-events: none;
+  }
+
+  &:hover::after,
+  &.active::after {
+    background-color: var(--gutter-accent);
+  }
+
+  &--h {
+    width: 0;
+    cursor: col-resize;
+
+    &::before {
+      top: 0;
+      bottom: 0;
+      left: calc(var(--hit) / -2);
+      width: var(--hit);
+    }
+    &::after {
+      top: 0;
+      bottom: 0;
+      left: -1px;
+      width: 2px;
+    }
+  }
+
+  &--v {
+    height: 0;
+    justify-self: stretch;
+    align-self: start; /* top edge of the terminal area */
+    cursor: row-resize;
+
+    &::before {
+      left: 0;
+      right: 0;
+      top: calc(var(--hit) / -2);
+      height: var(--hit);
+    }
+    &::after {
+      left: 0;
+      right: 0;
+      top: -1px;
+      height: 2px;
+    }
+  }
+
+  &--explorer {
+    grid-area: explorer;
+    justify-self: end;
+  }
+  &--agent {
+    grid-area: agent;
+    justify-self: start;
+  }
+  &--terminal {
+    grid-area: terminal;
+  }
+
+  &--hidden {
+    display: none;
+  }
+}
+
+.ide-shell-container[data-side='swapped'] {
+  .gutter--explorer {
+    justify-self: start;
+  }
+  .gutter--agent {
+    justify-self: end;
+  }
+}
+
+/* Collapsed explorer: the grab area stays inside the window, not over the activity bar */
+.gutter--flush::before {
+  left: 0;
+}
+.ide-shell-container[data-side='swapped'] .gutter--flush::before {
+  left: auto;
+  right: 0;
+}
+
+/* While dragging: cursor locked, no text selection, children don't steal the pointer */
+.workspace[data-drag] {
+  user-select: none;
+
+  .panel {
+    pointer-events: none;
+  }
+}
+
+.workspace[data-drag='explorer'],
+.workspace[data-drag='agent'] {
+  cursor: col-resize;
+}
+
+.workspace[data-drag='terminal'] {
+  cursor: row-resize;
+}
+
+/* 3. Telemetry Tape at Bottom Edge */
+.status-bar-placeholder {
+  background-color: var(--status-bar-bg);
+  color: var(--status-bar-text);
+  border-top: 1px solid #3e4451;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 15px;
+  font-size: 1.125rem;
+}
+
+.status-group {
+  display: flex;
+  align-items: center;
+  gap: 1.25em;
+}
+
+.status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0 0.25em;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.count--error {
+  color: #e05561;
+}
+.count--warning {
+  color: #d18f52;
+}
+
+.dot {
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+  background-color: #7f848e; /* idle */
+
+  &--ok {
+    background-color: #8cc265;
+  }
+  &--busy {
+    background-color: #d18f52;
+  }
+  &--error {
+    background-color: #e05561;
+  }
+}

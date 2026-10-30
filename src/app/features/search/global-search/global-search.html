@@ -1,0 +1,113 @@
+<div class="container">
+  <div class="header">
+    <span>Search</span>
+    <div class="btn-group">
+      @if (isSearching()) {
+        <span class="spinner">
+          <ng-icon name="lucideLoader2" class="spin"></ng-icon>
+        </span>
+      }
+      <button
+        title="Toggle replace"
+        [class.active]="showReplace()"
+        (click)="showReplace.set(!showReplace())"
+      >
+        <ng-icon name="lucideReplace"></ng-icon>
+      </button>
+      <button
+        title="Toggle search filters\"
+        [class.active]="showFilters() || activeFilterCount() > 0"
+        (click)="showFilters.set(!showFilters())"
+      >
+        <ng-icon name="lucideFilter"></ng-icon>
+      </button>
+      <button (click)="nodeStore.refreshExplorer()">
+        <ng-icon name="lucideRefreshCcw" />
+      </button>
+    </div>
+  </div>
+  <div class="search">
+    <div class="input-form">
+      <input
+        type="text"
+        [(ngModel)]="keyword"
+        (ngModelChange)="onValueChange($event)"
+        placeholder="Search"
+        autofocus
+      />
+
+      <button><ng-icon name="lucideCaseSensitive"></ng-icon></button>
+      <button><ng-icon name="lucideWholeWord"></ng-icon></button>
+    </div>
+    @if (showReplace()) {
+      <span><ng-icon name="lucideUnlink2"></ng-icon></span>
+      <div class="input-form">
+        <input
+          type="text"
+          placeholder="Replace (use $1 for groups)"
+          [ngModel]="replacement()"
+          (ngModelChange)="replacement.set($event)"
+          (keydown.enter)="replaceAll()"
+        />
+        <button title="Replace all" [disabled]="!canReplace()" (click)="replaceAll()">
+          <ng-icon name="lucideReplaceAll"></ng-icon>
+        </button>
+      </div>
+    }
+  </div>
+  @if (showFilters()) {
+    <div class="filters">
+      <label for="search-include">Files to include</label>
+      <div class="input-form">
+        <input
+          id="search-include"
+          type="text"
+          placeholder="e.g. *.ts, src/**"
+          [ngModel]="include()"
+          (ngModelChange)="include.set($event); trigger()"
+        />
+      </div>
+      <label for="search-exclude">Files to exclude</label>
+      <div class="input-form">
+        <input
+          id="search-exclude"
+          type="text"
+          placeholder="e.g. **/*.spec.ts, dist"
+          [ngModel]="exclude()"
+          (ngModelChange)="exclude.set($event); trigger()"
+        />
+      </div>
+      <div class="input-group">
+        <input
+          id="open-editors-only"
+          type="checkbox"
+          [ngModel]="openEditorsOnly()"
+          (ngModelChange)="openEditorsOnly.set($event); trigger()"
+        />
+        <label for="open-editors-only">Search only in open editors</label>
+      </div>
+    </div>
+  }
+  <div class="result">
+    @for (result of searchResults(); track result.path) {
+      <search-result
+        [result]="result"
+        [rootPath]="rootPath()"
+        [keyword]="keyword"
+        [replaceMode]="showReplace()"
+        [pattern]="compiled().re"
+        [replacement]="replacement()"
+        (replaceLine)="replaceInLine(result, $event)"
+        (replaceFile)="replaceInFile(result)"
+      ></search-result>
+    }
+  </div>
+  @if (showReplace() && compiled().error) {
+    <p class="warning">{{ compiled().error }}</p>
+  }
+  @if (warningMessage()) {
+    <p class="warning">{{ warningMessage() }}</p>
+  } @else if (searched() && !isSearching() && searchResults().length === 0) {
+    <p class="no-results">No results found.</p>
+  }
+</div>

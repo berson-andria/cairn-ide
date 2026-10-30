@@ -1,0 +1,116 @@
+<section class="source-control" aria-label="Source control">
+  <header class="sc-header">
+    <span>Graph</span>
+    <div class="icon-actions">
+      @if (git.isRepo()) {
+        <div class="icon-actions">
+          <button
+            type="button"
+            title="Stash all changes"
+            aria-label="Stash all changes"
+            [disabled]="!changedFiles().length || git.busy()"
+            (click)="runAction(git.stash.bind(git), 'Changes stashed.')"
+          >
+            <ng-icon name="bootstrapSave"></ng-icon>
+          </button>
+          <button
+            type="button"
+            title="Discard all changes"
+            aria-label="Discard all changes"
+            [disabled]="!changedFiles().length || git.busy()"
+            (click)="discardAll()"
+          >
+            <ng-icon name="lucideUndo"></ng-icon>
+          </button>
+          <button
+            type="button"
+            title="Stage all changes"
+            aria-label="Stage all changes"
+            [disabled]="!changedFiles().length || git.busy()"
+            (click)="stageAll()"
+          >
+            <ng-icon name="lucidePlus" />
+          </button>
+          <button
+            type="button"
+            title="Refresh"
+            aria-label="Refresh source control"
+            (click)="git.refresh()"
+          >
+            <ng-icon name="lucideRefreshCcw" />
+          </button>
+        </div>
+      }
+    </div>
+  </header>
+
+  @if (notice(); as n) {
+    <div class="notice" [class.notice--error]="n.kind === 'error'" role="alert">
+      <span class="notice-text">{{ n.text }}</span>
+      <button type="button" class="notice-close" aria-label="Dismiss" (click)="notice.set(null)">
+        ×
+      </button>
+    </div>
+  }
+
+  @if (!git.isRepo()) {
+    <div class="not-initialized">
+      <div class="git-mark" aria-hidden="true"><ng-icon name="lucideGitBranch" /></div>
+      @if (git.error(); as problem) {
+        <h3>Git is not available</h3>
+        <p>{{ problem }}</p>
+        <p>Install Git and make sure it is on your PATH, then restart the app.</p>
+      } @else if (!hasFolder()) {
+        <h3>No folder is open</h3>
+        <p>Open a folder to see its source control status.</p>
+      } @else {
+        <h3>Source control is not initialized</h3>
+        <p>Initialize a Git repository in this folder to start tracking changes.</p>
+        <button class="primary-btn" type="button" [disabled]="git.busy()" (click)="initializeGit()">
+          Initialize Repository
+        </button>
+      }
+    </div>
+  } @else {
+    <div class="file-groups">
+      @for (commit of history(); track commit.hash) {
+        <section class="file-group" [class.expanded]="expandedCommit() === commit.hash">
+          <header class="group-header" (click)="getCommitFiles(commit.hash)">
+            <button type="button" class="group-toggle">
+              <ng-icon
+                [class.rotated]="expandedCommit() === commit.hash"
+                name="lucideChevronDown"
+              />
+              <span class="count">{{ commit.subject }}</span>
+            </button>
+          </header>
+          @if (expandedCommit() === commit.hash) {
+            @for (file of commitFileMap().get(commit.hash); track file.path) {
+              <div class="file-row">
+                <ng-icon class="file-icon" name="lucideFile" />
+                <span class="file-path" [title]="file.path" (click)="openDiff(commit.hash, file)">{{
+                  file.path
+                }}</span>
+                <!-- <span [class]="statusClass(file.status)" [title]="statusLabel(file.status)">{{
+                  file.status
+                }}</span> -->
+
+                <button
+                  class="row-action"
+                  type="button"
+                  title="Stage file"
+                  [attr.aria-label]="'Stage ' + file.path"
+                  [disabled]="git.busy()"
+                >
+                  +
+                </button>
+              </div>
+            } @empty {
+              <p class="empty-group">No changes detected</p>
+            }
+          }
+        </section>
+      }
+    </div>
+  }
+</section>

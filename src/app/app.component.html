@@ -1,0 +1,152 @@
+<div class="title-bar" data-tauri-drag-region>
+  <div class="title">
+    <div class="icon">
+      <!-- <img src="/assets/g3.svg" alt="" srcset="" /> -->
+    </div>
+    <div class="menu">
+      @if (nodeStore.rootName()) {
+        <!-- Main Trigger Button -->
+        <button class="trigger-btn" [cdkMenuTriggerFor]="mainMenu">
+          <span>
+            <img
+              [src]="'assets/node-icons/folder_root_open.svg'"
+              class="node-icon"
+              alt="file-icon"
+            />
+          </span>
+          <span class="node-name">{{ nodeStore.rootName() }}</span>
+          <ng-icon name="lucideChevronDown" style="margin-left: 8px" />
+        </button>
+
+        <!-- 1. The Main Dropdown Menu -->
+        <ng-template #mainMenu>
+          <div class="dropdown-panel main-menu" cdkMenu>
+            <button
+              class="menu-item"
+              cdkMenuItem
+              (cdkMenuItemTriggered)="triggerAction('New Window')"
+            >
+              New Window
+            </button>
+
+            <hr class="menu-divider" />
+            <button class="menu-item" cdkMenuItem (cdkMenuItemTriggered)="openFile()">
+              Open File
+            </button>
+            <button class="menu-item" cdkMenuItem (cdkMenuItemTriggered)="commands.openFolder()">
+              Open Folder
+            </button>
+            <!-- 2. Submenu Trigger (Open Recent) -->
+            <!-- <button class="menu-item submenu-trigger" cdkMenuItem [cdkMenuTriggerFor]="recentMenu"> -->
+            <button class="menu-item submenu-trigger" cdkMenuItem>
+              Open Recent
+              <ng-icon name="bootstrapChevronRight"></ng-icon>
+            </button>
+            <hr class="menu-divider" />
+            <button class="menu-item" [disabled]="!tabStore.activeTabId()" (click)="saveFile()">
+              Save
+            </button>
+            <button class="menu-item" [disabled]="!nodeStore.rootPath()" (click)="saveFiles()">
+              Save All
+            </button>
+          </div>
+        </ng-template>
+
+        <!-- 3. The Nested Drop-Right Submenu Panel -->
+        <!-- <ng-template #recentMenu>
+          <div class="dropdown-panel submenu-panel" cdkMenu>
+            <!-- @for (file of fileExplorerService.recentFolder(); track file) {
+              <button
+                class="menu-item"
+                cdkMenuItem
+                (cdkMenuItemTriggered)="triggerAction('Open: ' + file)"
+              >
+                {{ file }}
+              </button>
+            } @empty {
+              <div class="menu-item disabled">No recent files</div>
+            } -->
+        <!-- </div>
+        </ng-template> -->
+      }
+      <!-- Main Trigger Button -->
+    </div>
+  </div>
+  <div class="search-container">
+    <div class="search">
+      <div class="global-search">
+        <button (click)="layoutService.openGlobalSearch()">
+          <ng-icon name="bootstrapSearch"></ng-icon>
+        </button>
+      </div>
+      <div class="file-search" (click)="layoutService.openFileSearch()">
+        @if (nodeName().length > 0) {
+          <img
+            [src]="'assets/node-icons/' + getIconName(nodeName(), 'file', false) + '.svg'"
+            class="node-icon"
+          />
+          <span>{{ nodeName() }}</span>
+        } @else {
+          <span>Open Project file</span>
+        }
+        <ng-icon name="bootstrapChevronDown" />
+      </div>
+    </div>
+  </div>
+  <div class="window-actions">
+    <div class="toggles" style="margin-right: 2em">
+      <button
+        class="activity-icon square"
+        [ngClass]="{
+          'is-active':
+            !layoutService.isSecondaryPanelCollapesed() &&
+            layoutService.activeSecondaryPanel() == 'Note',
+        }"
+        (click)="toggleSecondaryPanelContent('Note')"
+      >
+        <ng-icon name="lucideNotepadText" size="1.25em" />
+      </button>
+      <button
+        class="activity-icon square"
+        [ngClass]="{
+          'is-active':
+            !layoutService.isSecondaryPanelCollapesed() &&
+            layoutService.activeSecondaryPanel() == 'Todo',
+        }"
+        (click)="toggleSecondaryPanelContent('Todo')"
+      >
+        <ng-icon name="lucideListTodo" size="1.25em" />
+      </button>
+      <button
+        class="activity-icon square"
+        [ngClass]="{
+          'is-active':
+            !layoutService.isSecondaryPanelCollapesed() &&
+            layoutService.activeSecondaryPanel() == 'Agent',
+        }"
+        class="agent"
+        (click)="toggleSecondaryPanelContent('Agent')"
+      >
+        <ng-icon name="lucideAudioWaveform " size="1.25em" />
+      </button>
+    </div>
+    <div class="title-bar-actions">
+      <button id="titlebar-minimize" class="titlebar-button" (click)="minimizeWindow()">
+        <ng-icon name="bootstrapDashLg" />
+      </button>
+      <button id="titlebar-maximize" class="titlebar-button" (click)="toggleMaximize()">
+        @if (isMaximized()) {
+          <ng-icon name="bootstrapFiles" />
+        } @else {
+          <ng-icon name="bootstrapSquare" />
+        }
+      </button>
+      <button id="titlebar-close" class="titlebar-button btn-danger" (click)="closeWindow()">
+        <ng-icon name="bootstrapXLg" />
+      </button>
+    </div>
+  </div>
+</div>
+<main>
+  <ide-shell></ide-shell>
+</main>

@@ -1,0 +1,62 @@
+<div class="container">
+  <div class="tabs">
+    <div
+      class="opened-files"
+      cdkDropList
+      cdkDropListOrientation="horizontal"
+      (cdkDropListDropped)="onTabDrop($event)"
+    >
+      @for (tab of tabs(); track tab.id) {
+        <div
+          class="node"
+          cdkDrag
+          cdkDragLockAxis="x"
+          [ngClass]="{
+            'is-active': tab.active,
+            'is-dirty': tab.dirty,
+            'is-diff': tab.kind === 'diff',
+          }"
+          [title]="tab.tooltip"
+          (click)="openTab(tab.id)"
+        >
+          <img
+            [src]="'assets/node-icons/' + tab.icon + '.svg'"
+            class="node-icon"
+            alt="folder-icon"
+          />
+          <span>{{ tab.label }}</span>
+
+          <button (click)="$event.stopPropagation(); closeTab(tab.id)">x</button>
+        </div>
+      }
+    </div>
+    <div class="unsaved-control">
+      <button title="Highlight Unsaved Files">Unsaved · {{ dirtyFileCount() }}</button>
+    </div>
+  </div>
+  <div class="path">
+    @for (p of filePath(); track $index) {
+      <span style="display: flex; align-items: center">
+        @if ($last && activeTab(); as tab) {
+          <img
+            [src]="'assets/node-icons/' + tab.icon + '.svg'"
+            class="node-icon"
+            alt="folder-icon"
+            style="margin-left: 4px"
+          />
+        }
+        {{ p }} >
+      </span>
+    }
+  </div>
+  <div class="file-content">
+    <div class="pane" [class.hidden]="activeKind() === 'diff'">
+      <app-code-editor></app-code-editor>
+    </div>
+    @if (hasDiffTabs()) {
+      <div class="pane" [class.hidden]="activeKind() !== 'diff'">
+        <diff-editor></diff-editor>
+      </div>
+    }
+  </div>
+</div>

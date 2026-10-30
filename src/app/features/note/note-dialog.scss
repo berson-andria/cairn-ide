@@ -1,0 +1,155 @@
+:host {
+  display: block;
+  height: 100%;
+  min-height: 280px;
+  color: #f1f3f5;
+}
+
+.note-dialog {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: #181a1c;
+}
+
+.note-dialog__header,
+.note-dialog__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #292c2f;
+}
+
+.note-dialog__header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.note-dialog__close {
+  border: 0;
+  background: transparent;
+  color: #aeb4ba;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.note-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 12px 14px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.note-dialog__label {
+  display: block;
+  margin: 0 0 5px;
+  color: #aeb4ba;
+  font-size: 11px;
+}
+.note-dialog__input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid #303439;
+  border-radius: 6px;
+  outline: none;
+  background: #151719;
+  color: #f1f3f5;
+  font: inherit;
+}
+.note-dialog__input:focus {
+  border-color: #6678ff;
+}
+.note-dialog__markdown { display: block; height: 220px; min-height: 160px; margin-bottom: 10px; }
+
+.note-dialog__files-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 0 7px;
+  color: #cbd0d4;
+  font-size: 12px;
+  font-weight: 600;
+}
+.note-dialog__count {
+  color: #858d94;
+  font-weight: 400;
+}
+.note-dialog__files-heading .note-dialog__secondary {
+  margin-left: auto;
+}
+.note-dialog__file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: #202326;
+  color: #cbd0d4;
+  font-size: 11px;
+}
+.note-dialog__file + .note-dialog__file {
+  margin-top: 4px;
+}
+.note-dialog__file span {
+  flex: 0 0 auto;
+  max-width: 35%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-dialog__file small {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: #858d94;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-dialog__file button {
+  border: 0;
+  background: transparent;
+  color: #92999f;
+  font-size: 16px;
+  cursor: pointer;
+}
+.note-dialog__empty-files {
+  margin: 0;
+  color: #858d94;
+  font-size: 11px;
+}
+
+.note-dialog__actions {
+  justify-content: flex-end;
+  border-top: 1px solid #292c2f;
+  border-bottom: 0;
+}
+.note-dialog__primary,
+.note-dialog__secondary {
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.note-dialog__secondary {
+  background: #292d31;
+  color: #c5c9ce;
+}
+.note-dialog__secondary:hover {
+  background: #33373c;
+}
+.note-dialog__primary {
+  background: #6678ff;
+  color: #fff;
+}
+.note-dialog__primary:hover {
+  background: #7485ff;
+}

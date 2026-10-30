@@ -1,0 +1,46 @@
+<div class="container">
+  <div>
+    <button
+      class="activity-icon square"
+      [ngClass]="{
+        'is-active':
+          !layoutService.isPrimaryPanelCollapsed() &&
+          layoutService.activePrimaryPanel() == 'Explorer',
+      }"
+      [appBadge]="dirtyFileCount()"
+      (click)="toggleLeftPanelContent('Explorer')"
+    >
+      <ng-icon name="bootstrapFolder " />
+    </button>
+    <button
+      class="activity-icon square"
+      [ngClass]="{
+        'is-active':
+          !layoutService.isPrimaryPanelCollapsed() &&
+          layoutService.activePrimaryPanel() == 'Commit',
+      }"
+      (click)="toggleLeftPanelContent('Commit')"
+    >
+      <ng-icon name="lucideGitCommit  " />
+    </button>
+    <button
+      class="activity-icon square"
+      [ngClass]="{
+        'is-active':
+          !layoutService.isPrimaryPanelCollapsed() && layoutService.activePrimaryPanel() == 'Graph',
+      }"
+      (click)="toggleLeftPanelContent('Graph')"
+    >
+      <ng-icon name="lucideGitGraph   " />
+    </button>
+  </div>
+  <div>
+    <!-- <button class="square"><ng-icon name="lucidePlay" /></button> -->
+    <button class="square" (click)="toggleTerminalPanel()">
+      <ng-icon name="lucideTerminal" />
+    </button>
+    <button class="square"><ng-icon name="lucideAlertOctagon "></ng-icon></button>
+    <button class="square"><ng-icon name="lucideLogs " /></button>
+    <button class="square" (click)="openSetting()"><ng-icon name="lucideSettings2" /></button>
+  </div>
+</div>

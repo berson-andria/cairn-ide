@@ -1,0 +1,182 @@
+<div class="settings">
+  <header class="settings__header">
+    <h2 class="settings__title">Settings</h2>
+
+    <div class="search">
+      <input
+        #searchInput
+        class="search__input"
+        type="search"
+        placeholder="Search settings"
+        aria-label="Search settings"
+        autocomplete="off"
+        spellcheck="false"
+        [value]="query()"
+        (input)="onSearch($event)"
+        (keydown)="onSearchKey($event)"
+      />
+    </div>
+
+    <div class="settings__actions">
+      <button
+        type="button"
+        class="chip"
+        [attr.aria-pressed]="onlyModified()"
+        (click)="onlyModified.set(!onlyModified())"
+      >
+        Modified
+        @if (settings.modifiedCount() > 0) {
+          <span class="chip__count">{{ settings.modifiedCount() }}</span>
+        }
+      </button>
+      <button
+        type="button"
+        class="link"
+        [disabled]="settings.modifiedCount() === 0"
+        (click)="settings.resetAll()"
+      >
+        Reset all
+      </button>
+    </div>
+  </header>
+
+  <div class="settings__body">
+    <nav class="nav" aria-label="Settings categories">
+      @for (c of categories; track c.id) {
+        <button
+          type="button"
+          class="nav__item"
+          [class.is-active]="isCategoryActive(c.id)"
+          [attr.aria-current]="isCategoryActive(c.id) ? 'page' : null"
+          (click)="selectCategory(c.id)"
+        >
+          <span class="nav__label">{{ c.label }}</span>
+          @if (isFiltering()) {
+            <span class="nav__count">{{ counts()[c.id] ?? 0 }}</span>
+          }
+        </button>
+      }
+    </nav>
+
+    <main class="content" aria-live="polite">
+      @for (group of groups(); track group.id) {
+        <section class="group">
+          <h3 class="group__title">{{ group.title }}</h3>
+
+          @for (def of group.defs; track def.key) {
+            <div class="row" [class.is-modified]="settings.isModified(def.key)">
+              <div class="row__text">
+                <label class="row__label" [for]="controlId(def)" [id]="controlId(def) + '-label'">
+                  @if (isFiltering()) {
+                    <span class="row__cat">{{ categoryLabel(def) }}:</span>
+                  }
+                  {{ def.label }}
+                </label>
+                <p class="row__desc">{{ def.description }}</p>
+                @if (def.type === 'select' && selectedHint(def)) {
+                  <p class="row__hint">{{ selectedHint(def) }}</p>
+                }
+                <code class="row__key">{{ def.key }}</code>
+              </div>
+
+              <div class="row__control">
+                @switch (def.type) {
+                  @case ('boolean') {
+                    <button
+                      type="button"
+                      class="toggle"
+                      role="switch"
+                      [id]="controlId(def)"
+                      [attr.aria-checked]="bool(def)"
+                      (click)="toggle(def)"
+                    >
+                      <span class="toggle__knob"></span>
+                    </button>
+                  }
+                  @case ('number') {
+                    <span class="number">
+                      <input
+                        class="field field--number"
+                        type="number"
+                        inputmode="decimal"
+                        [id]="controlId(def)"
+                        [attr.min]="def.min"
+                        [attr.max]="def.max"
+                        [attr.step]="def.step"
+                        [value]="num(def)"
+                        (change)="onNumber(def, $event)"
+                      />
+                      @if (def.unit) {
+                        <span class="number__unit">{{ def.unit }}</span>
+                      }
+                    </span>
+                  }
+                  @case ('select') {
+                    @if (def.ui === 'segmented') {
+                      <div
+                        class="segmented"
+                        role="radiogroup"
+                        [id]="controlId(def)"
+                        [attr.aria-labelledby]="controlId(def) + '-label'"
+                      >
+                        @for (o of def.options; track o.value) {
+                          <button
+                            type="button"
+                            class="segmented__item"
+                            role="radio"
+                            [attr.aria-checked]="str(def) === o.value"
+                            (click)="pick(def, o.value)"
+                          >
+                            {{ o.label }}
+                          </button>
+                        }
+                      </div>
+                    } @else {
+                      <select class="field field--select" [id]="controlId(def)" (change)="onSelect(def, $event)">
+                        @for (o of def.options; track o.value) {
+                          <option [value]="o.value" [selected]="str(def) === o.value">{{ o.label }}</option>
+                        }
+                      </select>
+                    }
+                  }
+                  @case ('text') {
+                    <input
+                      class="field field--text"
+                      [class.is-mono]="def.monospace"
+                      type="text"
+                      spellcheck="false"
+                      [id]="controlId(def)"
+                      [attr.placeholder]="def.placeholder"
+                      [value]="str(def)"
+                      (change)="onText(def, $event)"
+                    />
+                  }
+                }
+
+                @if (settings.isModified(def.key)) {
+                  <button
+                    type="button"
+                    class="row__reset"
+                    [attr.aria-label]="'Reset ' + def.label + ' to default'"
+                    title="Reset to default"
+                    (click)="settings.reset(def.key)"
+                  >
+                    Reset
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </section>
+      } @empty {
+        <p class="empty">
+          @if (onlyModified() && !query().trim()) {
+            No settings have been changed.
+          } @else {
+            No settings match “{{ query() }}”.
+          }
+        </p>
+      }
+    </main>
+  </div>
+</div>

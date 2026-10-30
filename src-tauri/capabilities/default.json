@@ -1,0 +1,59 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:resources:allow-close",
+    "core:resources:default",
+    "core:window:default",
+    "core:window:allow-set-size",
+    "core:window:allow-current-monitor",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-center",
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "core:window:allow-set-decorations",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-fullscreen",
+    "core:event:allow-listen",
+    "core:event:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "dialog:allow-ask",
+    "fs:allow-watch",
+    "fs:allow-read-dir",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read",
+    "fs:allow-write",
+    "fs:allow-stat",
+    "fs:allow-rename",
+    "fs:allow-remove",
+    "fs:allow-copy-file",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "**/*" }, { "path": "**\\*" }]
+    },
+    "shell:allow-execute",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        { "name": "rust-analyzer", "cmd": "rust-analyzer" },
+        { "name": "clangd", "cmd": "clangd" },
+        { "name": "zsh", "cmd": "zsh", "args": true },
+        { "name": "cmd", "cmd": "cmd", "args": true }
+      ]
+    },
+    "opener:default",
+    "opener:allow-default-urls",
+    "log:default"
+  ]
+}

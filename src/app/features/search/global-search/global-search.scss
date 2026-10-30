@@ -1,0 +1,123 @@
+:host {
+  height: 100%;
+}
+.container {
+  height: 80%;
+  .header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.25em;
+    .btn-group {
+      display: flex;
+      flex-direction: row;
+      gap: 0.5em;
+      span {
+        display: inline-flex;
+        align-items: center;
+        ng-icon {
+          font-size: 1.125rem;
+          color: white;
+        }
+        .spin {
+          animation: spin 1s linear infinite;
+          display: inline-flex; /* Ensures proper transform origin and alignment */
+        }
+
+        @keyframes spin {
+          0% {
+            transform: rotate(0deg);
+          }
+          100% {
+            transform: rotate(360deg);
+          }
+        }
+      }
+      button {
+        display: inline-flex;
+        align-items: center;
+        ng-icon {
+          font-size: 1.125rem;
+          color: var(--explorer-text) !important;
+        }
+        &:hover {
+          ng-icon {
+            color: white !important;
+          }
+        }
+      }
+    }
+  }
+  .search {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.25em;
+    padding: 0.25em 0.75em;
+    background: var(--title-bar-bg) !important;
+    span {
+      display: inline-flex;
+      align-items: center;
+    }
+    .input-form {
+      flex: 1;
+      display: flex;
+      width: 100%;
+      flex-direction: row;
+      border: 1px solid #3e4451;
+      border-radius: 0.25em;
+      background: var(--title-bar-bg) !important;
+
+      input {
+        flex-grow: 1;
+        padding: 0.25em 0.125em;
+        border: 0;
+      }
+      button {
+        display: inline-flex;
+        align-items: center;
+        margin-left: 0.125em;
+        ng-icon {
+          font-size: 1.125rem;
+          color: var(--explorer-text) !important;
+        }
+        &:hover {
+          background-color: var(--activity-bar-hover-bg);
+          ng-icon {
+            color: white !important;
+          }
+        }
+      }
+    }
+  }
+  p {
+    padding: 0 0.75em;
+  }
+  .result {
+    max-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+    scrollbar-width: thin;
+    scrollbar-color: #282e31 #0000000f;
+
+    display: block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 14px;
+    user-select: none;
+    padding: 0 0.75em;
+
+    &::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    /* Thumb hover state */
+    &::-webkit-scrollbar-thumb:hover {
+      background: #333;
+    }
+    &::-webkit-scrollbar-button {
+      display: none;
+    }
+  }
+}

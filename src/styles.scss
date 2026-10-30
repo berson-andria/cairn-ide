@@ -1,0 +1,365 @@
+@import '@angular/cdk/overlay-prebuilt.css';
+@import '@xterm/xterm/css/xterm.css';
+// Cairn design tokens
+// Source: the token sheet and the screens on the design canvas.
+// Dark theme only. A light theme has not been designed yet.
+//
+// Rules the tokens encode:
+// - Amber ($color-attention) is only for things that need you: review, new files, conflicts.
+// - Primary buttons are neutral ($color-primary), never amber.
+// - Status is always color AND shape (see the status notes below).
+
+// ---------- Surfaces ----------
+$color-bg-base: #1c1a17; // editor, inputs
+$color-bg-panel: #211e1a; // rail, bottom panel, dialogs
+$color-bg-raised: #2a2620; // selected row, popovers, toasts
+$color-bg-hover: #2e2a24; // hover, dividers, active tab chip
+$color-border: #3a352d;
+$color-border-strong: #4a443a;
+$color-bg-scrim: #141210; // behind modal dialogs
+$color-bg-editor-band: #24211b; // highlight behind the current function
+$color-bg-diff: #201d19; // diff container
+$color-bg-diff-empty: #1b1916; // empty row opposite an added or removed line
+
+// ---------- Text ----------
+$color-text-primary: #e8e2d6;
+$color-text-secondary: #c9c1b0;
+$color-text-code: #d8d0c0;
+$color-text-muted: #a39b8b;
+$color-text-faint: #7f7868; // line numbers, disabled labels
+$color-text-comment: #8a8374; // code comments
+$color-text-on-primary: #1c1a17; // text on the primary button
+
+// ---------- Actions and attention ----------
+$color-primary: #e8e2d6; // primary button fill
+$color-primary-hover: #f5f0e6;
+$color-attention: #e2a93b; // needs you, nothing else
+
+// ---------- Status (pair each color with its shape) ----------
+$color-status-todo: #a39b8b; // ring
+$color-status-running: #7fb0d9; // half ring
+$color-status-review: #e2a93b; // diamond
+$color-status-done: #6f8f6b; // dot
+$color-status-blocked: #d49a8a; // dashed square
+
+$status-colors: (
+  todo: $color-status-todo,
+  running: $color-status-running,
+  review: $color-status-review,
+  done: $color-status-done,
+  blocked: $color-status-blocked,
+);
+
+// ---------- Feedback tints (background / text) ----------
+$tint-added-bg: #1f2a1e;
+$tint-added-fg: #b9d2ae;
+$tint-removed-bg: #2e1d1b;
+$tint-removed-fg: #e0b0a6;
+$tint-warning-bg: #382f1c;
+$tint-warning-fg: #e2c27b;
+$tint-error-bg: #3a2420;
+$tint-error-fg: #e0b0a6;
+
+// ---------- Typography ----------
+$font-ui: 'Instrument Sans', system-ui, sans-serif;
+$font-code: 'JetBrains Mono', ui-monospace, monospace;
+
+$font-size-label: 11px; // uppercase section labels
+$font-size-small: 12px;
+$font-size-ui: 13px;
+$font-size-prose: 14px;
+$font-size-title: 18px; // section title
+$font-size-page: 26px; // page title (28px on task views)
+$font-size-display: 32px;
+$font-size-code: 13px;
+
+$font-weight-regular: 400;
+$font-weight-medium: 500;
+$font-weight-bold: 600;
+
+$line-height-prose: 1.6;
+$line-height-ui: 1.45;
+$line-height-code: 22px; // editor
+$line-height-diff: 24px; // diff rows
+
+$letter-spacing-label: 0.08em;
+
+// ---------- Spacing ----------
+$space-1: 4px;
+$space-2: 8px;
+$space-3: 12px;
+$space-4: 16px;
+$space-5: 24px;
+$space-6: 32px;
+
+// ---------- Radii ----------
+$radius-chip: 4px;
+$radius-control: 6px; // buttons, inputs
+$radius-panel: 8px;
+$radius-modal: 10px;
+$radius-pill: 14px; // status chip
+
+// ---------- Layout ----------
+$titlebar-height: 38px;
+$tabstrip-height: 36px;
+$statusbar-height: 26px;
+$rail-width: 280px;
+$omnibar-width: 460px;
+$gutter-width: 56px; // line numbers column
+$editor-min-width: 850px; // about 100 columns; panels become overlays below this
+
+// ---------- Elevation ----------
+$shadow-float: 0 2px 8px rgba(0, 0, 0, 0.4); // chip, quick note
+$shadow-popover: 0 4px 14px rgba(0, 0, 0, 0.53); // menus, toasts, dialogs
+
+// ---------- States ----------
+$focus-ring: 2px solid $color-text-primary;
+$focus-ring-offset: 2px;
+$opacity-disabled: 0.4;
+$selected-indicator-width: 3px; // left bar on a selected row, color $color-text-primary
+// Row states: default none, hover $color-bg-hover,
+// selected $color-bg-raised + left bar, focus $focus-ring.
+
+// ---------- Themes ----------
+// Dark is the default. The light theme is selected with <html data-theme="light">.
+// Components should use var(--color-...) so they follow the theme; the $color-... variables above are the dark values.
+
+$theme-dark: (
+  color-bg-base: $color-bg-base,
+  color-bg-panel: $color-bg-panel,
+  color-bg-raised: $color-bg-raised,
+  color-bg-hover: $color-bg-hover,
+  color-border: $color-border,
+  color-border-strong: $color-border-strong,
+  color-bg-scrim: $color-bg-scrim,
+  color-bg-editor-band: $color-bg-editor-band,
+  color-bg-diff: $color-bg-diff,
+  color-bg-diff-empty: $color-bg-diff-empty,
+  color-text-primary: $color-text-primary,
+  color-text-secondary: $color-text-secondary,
+  color-text-code: $color-text-code,
+  color-text-muted: $color-text-muted,
+  color-text-faint: $color-text-faint,
+  color-text-comment: $color-text-comment,
+  color-text-on-primary: $color-text-on-primary,
+  color-primary: $color-primary,
+  color-primary-hover: $color-primary-hover,
+  color-attention: $color-attention,
+  color-status-todo: $color-status-todo,
+  color-status-running: $color-status-running,
+  color-status-review: $color-status-review,
+  color-status-done: $color-status-done,
+  color-status-blocked: $color-status-blocked,
+  tint-added-bg: $tint-added-bg,
+  tint-added-fg: $tint-added-fg,
+  tint-removed-bg: $tint-removed-bg,
+  tint-removed-fg: $tint-removed-fg,
+  tint-warning-bg: $tint-warning-bg,
+  tint-warning-fg: $tint-warning-fg,
+  tint-error-bg: $tint-error-bg,
+  tint-error-fg: $tint-error-fg,
+  shadow-float: 0 2px 8px rgba(0, 0, 0, 0.4),
+  shadow-popover: 0 4px 14px rgba(0, 0, 0, 0.53),
+);
+
+$theme-light: (
+  color-bg-base: #fbf8f2,
+  color-bg-panel: #f3efe6,
+  color-bg-raised: #ece6d8,
+  color-bg-hover: #e4decf,
+  color-border: #d9d2c1,
+  color-border-strong: #c4bca8,
+  color-bg-scrim: #9c9585,
+  color-bg-editor-band: #f0ebdf,
+  color-bg-diff: #f7f3ea,
+  color-bg-diff-empty: #efeadd,
+  color-text-primary: #2a2620,
+  color-text-secondary: #4a443a,
+  color-text-code: #3a352d,
+  color-text-muted: #6e6657,
+  color-text-faint: #8a8372,
+  color-text-comment: #7a7362,
+  color-text-on-primary: #fbf8f2,
+  color-primary: #2a2620,
+  color-primary-hover: #3a352d,
+  color-attention: #9a610a,
+  color-status-todo: #6e6657,
+  color-status-running: #2f73a8,
+  color-status-review: #9a610a,
+  color-status-done: #4e7a4a,
+  color-status-blocked: #a5533e,
+  tint-added-bg: #e3f0dd,
+  tint-added-fg: #2f5e2a,
+  tint-removed-bg: #f8e1dc,
+  tint-removed-fg: #8f3a2b,
+  tint-warning-bg: #f6ecc9,
+  tint-warning-fg: #7a5a0c,
+  tint-error-bg: #f6d9d2,
+  tint-error-fg: #8f3a2b,
+  shadow-float: 0 2px 8px rgba(42, 38, 32, 0.16),
+  shadow-popover: 0 4px 14px rgba(42, 38, 32, 0.22),
+);
+
+@mixin theme-vars($theme) {
+  @each $name, $value in $theme {
+    --#{$name}: #{$value};
+  }
+}
+
+:root {
+  @include theme-vars($theme-dark);
+  --font-ui: #{$font-ui};
+  --font-code: #{$font-code};
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  @include theme-vars($theme-light);
+  color-scheme: light;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+}
+
+// button {
+//   margin: 0;
+//   border: 0;
+//   background-color: transparent;
+//   height: fit-content;
+//   color: var(--base-text);
+//   border-radius: 0.25em;
+//   padding: 0.25em;
+//   cursor: pointer;
+// }
+// .dropdown-panel {
+//   background-color: var(--base-backgroud);
+// }
+// .node-icon {
+//   width: 16px;
+//   margin-right: 6px !important;
+//   display: inline-flex;
+//   align-items: center;
+// }
+
+// input[type='text'] {
+//   border: 1px solid #3e4451;
+//   border-radius: 0.25em;
+//   background-color: transparent;
+//   color: inherit;
+//   outline: none;
+//   box-sizing: border-box;
+//   transition:
+//     border-color 0.2s ease,
+//     box-shadow 0.2s ease;
+// }
+// button.square {
+//   aspect-ratio: 1/1 !important;
+//   box-sizing: border-box !important;
+// }
+// .primary-btn {
+//   background-color: var(--neutral-bg);
+//   color: white;
+// }
+
+// /* Base styles for the injected badge element */
+// .custom-app-badge {
+//   position: absolute;
+//   bottom: -8px;
+//   right: -4px;
+
+//   background-color: #526ed3;
+//   color: white;
+//   font-size: 11px;
+//   padding: 2px 5px;
+//   aspect-ratio: 1/1;
+//   border-radius: 7px;
+
+//   /* Flexbox keeps the number perfectly centered */
+//   display: flex;
+//   align-items: center;
+//   justify-content: center;
+//   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+// }
+
+// mark.custom-highlight {
+//   background-color: rgba(146, 107, 48, 0.4);
+//   color: inherit;
+// }
+
+// .cdk-overlay-backdrop-showing {
+//   opacity: 0 !important;
+// }
+// .cdk-overlay-pane {
+//   display: grid;
+//   place-items: start center;
+// }
+// .cdk-global-overlay-wrapper {
+//   justify-content: center !important;
+//   align-items: start !important;
+//   margin-top: 10vh;
+// }
+// .git-blame-inline {
+//   // margin-left: 2em;
+//   color: #9d8a77a1 !important;
+//   font-style: italic;
+//   text-overflow: wrap;
+//   white-space: pre;
+//   cursor: default;
+// }
+
+// .app-tooltip {
+//   position: fixed;
+//   z-index: 10000;
+//   max-width: 260px;
+//   padding: 6px 10px;
+//   border-radius: 6px;
+//   background: var(--tooltip-bg, #1f2937);
+//   color: var(--tooltip-color, #fff);
+//   border: 1px solid var(--tooltip-border, transparent);
+//   font-size: 12px;
+//   line-height: 1.4;
+//   box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+//   pointer-events: none;
+//   opacity: 0;
+//   transform: scale(0.96);
+//   transition:
+//     opacity 150ms ease,
+//     transform 150ms ease;
+// }
+
+// .app-tooltip.visible {
+//   opacity: 1;
+//   transform: scale(1);
+// }
+
+// /* Custom variants via tooltipClass */
+// .app-tooltip.tooltip-danger {
+//   --tooltip-bg: #7f1d1d;
+//   --tooltip-border: #ef4444;
+// }
+// .app-menu-panel {
+//   display: flex;
+//   flex-direction: column;
+//   min-width: 160px;
+//   padding: 4px;
+//   background: var(--base-bg);
+//   border: 1px solid #d0d5dd;
+//   // border-radius: 8px;
+//   box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+//   [role='menuitem'] {
+//     padding: 8px 12px;
+//     text-align: left;
+//     background: none;
+//     border: 0;
+//     border-radius: 4px;
+//     cursor: pointer;
+//     // &:hover, &:focus-visible { background: #f2f4f7; outline: none; }
+//   }
+// }

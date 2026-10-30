@@ -1,0 +1,55 @@
+<section class="todo-panel" aria-labelledby="todo-heading">
+  <header class="todo-header">
+    <div class="todo-heading-group">
+      <h2 id="todo-heading">Tasks</h2>
+      <span class="open-count">{{ remainingCount }} open</span>
+    </div>
+    <button class="quiet-button" type="button" (click)="showCompleted = !showCompleted">
+      {{ showCompleted ? 'Hide completed' : 'Show completed' }}
+    </button>
+  </header>
+
+  <form class="new-task" (ngSubmit)="addTask()">
+    <input
+      aria-label="New task title"
+      name="newTitle"
+      [(ngModel)]="newTitle"
+      placeholder="Add a task…"
+      maxlength="240"
+      required
+    />
+    <button class="primary-btn" type="submit" [disabled]="!newTitle.trim()">Add</button>
+  </form>
+
+  <main class="task-list" aria-label="Task list">
+    @for (task of visibleTasks; track task.id) {
+      <div class="task-item">
+        <button class="completion-toggle" type="button" role="checkbox"
+          [attr.aria-checked]="task.status === 'done'"
+          [attr.aria-label]="task.status === 'done' ? 'Mark task open' : 'Mark task complete'"
+          [class.checked]="task.status === 'done'" (click)="toggleDone(task)">
+          @if (task.status === 'done') { <span aria-hidden="true">✓</span> }
+        </button>
+        <button class="task-row" type="button" (click)="openTask(task)"
+          [attr.aria-label]="task.title + ', ' + task.linkedFiles.length + ' linked files, ' + statusLabel(task.status)">
+          <span class="task-row-main">
+            <span class="task-title" [class.task-title--done]="task.status === 'done'">{{ task.title }}</span>
+            @if (task.noteId) {
+              <ng-icon class="note-indicator" name="lucideStickyNote" aria-label="Note attached" title="Note attached" />
+            }
+          </span>
+          <span class="task-row-meta">
+            <span class="file-count">{{ task.linkedFiles.length }} {{ task.linkedFiles.length === 1 ? 'file' : 'files' }}</span>
+            <time class="task-date" [attr.datetime]="task.createdAt.toISOString()">{{ task.createdAt | date: 'mediumDate' }}</time>
+            <span [class]="statusClass(task.status)">{{ statusLabel(task.status) }}</span>
+          </span>
+        </button>
+      </div>
+    } @empty {
+      <div class="empty-state">
+        <p>{{ todos().length ? 'No tasks match this view.' : 'No tasks yet' }}</p>
+        @if (!todos().length) { <span>Add a task to keep track of your work.</span> }
+      </div>
+    }
+  </main>
+</section>

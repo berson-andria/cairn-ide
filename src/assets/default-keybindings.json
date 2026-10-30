@@ -1,0 +1,22 @@
+[
+  { "key": "mod+s", "command": "file.save" },
+  { "key": "mod+shift+s", "command": "file.saveAll" },
+  { "key": "mod+o", "command": "file.openFile" },
+  { "key": "mod+shift+o", "command": "file.openFolder" },
+
+  { "key": "mod+w", "command": "tab.close" },
+  { "key": "ctrl+tab", "command": "tab.next" },
+  { "key": "ctrl+shift+tab", "command": "tab.previous" },
+
+  { "key": "mod+b", "command": "view.toggleLeftSidebar" },
+  { "key": "mod+alt+b", "command": "view.toggleRightSideBar" },
+  { "key": "mod+shift+f", "command": "search.global" },
+  { "key": "mod+p", "command": "search.file" },
+  { "key": "mod+a", "command": "explorer.selectAll", "when": "explorerFocus && !renaming" },
+  { "key": "mod+c", "command": "explorer.copy", "when": "explorerFocus && !renaming" },
+  { "key": "mod+x", "command": "explorer.cut", "when": "explorerFocus && !renaming" },
+  { "key": "mod+v", "command": "explorer.paste", "when": "explorerFocus && !renaming" },
+  { "key": "delete", "command": "explorer.delete", "when": "explorerFocus && !renaming" },
+  { "key": "f2", "command": "explorer.rename", "when": "explorerFocus && !renaming" },
+  { "key": "mod+shift+b", "command": "git.toggleBlame" }
+]

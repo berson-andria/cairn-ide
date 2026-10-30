@@ -1,0 +1,162 @@
+:host {
+  // display: block;
+  height: 100%; /* Enforces full height execution inside .editor-panel */
+  width: 100%;
+  flex-grow: 1;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+.tabs {
+  display: flex;
+  flex-direction: row;
+  align-items: self-start;
+  gap: 0.5em;
+  width: 100%;
+  border-bottom: 1px solid #3e4451;
+  .unsaved-control {
+    text-wrap: nowrap;
+    padding: 0.25em 0.125em;
+    button {
+      border: 1px solid transparent;
+      background: #272a2e;
+      color: #f1f3f5;
+      padding: 0.25em 0.5em;
+      &:hover {
+        border-color: #3a3f44;
+      }
+    }
+  }
+}
+.opened-files {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.125em;
+
+  flex: 1;
+
+  overflow-x: scroll;
+  background-color: var(--base-bg) !important;
+
+  /* Standard Firefox rules */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.3s ease;
+
+  /* 1. WebKit Custom Width (Chrome, Safari, Edge) */
+  &::-webkit-scrollbar {
+    height: 2px !important; /* Use height for horizontal (overflow-x) scrollbars */
+    width: 2px !important; /* Kept for vertical if needed */
+  }
+
+  /* 2. WebKit Initial State (Transparent) */
+  &::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    transition: background-color 0.3s ease; /* Note: transitions on webkit-selectors have limited browser support */
+  }
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  /* 3. Hover States */
+  &:hover {
+    scrollbar-color: #282e31 #0000000f; /* Firefox fallback */
+
+    &::-webkit-scrollbar-thumb {
+      background-color: #333;
+    }
+    &::-webkit-scrollbar-track {
+      background-color: #0000000f;
+    }
+  }
+  &::-webkit-scrollbar-button {
+    display: none;
+  }
+}
+.node {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0.25em 0.5em;
+  border-radius: 0.5em;
+  color: var(--editor-tab-text-inactive);
+  cursor: pointer;
+  text-wrap: nowrap;
+  button {
+    padding: 0.125em 0.45em;
+    margin-left: 0.25em;
+  }
+  &.is-dirty {
+    span {
+      text-decoration-line: underline;
+      text-decoration-color: antiquewhite;
+      text-decoration-thickness: 1px;
+      text-decoration-style: wavy;
+    }
+  }
+  &:hover {
+    background-color: var(--editor-tab-hover-bg);
+    color: var(--editor-tab-text-active);
+  }
+  &.is-active {
+    color: var(--editor-tab-text-active);
+    border: 2px solid rgba(93, 96, 141, 0.5);
+    background-color: rgba(71, 113, 177, 0.25);
+    button {
+      color: var(--editor-tab-text-active);
+    }
+  }
+}
+.path {
+  height: 28px;
+  display: flex;
+  margin-left: 0.5em;
+  color: var(--explorer-text);
+}
+.file-content {
+  padding: 0;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+
+  ngx-monaco-editor {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100% !important;
+    width: 100%;
+  }
+}
+.cdk-drag-preview {
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.cdk-drag-placeholder {
+  opacity: 0.3;
+}
+.cdk-drag-animating,
+.opened-files.cdk-drop-list-dragging .node:not(.cdk-drag-placeholder) {
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+.file-content {
+  position: relative;
+}
+.pane {
+  position: absolute;
+  inset: 0;
+}
+.pane.hidden {
+  visibility: hidden;
+  opacity: 0;
+}
+.node.is-diff {
+  font-style: italic;
+}

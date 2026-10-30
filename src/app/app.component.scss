@@ -1,0 +1,195 @@
+:host {
+  display: grid;
+  grid-template-rows: 32px 1fr; /* Content viewport + Fixed Telemetry Bottom Bar */
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+.title-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  .icon {
+    img {
+      height: 24px;
+    }
+  }
+  .title,
+  .window-actions {
+    display: flex;
+    flex-direction: row;
+  }
+  .search-container {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    box-sizing: border-box;
+    .search {
+      width: 20vw;
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      gap: 0.125em;
+      .global-search,
+      .file-search {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        border-radius: 0.35em;
+
+        background-color: var(--activity-bar-bg);
+      }
+      .global-search {
+        flex: 1;
+        button {
+          width: 100%;
+          height: 100%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid var(--explorer-item-hover-bg);
+          background-color: var(--explorer-item-hover-bg);
+          &:hover {
+            border: 1px solid rgba(88, 91, 97, 0.5);
+          }
+        }
+      }
+      .file-search {
+        min-width: 80%;
+        border: 1px solid rgba(88, 91, 97, 0.5);
+        cursor: pointer;
+        &:hover {
+          background-color: var(--explorer-item-hover-bg);
+        }
+        span {
+          font-size: 1.05rem;
+        }
+        ng-icon {
+          margin-left: 0.75em;
+        }
+      }
+    }
+  }
+  .window-actions {
+    align-items: center;
+    justify-content: end;
+  }
+  .title-bar-actions {
+    display: flex;
+    align-items: center;
+    height: 37px;
+    button {
+      height: 100%;
+      aspect-ratio: 1/1;
+      box-sizing: border-box;
+      border-radius: 0;
+      padding: 0;
+    }
+    #titlebar-close:hover {
+      background-color: #a62d38 !important;
+    }
+  }
+
+  .title {
+    display: flex;
+    align-items: center;
+  }
+  .menu {
+    margin-left: 4px;
+    height: fit-content;
+
+    .trigger-btn {
+      display: flex;
+      align-items: center;
+      box-sizing: border-box;
+      border-radius: 0.5em;
+      padding: 0.125em 0.5em;
+      cursor: pointer;
+
+      justify-content: space-between;
+      gap: 6px;
+
+      max-width: 180px;
+      span {
+        display: block;
+        white-space: nowrap; /* Stops text from wrapping to a second line */
+        overflow: hidden; /* Hides any letters that extend past boundaries */
+        text-overflow: ellipsis; /* Replaces the hidden tail text with "..." */
+        flex-shrink: 1;
+      }
+    }
+  }
+  .toggles {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    border-radius: 0.5em;
+    gap: 0.5em;
+    button {
+      display: inline-flex;
+      align-items: center;
+      &:hover,
+      &.is-active {
+        background-color: var(--activity-bar-hover-bg);
+        color: white;
+      }
+    }
+  }
+}
+
+/* Core Dropdown Panel Box */
+.dropdown-panel {
+  background: var(--explorer-bg) !important; /* Dark background matching code editors */
+  border: 1px solid #454545;
+  border-radius: 4px;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 200px;
+}
+
+/* Base Style for All Items */
+.menu-item {
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 6px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.menu-item:hover,
+.menu-item:focus {
+  color: #ffffff;
+}
+
+/* Divider Line */
+.menu-divider {
+  border: 0;
+  height: 1px;
+  background: #454545;
+  margin: 4px 0;
+}
+
+.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+main {
+  height: 100%;
+  width: 100%;
+  overflow-y: hidden;
+}

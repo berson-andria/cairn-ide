@@ -1,0 +1,53 @@
+<section class="attach-file" aria-labelledby="attach-file-heading">
+  <header class="picker-header">
+    <div>
+      <h2 id="attach-file-heading">Select files</h2>
+      <p>Choose one or more files to attach.</p>
+    </div>
+    <button class="close-button" type="button" aria-label="Close" (click)="cancel()">×</button>
+  </header>
+
+  <label class="search-box">
+    <span class="search-icon" aria-hidden="true">⌕</span>
+    <input
+      type="text"
+      [(ngModel)]="keyword"
+      (ngModelChange)="onValueChange($event)"
+      placeholder="Search files by name or path"
+      autofocus
+    />
+  </label>
+
+  <main class="file-results" aria-label="Search results">
+    @if (isSearching()) {
+      <p class="message">Searching…</p>
+    } @else if (warning()) {
+      <p class="message warning">{{ warning() }}</p>
+    } @else if (keyword.trim() && !results().length) {
+      <p class="message">No matching files found.</p>
+    } @else if (!keyword.trim()) {
+      <p class="message">Type a file name or path to search this project.</p>
+    }
+
+    @for (file of results(); track file.path) {
+      <label class="file-result" [class.selected]="isSelected(file.path)">
+        <input type="checkbox" [checked]="isSelected(file.path)"
+          (change)="toggleFile(file, $any($event.target).checked)" />
+        <span class="file-labels">
+          <span class="file-name">{{ file.fileName }}</span>
+          <span class="file-path">{{ relativePath(file.path) }}</span>
+        </span>
+      </label>
+    }
+  </main>
+
+  <footer class="picker-footer">
+    <span>{{ selectedFiles.length }} selected</span>
+    <div>
+      <button class="secondary-button" type="button" (click)="cancel()">Cancel</button>
+      <button class="primary-button" type="button" [disabled]="!selectedFiles.length" (click)="confirm()">
+        Attach files
+      </button>
+    </div>
+  </footer>
+</section>

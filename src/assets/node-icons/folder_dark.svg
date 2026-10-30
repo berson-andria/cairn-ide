@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
+
+<svg
+   width="16"
+   height="16.014702"
+   viewBox="0 0 0.48 0.48044106"
+   fill="none"
+   version="1.1"
+   id="svg3"
+   sodipodi:docname="folder-icon.svg"
+   inkscape:version="1.4.4 (dcaf3e7, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs3" />
+  <sodipodi:namedview
+     id="namedview3"
+     pagecolor="#ffffff"
+     bordercolor="#999999"
+     borderopacity="1"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="23.560798"
+     inkscape:cx="70.625792"
+     inkscape:cy="69.840589"
+     inkscape:window-width="1920"
+     inkscape:window-height="1051"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg3">
+    <inkscape:page
+       x="0"
+       y="0"
+       width="0.47999999"
+       height="0.48044106"
+       id="page2"
+       margin="0"
+       bleed="0" />
+  </sodipodi:namedview>
+  <path
+     opacity="0.5"
+     d="m 1.1920929e-7,0.11879414 c 0,-0.021181 0,-0.031771 0.001660000791,-0.040593 0.00733,-0.038834 0.037703,-0.06921 0.076537,-0.076537 C 0.08702292,1.3878359e-7 0.09761342,1.3878359e-7 0.11879412,1.3878359e-7 c 0.00928,0 0.01392,0 0.01838,4.1709999641e-4 0.019226,0.001800001 0.037463,0.009350001 0.052329,0.0216750012 0.00345,0.00286 0.00673,0.00614 0.01329,0.012702 l 0.013207,0.0132059 c 0.019579,0.019579 0.029369,0.029368 0.04109,0.03589 0.00644,0.00358 0.013272,0.00641 0.020359,0.00843 0.0129,0.00368 0.026743,0.00368 0.054432,0.00368 h 0.00897 c 0.063178,0 0.094764,0 0.1152984,0.018467 0.00189,0.0017 0.00369,0.0035 0.00538,0.00538 0.0184706,0.0205374 0.0184706,0.052126 0.0184706,0.1153026 v 0.0528504 c 0,0.090509 -0.00691,0.1585843 -0.021204,0.1694134 -0.0281156,0.0281184 -0.0802872,0.0225866 -0.170796,0.0225866 h -0.096 c -0.09051,0 -0.1357644,0 -0.1638823,-0.028118 C 1.1920929e-7,0.42376574 1.1920929e-7,0.37850894 1.1920929e-7,0.28800014 Z"
+     fill="#1C274C"
+     id="path1"
+     style="fill:#757575;fill-opacity:1;stroke-width:0.024"
+     sodipodi:nodetypes="scsscccccsssscsscsscss"
+     inkscape:export-filename="..\Documents\project\cairn\src\assets\folder-icon.svg"
+     inkscape:export-xdpi="96"
+     inkscape:export-ydpi="96" />
+  <path
+     fill-rule="evenodd"
+     clip-rule="evenodd"
+     d="m 0.22690062,0.18754364 c 0,-0.015917 0.010231,-0.028823 0.022848,-0.028823 h 0.1523223 c 0.012617,0 0.022848,0.012906 0.022848,0.028823 0,0.015917 -0.010231,0.028823 -0.022848,0.028823 h -0.152322 c -0.012617,0 -0.022848,-0.012906 -0.0228483,-0.028823 z"
+     fill="#1c274c"
+     id="path3"
+     style="fill:#757575;fill-opacity:1;stroke-width:0.0342165" />
+</svg>

@@ -1,0 +1,18 @@
+<div class="markdown-editor">
+  <section class="markdown-editor__pane" aria-label="Markdown editor">
+    <header class="markdown-editor__heading">Markdown</header>
+    <textarea
+      class="markdown-editor__source"
+      [value]="value"
+      [placeholder]="placeholder"
+      [attr.aria-label]="ariaLabel"
+      spellcheck="false"
+      (input)="onInput($any($event.target).value)"
+    ></textarea>
+  </section>
+
+  <section class="markdown-editor__pane" aria-label="Markdown preview">
+    <header class="markdown-editor__heading">Preview</header>
+    <div class="markdown-editor__preview" [innerHTML]="previewHtml"></div>
+  </section>
+</div>

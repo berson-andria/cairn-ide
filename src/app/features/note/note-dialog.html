@@ -1,0 +1,46 @@
+<section class="note-dialog">
+  <header class="note-dialog__header">
+    <h2>{{ isNew ? 'New note' : 'Edit note' }}</h2>
+    <button type="button" class="note-dialog__close" aria-label="Close" (click)="cancel()">×</button>
+  </header>
+
+  <div class="note-dialog__body">
+    <label class="note-dialog__label" for="note-title">Title</label>
+    <input id="note-title" class="note-dialog__input" type="text" placeholder="Untitled note" [(ngModel)]="draft.title" />
+
+    <label class="note-dialog__label" for="note-scope">Scope</label>
+    <select id="note-scope" class="note-dialog__input" [(ngModel)]="draft.scope">
+      <option value="project">This project</option>
+      <option value="global">Global</option>
+    </select>
+
+    <label class="note-dialog__label" for="note-content">Content</label>
+    <app-markdown-editor
+      class="note-dialog__markdown"
+      style="height: 220px"
+      ariaLabel="Note Markdown"
+      placeholder="Write your note in Markdown..."
+      [(value)]="draft.content"
+    ></app-markdown-editor>
+
+    <div class="note-dialog__files-heading">
+      <span>Linked files</span>
+      <span class="note-dialog__count">{{ draft.files.length }}</span>
+      <button type="button" class="note-dialog__secondary" (click)="attachFiles()">Attach files</button>
+    </div>
+    @for (file of draft.files; track file.path) {
+      <div class="note-dialog__file" [title]="file.path">
+        <span>{{ file.fileName }}</span>
+        <small>{{ file.path }}</small>
+        <button type="button" [attr.aria-label]="'Remove ' + file.fileName" (click)="removeFile(file.path)">×</button>
+      </div>
+    } @empty {
+      <p class="note-dialog__empty-files">No files linked.</p>
+    }
+  </div>
+
+  <footer class="note-dialog__actions">
+    <button type="button" class="note-dialog__secondary" (click)="cancel()">Cancel</button>
+    <button type="button" class="note-dialog__primary" (click)="save()">Save note</button>
+  </footer>
+</section>

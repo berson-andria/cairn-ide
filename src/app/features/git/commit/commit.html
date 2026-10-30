@@ -1,0 +1,387 @@
+<section class="source-control" aria-label="Source control">
+  <header class="sc-header">
+    <span>Source Control - Commit</span>
+    <div class="icon-actions">
+      @if (git.isRepo()) {
+        <button
+          type="button"
+          title="Refresh"
+          aria-label="Refresh source control"
+          (click)="git.refresh()"
+        >
+          <ng-icon name="lucideRefreshCcw" />
+        </button>
+        <div class="menu-anchor">
+          <button
+            type="button"
+            title="More actions"
+            aria-label="More source control actions"
+            [appMenu]="action"
+            [menuPosition]="['left', 'top']"
+          >
+            <ng-icon name="lucideEllipsis" />
+          </button>
+          <ng-template #action>
+            <style>
+              .actions-menu {
+                display: flex;
+                flex-direction: column;
+              }
+            </style>
+            <div class="menu actions-menu" role="menu">
+              <button
+                class="menu-item"
+                role="menuitem"
+                (click)="runAction(git.fetch.bind(git), 'Fetched.')"
+              >
+                Fetch
+              </button>
+              <button class="menu-item" role="menuitem" (click)="pull()">Pull</button>
+              <button
+                class="menu-item"
+                role="menuitem"
+                (click)="runAction(git.push.bind(git), 'Pushed.')"
+              >
+                Push
+              </button>
+              <button
+                class="menu-item"
+                role="menuitem"
+                (click)="runAction(git.stash.bind(git), 'Changes stashed.')"
+              >
+                Stash changes
+              </button>
+              <button
+                class="menu-item"
+                role="menuitem"
+                (click)="runAction(git.stashPop.bind(git), 'Stash applied.')"
+              >
+                Pop latest stash
+              </button>
+              <button class="menu-item" role="menuitem" (click)="editIdentity()">
+                Git identity…
+              </button>
+              <button
+                class="menu-item"
+                role="menuitem"
+                (click)="
+                  runAction(
+                    git.undoLastCommit.bind(git),
+                    'Last commit undone; its changes are staged.'
+                  )
+                "
+              >
+                Undo last commit (keep changes)
+              </button>
+              @if (conflictFiles().length) {
+                <button
+                  class="menu-item"
+                  role="menuitem"
+                  (click)="runAction(git.mergeAbort.bind(git), 'Merge aborted.')"
+                >
+                  Abort merge
+                </button>
+              }
+            </div>
+          </ng-template>
+          <!-- @if (menu() === 'actions') {} -->
+        </div>
+      }
+    </div>
+  </header>
+
+  @if (notice(); as n) {
+    <div class="notice" [class.notice--error]="n.kind === 'error'" role="alert">
+      <span class="notice-text">{{ n.text }}</span>
+      <button type="button" class="notice-close" aria-label="Dismiss" (click)="notice.set(null)">
+        ×
+      </button>
+    </div>
+  }
+
+  @if (!git.isRepo()) {
+    <div class="not-initialized">
+      <div class="git-mark" aria-hidden="true"><ng-icon name="lucideGitBranch" /></div>
+      @if (git.error(); as problem) {
+        <h3>Git is not available</h3>
+        <p>{{ problem }}</p>
+        <p>Install Git and make sure it is on your PATH, then restart the app.</p>
+      } @else if (!hasFolder()) {
+        <h3>No folder is open</h3>
+        <p>Open a folder to see its source control status.</p>
+      } @else {
+        <h3>Source control is not initialized</h3>
+        <p>Initialize a Git repository in this folder to start tracking changes.</p>
+        <button class="primary-btn" type="button" [disabled]="git.busy()" (click)="initializeGit()">
+          Initialize Repository
+        </button>
+      }
+    </div>
+  } @else {
+    <div class="commit-box">
+      <input
+        type="text"
+        [ngModel]="commitMessage()"
+        (ngModelChange)="commitMessage.set($event)"
+        placeholder="Message (Ctrl+Enter to commit on '{{ branchName() }}')"
+        (keydown.control.enter)="commit()"
+        (keydown.meta.enter)="commit()"
+      />
+      <button
+        class="commit-button primary-btn"
+        type="button"
+        [disabled]="!commitMessage().trim() || stagedFiles().length === 0 || git.busy()"
+        (click)="commit()"
+      >
+        <ng-icon name="lucideGitCommitHorizontal" />
+        Commit
+      </button>
+    </div>
+
+    <div class="file-groups">
+      @if (conflictFiles().length) {
+        <section class="file-group expanded">
+          <header class="group-header">
+            <span class="group-toggle">
+              <span>Merge Conflicts</span>
+              <span class="count">{{ conflictFiles().length }}</span>
+            </span>
+          </header>
+          @for (file of conflictFiles(); track file.path) {
+            <div class="file-row">
+              <ng-icon class="file-icon" name="lucideFile" />
+              <span class="file-path" [title]="file.path" (click)="openDiff(file)">{{
+                file.path
+              }}</span>
+              <span [class]="statusClass(file.status)" [title]="statusLabel(file.status)">{{
+                file.status
+              }}</span>
+              <button
+                class="row-action"
+                type="button"
+                title="Mark as resolved (stage)"
+                [attr.aria-label]="'Mark ' + file.path + ' as resolved'"
+                [disabled]="git.busy()"
+                (click)="stageFile(file)"
+              >
+                +
+              </button>
+            </div>
+          }
+        </section>
+      }
+
+      <section class="file-group" [class.expanded]="stagedExpanded">
+        <header class="group-header">
+          <button type="button" class="group-toggle" (click)="stagedExpanded = !stagedExpanded">
+            <ng-icon [class.rotated]="stagedExpanded" name="lucideChevronDown" />
+            <span>Staged Changes</span>
+            <span class="count">{{ stagedFiles().length }}</span>
+          </button>
+          <div class="icon-actions">
+            <button
+              type="button"
+              title="Unstage all changes"
+              aria-label="Unstage all changes"
+              [disabled]="!stagedFiles().length || git.busy()"
+              (click)="unstageAll()"
+            >
+              <ng-icon name="lucideMinus"></ng-icon>
+            </button>
+          </div>
+        </header>
+        @if (stagedExpanded) {
+          @for (file of stagedFiles(); track file.path) {
+            <div class="file-row">
+              <ng-icon class="file-icon" name="lucideFile" />
+              <span
+                class="file-path"
+                [title]="
+                  file.source.origPath ? file.source.origPath + ' → ' + file.path : file.path
+                "
+                (click)="openDiff(file)"
+                >{{ file.path }}</span
+              >
+              <span [class]="statusClass(file.status)" [title]="statusLabel(file.status)">{{
+                file.status
+              }}</span>
+              <button
+                class="row-action"
+                type="button"
+                title="Unstage file"
+                [attr.aria-label]="'Unstage ' + file.path"
+                [disabled]="git.busy()"
+                (click)="unstageFile(file)"
+              >
+                −
+              </button>
+            </div>
+          } @empty {
+            <p class="empty-group">No staged changes</p>
+          }
+        }
+      </section>
+
+      <section class="file-group" [class.expanded]="changesExpanded">
+        <header class="group-header">
+          <button type="button" class="group-toggle" (click)="changesExpanded = !changesExpanded">
+            <ng-icon [class.rotated]="changesExpanded" name="lucideChevronDown" />
+            <span>Changes</span>
+            <span class="count">{{ changedFiles().length }}</span>
+          </button>
+          <div class="icon-actions">
+            <button
+              type="button"
+              title="Stash all changes"
+              aria-label="Stash all changes"
+              [disabled]="!changedFiles().length || git.busy()"
+              (click)="runAction(git.stash.bind(git), 'Changes stashed.')"
+            >
+              <ng-icon name="bootstrapSave"></ng-icon>
+            </button>
+            <button
+              type="button"
+              title="Discard all changes"
+              aria-label="Discard all changes"
+              [disabled]="!changedFiles().length || git.busy()"
+              (click)="discardAll()"
+            >
+              <ng-icon name="lucideUndo"></ng-icon>
+            </button>
+            <button
+              type="button"
+              title="Stage all changes"
+              aria-label="Stage all changes"
+              [disabled]="!changedFiles().length || git.busy()"
+              (click)="stageAll()"
+            >
+              <ng-icon name="lucidePlus" />
+            </button>
+          </div>
+        </header>
+        @if (changesExpanded) {
+          @for (file of changedFiles(); track file.path) {
+            <div class="file-row">
+              <ng-icon class="file-icon" name="lucideFile" />
+              <span class="file-path" [title]="file.path" (click)="openDiff(file)">{{
+                file.path
+              }}</span>
+              <span [class]="statusClass(file.status)" [title]="statusLabel(file.status)">{{
+                file.status
+              }}</span>
+              <button
+                class="row-action"
+                type="button"
+                [title]="file.status === 'U' ? 'Delete untracked file' : 'Discard changes'"
+                [attr.aria-label]="'Discard ' + file.path"
+                [disabled]="git.busy()"
+                (click)="discardFile(file)"
+              >
+                <ng-icon name="lucideUndo" />
+              </button>
+              <button
+                class="row-action"
+                type="button"
+                title="Stage file"
+                [attr.aria-label]="'Stage ' + file.path"
+                [disabled]="git.busy()"
+                (click)="stageFile(file)"
+              >
+                +
+              </button>
+            </div>
+          } @empty {
+            <p class="empty-group">No changes detected</p>
+          }
+        }
+      </section>
+    </div>
+
+    <footer class="sc-footer">
+      <div class="menu-anchor">
+        <button
+          type="button"
+          class="branch-btn"
+          title="Switch or create branch"
+          (click)="toggleBranchMenu()"
+        >
+          <ng-icon name="lucideGitBranch" /> {{ branchName() }} <ng-icon name="lucideChevronDown" />
+        </button>
+        @if (menu() === 'branch') {
+          <div class="menu branch-menu">
+            <input
+              class="menu-input"
+              type="text"
+              placeholder="Filter branches"
+              [ngModel]="branchFilter()"
+              (ngModelChange)="branchFilter.set($event)"
+            />
+            <div class="menu-list">
+              @for (branch of visibleBranches(); track branch.fullName) {
+                <button
+                  type="button"
+                  class="menu-item"
+                  [class.current]="branch.current"
+                  (click)="switchTo(branch)"
+                >
+                  <span class="branch-name">{{ branch.name }}</span>
+                  @if (branch.remote) {
+                    <span class="tag">remote</span>
+                  }
+                  @if (branch.current) {
+                    <ng-icon name="lucideCheck" />
+                  }
+                </button>
+              } @empty {
+                <p class="empty-group">No matching branches</p>
+              }
+            </div>
+            <div class="menu-create">
+              <input
+                class="menu-input"
+                type="text"
+                placeholder="New branch name"
+                [ngModel]="newBranch()"
+                (ngModelChange)="newBranch.set($event); branchError.set(null)"
+                (keydown.enter)="createBranch()"
+              />
+              <button type="button" [disabled]="!newBranch().trim()" (click)="createBranch()">
+                Create
+              </button>
+            </div>
+            @if (branchError(); as problem) {
+              <p class="menu-error">{{ problem }}</p>
+            }
+          </div>
+        }
+      </div>
+
+      <span class="sync-state">
+        @if (!hasUpstream()) {
+          <button
+            type="button"
+            class="sync-btn"
+            title="Publish this branch"
+            [disabled]="git.busy()"
+            (click)="sync()"
+          >
+            Publish
+          </button>
+        } @else if (ahead() || behind()) {
+          <button
+            type="button"
+            class="sync-btn"
+            title="Pull, then push"
+            [disabled]="git.busy()"
+            (click)="sync()"
+          >
+            <ng-icon name="lucideArrowDown" /> {{ behind() }} <ng-icon name="lucideArrowUp" />
+            {{ ahead() }}
+          </button>
+        } @else {
+          <span title="In sync with its upstream">Up to date</span>
+        }
+      </span>
+    </footer>
+  }
+</section>
