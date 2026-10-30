@@ -1,5 +1,4 @@
 :host {
-  height: 100%;
   overflow: hidden;
 }
 .container {
@@ -54,7 +53,6 @@
       display: inline-flex;
       align-items: center;
       ng-icon {
-        font-size: 1.125rem;
         color: var(--explorer-text) !important;
       }
       &:hover {
@@ -68,21 +66,9 @@
 .tree-node {
   display: block;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 14px;
   user-select: none;
 }
 .placeholder {
   width: 100%;
   min-height: 32px;
-}
-.empty-project {
-  display: flex;
-  flex-direction: column;
-  padding: 0.5em;
-  font-size: 1.025rem;
-  button {
-    width: 100%;
-    margin-top: 0.5em;
-    margin-bottom: 1.5em;
-  }
 }

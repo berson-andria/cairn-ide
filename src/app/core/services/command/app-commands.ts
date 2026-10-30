@@ -40,7 +40,7 @@ export function registerAppCommands(): void {
       editorCommand.openFile(id);
     }
   });
-  commands.register('file.openFolder', () => store.pickFolder());
+  commands.register('file.openFolder', () => editorCommand.openFolder());
 
   // ── tabs ──
   commands.register('tab.close', async () => {

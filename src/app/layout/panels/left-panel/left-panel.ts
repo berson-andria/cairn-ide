@@ -1,13 +1,16 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
 import { ResizeHandle } from '../../../shared/components/resize-handle/resize-handle';
+import { FileTree } from '../../../features/explorer/tree';
+import { ReviewList } from '../../../features/review/review-list';
+import { NoteList } from '../../../features/note/note-list';
+import { TaskList } from '../../../features/todo/task-list';
 
 @Component({
   selector: 'left-panel',
   standalone: true,
-  imports: [ResizeHandle],
+  imports: [ResizeHandle, TaskList, FileTree, NoteList, ReviewList],
   templateUrl: './left-panel.html',
   styleUrl: './left-panel.scss',
-  // null = no inline style, so the default (--left-panel-width token) applies.
   host: { '[style.width.px]': 'width()' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

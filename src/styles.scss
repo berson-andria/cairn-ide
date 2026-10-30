@@ -78,6 +78,66 @@ button:disabled {
   opacity: 0.4;
 }
 
+.rail__body {
+  flex: 1;
+  overflow: auto;
+  padding-left: var(--space-9);
+}
+.rail__hint {
+  padding: var(--space-6) var(--space-14) var(--space-10);
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
+}
+
+/* Section header: Work / Files / Notes / Review */
+.rail-section {
+  display: flex;
+  flex-direction: column;
+  .rail__body {
+    display: none;
+  }
+}
+.rail-section--header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-6) var(--space-4);
+  border-top: 1px solid var(--color-divider);
+  font-size: var(--font-size-ui);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  &:hover {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+  }
+}
+.rail-section--active {
+  // border-top-color: transparent;
+  flex: 1;
+  display: flex;
+  .rail-section--header {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+  }
+  .rail__body {
+    flex-grow: 1;
+    display: block;
+  }
+}
+.rail-section__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-9);
+}
+.rail-section__meta {
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
+}
+.rail-section__meta--attention {
+  font-size: var(--font-size-small);
+  color: var(--color-attention);
+}
+
 // button {
 //   margin: 0;
 //   border: 0;

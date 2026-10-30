@@ -1,9 +1,23 @@
-import { Component, computed, DestroyRef, effect, ElementRef, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  ElementRef,
+  inject,
+  signal,
+} from '@angular/core';
 
 import { CommonModule } from '@angular/common';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideFilePlus2, lucideRefreshCcw } from '@ng-icons/lucide';
-import { bootstrapArrowsCollapse, bootstrapFolderPlus } from '@ng-icons/bootstrap-icons';
+import {
+  bootstrapArrowsCollapse,
+  bootstrapChevronDown,
+  bootstrapChevronRight,
+  bootstrapFolderPlus,
+} from '@ng-icons/bootstrap-icons';
 import { NodeDndDirective } from './node/node-dnd.directive';
 import { FileNodeComponent } from './node/file-node/file-node';
 import { FolderNodeComponent } from './node/folder-node/folder-node';
@@ -12,26 +26,34 @@ import { KeybindingService } from '../../core/services/command/keybinding.servic
 import { InlineCreationMode } from '../../core/store/workspace/workspace.state';
 import { WorkspaceNodeStore } from '../../core/store/workspace/workspace.store';
 import { EditorCommands } from '../editor/editor.commands';
+import { LayoutService } from '../../layout/layout-service';
+import { EmptyExplorer } from './empty-explorer';
 
 @Component({
   selector: 'file-tree',
   templateUrl: './tree.html',
   styleUrl: './tree.scss',
-  imports: [FileNodeComponent, FolderNodeComponent, NewNode, CommonModule, NgIcon],
+  imports: [FileNodeComponent, FolderNodeComponent, EmptyExplorer, NewNode, CommonModule, NgIcon],
   providers: [
     provideIcons({
       lucideFilePlus2,
       bootstrapFolderPlus,
       lucideRefreshCcw,
       bootstrapArrowsCollapse,
+      bootstrapChevronDown,
+      bootstrapChevronRight,
     }),
   ],
+  host: { '[style.flex]': 'layoutService.isRailSectionActive("Files")? 1: "none"' },
+  changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
 })
 export class FileTree {
   nodeStore = inject(WorkspaceNodeStore);
   commands = inject(EditorCommands);
   keys = inject(KeybindingService);
+
+  layoutService = inject(LayoutService);
 
   private elementRef = inject(ElementRef);
 
