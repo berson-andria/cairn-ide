@@ -1,0 +1,13 @@
+@if (nodeStore.rootPath()) {
+  @if (git.isRepo()) {
+    @if (activeView() === 'Changes') {
+      <git-changes />
+    } @else {
+      <git-graph />
+    }
+  } @else {
+    <git-no-repository />
+  }
+} @else {
+  <git-no-folder />
+}

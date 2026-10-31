@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { bootstrapChevronDown, bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { LayoutService } from '../../layout/layout-service';
+import { EmptyTaskList } from './empty-task-list';
 
 @Component({
   selector: 'task-list',
@@ -21,7 +22,9 @@ import { LayoutService } from '../../layout/layout-service';
         </span>
         <span class="rail-section__meta rail-section__meta--attention">2</span>
       </div>
-      <div class="rail__body"></div>
+      <div class="rail__body">
+        <empty-task-list />
+      </div>
     </div>
   `,
   styles: `
@@ -31,7 +34,7 @@ import { LayoutService } from '../../layout/layout-service';
   `,
   host: { '[style.flex]': 'layoutService.isRailSectionActive("Work")? 1: "none"' },
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgIcon],
+  imports: [NgIcon, EmptyTaskList],
   providers: [provideIcons({ bootstrapChevronDown, bootstrapChevronRight })],
 })
 export class TaskList {

@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
 import { ResizeHandle } from '../../../shared/components/resize-handle/resize-handle';
 import { LayoutService } from '../../layout-service';
+import { Git, GitView } from '../../../feature/git/git';
 
 @Component({
   selector: 'bottom-panel',
   standalone: true,
-  imports: [ResizeHandle],
+  imports: [ResizeHandle, Git],
   templateUrl: './bottom-panel.html',
   styleUrl: './bottom-panel.scss',
   host: { '[style.height.px]': 'height()' },
@@ -19,4 +20,5 @@ export class BottomPanel {
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly maxHeight = () => this.host.nativeElement.parentElement!.clientHeight * 0.7;
+  protected activeGitView: GitView = 'Changes';
 }
