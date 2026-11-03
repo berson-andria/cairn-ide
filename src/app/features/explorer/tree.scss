@@ -1,10 +1,13 @@
 :host {
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
+
 .container {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -12,27 +15,18 @@
   &:focus {
     outline: none;
   }
-  &:hover {
-    .line {
-      position: absolute;
-      height: 100%;
-      width: 1px;
-    }
-  }
 
   .content {
+    flex: 1;
     min-height: 0;
     overflow-y: auto;
     box-sizing: border-box;
 
     scrollbar-width: thin;
     scrollbar-color: var(--color-surface-hover) var(--color-surface-panel);
-    /* Width of the entire scrollbar */
     &::-webkit-scrollbar {
       width: 8px;
     }
-
-    /* Thumb hover state */
     &::-webkit-scrollbar-thumb:hover {
       background: #333;
     }
@@ -44,6 +38,8 @@
 .tree-node {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   user-select: none;
+  display: flex;
+  flex-direction: column;
 }
 .placeholder {
   width: 100%;
