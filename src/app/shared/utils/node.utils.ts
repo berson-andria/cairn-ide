@@ -1,5 +1,6 @@
-import iconMap from '../../../assets/icons.json';
-import newIconMap from '../../../assets/icon-theme.json';
+import darkIconMap from '../../../assets/dark-jetbrains-icon-theme.json';
+import lightIconMap from '../../../assets/light-jetbrains-icon-theme.json';
+
 import languageMap from '../../../assets/file-extension-to-language.json';
 import { WorkspaceNode } from '../../core/store/workspace/workspace.state';
 
@@ -86,60 +87,59 @@ export function resolveNewPath(input: string): NewPath {
   return { ok: true, segments, isFolder, display: segments.join('/') + (isFolder ? '/' : '') };
 }
 
-export function getIconName(nodeName: string, nodeType: string, isExpanded: boolean): string {
-  if (!iconMap) {
-    if (nodeType == 'folder') {
-      return isExpanded ? 'folder_dark_open' : 'folder_dark';
-    }
-    return 'file';
+export type ItemType = 'file' | 'folder';
+
+interface IconTheme {
+  iconDefinitions: Record<string, { iconPath: string }>;
+  file: string;
+  folder: string;
+  folderNames: Record<string, string>;
+  fileNames: Record<string, string>;
+  fileExtensions: Record<string, string>;
+}
+
+const ASSETS_ROOT = 'assets';
+
+function isDarkMode(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
+}
+
+function lookup(map: Record<string, string>, key: string): string | undefined {
+  return map[key] ?? map[key.toLowerCase()];
+}
+
+function resolveIconId(theme: IconTheme, name: string, type: ItemType): string {
+  if (type === 'folder') {
+    return lookup(theme.folderNames, name) ?? theme.folder;
   }
 
-  const lowerName = nodeName.toLowerCase();
+  const byName = lookup(theme.fileNames, name);
+  if (byName) return byName;
 
-  if (nodeType == 'folder') {
-    const folderRules = iconMap.folders || {};
-    let matchedKey = '';
-
-    for (const [iconKey, config] of Object.entries(folderRules)) {
-      const names = (config as any).n || [];
-      if (names.includes(lowerName)) {
-        matchedKey = iconKey;
-        break;
-      }
-    }
-
-    if (!matchedKey) {
-      matchedKey = 'dark';
-    }
-
-    return isExpanded ? `folder_${matchedKey}_open` : 'folder_' + matchedKey;
+  // "foo.test.ts" -> ["foo", "test", "ts"] -> try "test.ts", then "ts".
+  // ".env.local"  -> ["", "env", "local"]  -> try "env.local", then "local".
+  const parts = name.split('.');
+  for (let i = 1; i < parts.length; i++) {
+    const byExt = lookup(theme.fileExtensions, parts.slice(i).join('.'));
+    if (byExt) return byExt;
   }
 
-  const fileRules = iconMap.files || {};
+  return theme.file;
+}
+export function getIconPath(name: string, type: ItemType, isDark: boolean = isDarkMode()): string {
+  const theme = (isDark ? darkIconMap : lightIconMap) as unknown as IconTheme;
 
-  for (const [iconKey, config] of Object.entries(fileRules)) {
-    const exactNames = (config as any).n || [];
-    if (exactNames.includes(lowerName)) {
-      return iconKey;
-    }
-  }
+  const iconId = resolveIconId(theme, name, type);
+  const definition =
+    theme.iconDefinitions[iconId] ??
+    theme.iconDefinitions[type === 'folder' ? theme.folder : theme.file];
 
-  const nameParts = lowerName.split('.');
-
-  if (nameParts.length > 1) {
-    for (let i = 1; i < nameParts.length; i++) {
-      const currentExtensionTry = nameParts.slice(i).join('.'); // e.g., "config.ts" then "ts"
-
-      for (const [iconKey, config] of Object.entries(fileRules)) {
-        const extensions = (config as any).e || [];
-        if (extensions.includes(currentExtensionTry)) {
-          return iconKey; // Match caught! Returns custom icon key immediately
-        }
-      }
-    }
-  }
-
-  return 'file';
+  // iconPath looks like "./icons/folder/folder_dark.svg"
+  return `${ASSETS_ROOT}/${definition.iconPath.replace(/^\.\//, '')}`;
 }
 export function indentStyle(level: number, multiplier: number) {
   return {
