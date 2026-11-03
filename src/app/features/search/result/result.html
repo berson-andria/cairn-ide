@@ -1,0 +1,67 @@
+<div class="container">
+  <!-- File Header (File Mode & Text Mode) -->
+  <div class="file-header" [class.is-open]="open" (click)="toggleOpen($event)">
+    <!-- Accordion (only for text mode which has line matches) -->
+    @if (isTextResult()) {
+      <span class="accordion">
+        @if (open) {
+          <ng-icon name="bootstrapChevronDown"></ng-icon>
+        } @else {
+          <ng-icon name="bootstrapChevronRight"></ng-icon>
+        }
+      </span>
+    }
+
+    <!-- File Icon & Name -->
+    <img [src]="getIconPath()" class="node-icon" alt="file-icon" />
+    <span class="filename">{{ fileName() }}</span>
+
+    <!-- Path -->
+    <span class="path">{{ displayPath() }}</span>
+
+    <!-- Actions & Count -->
+    <span class="actions">
+      @if (isTextResult() && replaceMode() && pattern()) {
+        <button
+          class="replace-btn"
+          title="Replace in this file"
+          (click)="onReplaceFile($event)"
+        >
+          <ng-icon name="lucideReplaceAll"></ng-icon>
+        </button>
+      }
+      @if (isTextResult()) {
+        <span class="match-count">{{ matchCount() }}</span>
+      }
+    </span>
+  </div>
+
+  <!-- Match Lines (Text Mode Only) -->
+  @if (isTextResult() && open) {
+    @for (line of matches(); track line.lineNumber) {
+      <div class="match-line" (click)="openFile(line.lineNumber)">
+        <span class="line-number">{{ line.lineNumber }}</span>
+        @if (replaceMode() && pattern()) {
+          <span
+            class="text"
+            [innerHTML]="line.text | replacePreview: pattern() : replacement()"
+          ></span>
+          <button
+            class="replace-btn"
+            title="Replace this match"
+            (click)="onReplaceLine($event, line)"
+          >
+            <ng-icon name="lucideReplace"></ng-icon>
+          </button>
+        } @else {
+          <span class="text" [innerHTML]="line.text | searchSnippet: keyword()"></span>
+        }
+      </div>
+    }
+  }
+
+  <!-- File Mode: Click anywhere to open -->
+  @if (!isTextResult()) {
+    <div class="file-clickable" (click)="openFile()"></div>
+  }
+</div>

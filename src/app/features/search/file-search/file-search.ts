@@ -28,6 +28,7 @@ import {
 import { normalizePath, samePath } from '../../../core/services/file-system/external-watcher.utils';
 import { resolveNewPath } from '../../../shared/utils/node.utils';
 import { EditorCommands } from '../../editor/editor.commands';
+import { FileNameSearchResult } from '../search.model';
 
 /** One line of the list: a file that was found, or the "create this path" action. */
 type Row =

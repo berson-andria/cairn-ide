@@ -1,0 +1,228 @@
+.container {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ───────────── File Header (both modes) ────────────────────── */
+
+.file-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-8);
+  cursor: pointer;
+  transition: background-color 0.15s;
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+
+  &.is-open {
+    position: sticky;
+    top: 0;
+    background: var(--color-surface-base);
+    border-bottom: 1px solid var(--color-divider);
+    z-index: 10;
+
+    &:hover {
+      background: var(--color-surface-hover);
+    }
+  }
+
+  .accordion {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+
+    ng-icon {
+      font-size: 16px;
+      color: var(--color-text-secondary);
+    }
+  }
+
+  .node-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    object-fit: contain;
+  }
+
+  .filename {
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .path {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--font-size-small);
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-shrink: 0;
+
+    .match-count {
+      display: inline-block;
+      padding: var(--space-2) var(--space-4);
+      border-radius: var(--radius-badge);
+      background: var(--color-surface-raised);
+      color: var(--color-text-muted);
+      font-size: var(--font-size-small);
+      font-weight: var(--font-weight-medium);
+    }
+
+    .replace-btn {
+      opacity: 0;
+      transition: opacity 0.15s;
+      padding: var(--space-4);
+      border-radius: var(--radius-chip);
+      color: var(--color-text-muted);
+
+      &:hover:not(:disabled) {
+        background: var(--color-surface-raised);
+        color: var(--color-action);
+      }
+
+      &:disabled {
+        opacity: 0.3;
+        cursor: default;
+      }
+
+      ng-icon {
+        font-size: 14px;
+      }
+    }
+  }
+
+  &:hover .replace-btn {
+    opacity: 1;
+  }
+}
+
+/* ───────────── Match Lines (Text Mode) ────────────────────── */
+
+.match-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-8);
+  padding-left: 40px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  border-left: 2px solid transparent;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    border-left-color: var(--color-action);
+  }
+
+  .line-number {
+    display: inline-block;
+    min-width: 3em;
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-code-sm);
+    color: var(--color-text-faint);
+    flex-shrink: 0;
+  }
+
+  .text {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-code-sm);
+    color: var(--color-text-prose);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: var(--line-height-code);
+  }
+
+  .replace-btn {
+    opacity: 0;
+    transition: opacity 0.15s;
+    padding: var(--space-4);
+    border-radius: var(--radius-chip);
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+
+    &:hover:not(:disabled) {
+      background: var(--color-surface-raised);
+      color: var(--color-action);
+    }
+
+    &:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+
+    ng-icon {
+      font-size: 14px;
+    }
+  }
+
+  &:hover .replace-btn {
+    opacity: 1;
+  }
+}
+
+/* ───────────── Replace Preview & Snippet Highlighting ────────────────────── */
+
+/* Deleted text (to be replaced) */
+:host ::ng-deep del {
+  background: rgba(224, 85, 97, 0.25); /* error-fg tinted */
+  text-decoration: line-through;
+  color: inherit;
+}
+
+/* Inserted text (replacement preview) */
+:host ::ng-deep ins {
+  background: rgba(140, 194, 101, 0.25); /* added-fg tinted */
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Highlighted snippet (from searchSnippet pipe) */
+:host ::ng-deep mark {
+  background: rgba(226, 169, 59, 0.25); /* attention-fg tinted */
+  color: inherit;
+}
+
+/* ───────────── File Mode Clickable Overlay ────────────────────── */
+
+.file-clickable {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  /* Hidden, but present for accessibility */
+  &:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+}
+
+/* ───────────── Responsive Adjustments ────────────────────── */
+
+@media (max-width: 600px) {
+  .file-header {
+    .path {
+      display: none;
+    }
+  }
+
+  .match-line {
+    .text {
+      /* Still show snippet on small screens */
+    }
+  }
+}

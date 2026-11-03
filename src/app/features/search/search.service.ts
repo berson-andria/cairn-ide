@@ -1,5 +1,7 @@
 import { inject, Injectable, NgZone } from '@angular/core';
 import { TauriBridgeService } from '../../core/services/tauri/tauri-bridge.service';
+import { FileSearchResult, FileNameSearchResult, SearchFilters } from './search.model';
+
 @Injectable({
   providedIn: 'root',
 })

@@ -8,11 +8,7 @@
           <ng-icon name="bootstrapChevronRight" />
         }
       </span>
-      <img
-        [src]="'assets/node-icons/' + getIconName() + '.svg'"
-        class="node-icon"
-        alt="file-icon"
-      />
+      <img [src]="getIconPath()" class="node-icon" alt="file-icon" />
       <span class="filename">{{ fileName() }}</span>
       <span class="path">
         {{ path() }}

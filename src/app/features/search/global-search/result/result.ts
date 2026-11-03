@@ -1,5 +1,5 @@
 import { Component, computed, inject, input, InputSignal, output } from '@angular/core';
-import { getIconName } from '../../../../shared/utils/node.utils';
+import { getIconPath } from '../../../../shared/utils/node.utils';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { bootstrapChevronDown, bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
 import { WorkspaceNodeStore } from '../../../../core/store/workspace/workspace.store';
@@ -8,6 +8,7 @@ import { lucideReplace, lucideReplaceAll } from '@ng-icons/lucide';
 import { ReplacePreviewPipe } from '../../../../shared/pipe/replace-preview.pipe';
 import { SearchSnippetPipe } from '../../../../shared/pipe/search-snippet.pipe';
 import { EditorCommands } from '../../../editor/editor.commands';
+import { FileSearchResult } from '../../search.model';
 
 /** One matching line of a result, as the search reported it. */
 export type LineMatch = FileSearchResult['matches'][number];
@@ -59,8 +60,8 @@ export class SearchResult {
     this.replaceFile.emit();
   }
 
-  getIconName() {
-    return getIconName(this.fileName(), 'file', false);
+  getIconPath() {
+    return getIconPath(this.fileName(), 'file');
   }
 
   async openFile(line: number) {

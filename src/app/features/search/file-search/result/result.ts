@@ -1,7 +1,8 @@
 import { Component, computed, inject, input, InputSignal } from '@angular/core';
-import { getIconName } from '../../../../shared/utils/node.utils';
+import { getIconPath } from '../../../../shared/utils/node.utils';
 import { DialogRef } from '@angular/cdk/dialog';
 import { EditorCommands } from '../../../editor/editor.commands';
+import { FileNameSearchResult } from '../../search.model';
 
 @Component({
   selector: 'search-result',
@@ -23,8 +24,8 @@ export class SearchResult {
 
   open = true;
 
-  getIconName() {
-    return getIconName(this.result().fileName, 'file', false);
+  getIconPath() {
+    return getIconPath(this.result().fileName, 'file');
   }
 
   async openFile() {

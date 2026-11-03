@@ -1,0 +1,221 @@
+<div class="container">
+  <div class="header">
+    <div class="mode-indicator">
+      @switch (currentMode()) {
+        @case ('file') {
+          <ng-icon name="lucideFileText" class="mode-icon file"></ng-icon>
+          <span class="mode-label">Files</span>
+        }
+        @case ('text') {
+          <ng-icon name="lucideFileText" class="mode-icon text"></ng-icon>
+          <span class="mode-label">Search</span>
+        }
+        @case ('tasks') {
+          <ng-icon name="lucideHash" class="mode-icon tasks"></ng-icon>
+          <span class="mode-label">Tasks</span>
+        }
+        @case ('code') {
+          <ng-icon name="lucideAtSign" class="mode-icon code"></ng-icon>
+          <span class="mode-label">Code</span>
+        }
+        @case ('commands') {
+          <ng-icon name="lucideChevronRight" class="mode-icon commands"></ng-icon>
+          <span class="mode-label">Commands</span>
+        }
+      }
+    </div>
+
+    <div class="btn-group">
+      @if (isSearching()) {
+        <span class="spinner">
+          <ng-icon name="lucideLoader2" class="spin"></ng-icon>
+        </span>
+      }
+      @if (currentMode() === 'text') {
+        <button
+          title="Toggle replace"
+          class="icon-btn"
+          [class.active]="showReplace()"
+          (click)="showReplace.set(!showReplace())"
+        >
+          <ng-icon name="lucideReplace"></ng-icon>
+        </button>
+        <button
+          title="Toggle search filters"
+          class="icon-btn"
+          [class.active]="showFilters() || activeFilterCount() > 0"
+          (click)="showFilters.set(!showFilters())"
+        >
+          <ng-icon name="lucideFilter"></ng-icon>
+        </button>
+      }
+      <button class="icon-btn" (click)="nodeStore.refreshExplorer()">
+        <ng-icon name="lucideRefreshCcw"></ng-icon>
+      </button>
+    </div>
+  </div>
+
+  <div class="search">
+    <div class="input-form">
+      <input
+        #searchInput
+        type="text"
+        [ngModel]="keyword()"
+        (ngModelChange)="onValueChange($event)"
+        (keydown)="onKeydown($event)"
+        placeholder="file name • / text • # tasks • @ code • > commands"
+      />
+      @if (currentMode() === 'text') {
+        <button class="icon-btn" title="Case sensitive">
+          <ng-icon name="lucideCaseSensitive"></ng-icon>
+        </button>
+        <button class="icon-btn" title="Whole word">
+          <ng-icon name="lucideWholeWord"></ng-icon>
+        </button>
+      }
+    </div>
+
+    @if (showReplace() && currentMode() === 'text') {
+      <div class="replace-row">
+        <span class="replace-icon">
+          <ng-icon name="lucideUnlink2"></ng-icon>
+        </span>
+        <div class="input-form">
+          <input
+            type="text"
+            placeholder="Replace (use $1 for groups)"
+            [ngModel]="replacement()"
+            (ngModelChange)="replacement.set($event)"
+            (keydown.enter)="replaceAll()"
+          />
+          <button
+            title="Replace all"
+            class="icon-btn"
+            [disabled]="!canReplace()"
+            (click)="replaceAll()"
+          >
+            <ng-icon name="lucideReplaceAll"></ng-icon>
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+
+  @if (showFilters() && currentMode() === 'text') {
+    <div class="filters">
+      <label for="search-include">Files to include</label>
+      <div class="input-form">
+        <input
+          id="search-include"
+          type="text"
+          placeholder="e.g. *.ts, src/**"
+          [ngModel]="include()"
+          (ngModelChange)="include.set($event); trigger()"
+        />
+      </div>
+      <label for="search-exclude">Files to exclude</label>
+      <div class="input-form">
+        <input
+          id="search-exclude"
+          type="text"
+          placeholder="e.g. **/*.spec.ts, dist"
+          [ngModel]="exclude()"
+          (ngModelChange)="exclude.set($event); trigger()"
+        />
+      </div>
+      <div class="input-group">
+        <input
+          id="open-editors-only"
+          type="checkbox"
+          [ngModel]="openEditorsOnly()"
+          (ngModelChange)="openEditorsOnly.set($event); trigger()"
+        />
+        <label for="open-editors-only">Search only in open editors</label>
+      </div>
+    </div>
+  }
+
+  <div class="result">
+    @for (rowResult of rows(); track rowKey(rowResult); let i = $index) {
+      @switch (rowResult.kind) {
+        @case ('file') {
+          <div
+            #row
+            class="row"
+            [class.active]="i === activeIndex()"
+            (mouseenter)="activeIndex.set(i)"
+          >
+            <search-result
+              [result]="rowResult.result"
+              [rootPath]="rootPath()"
+              [keyword]="cleanKeyword()"
+            ></search-result>
+          </div>
+        }
+        @case ('text') {
+          <div
+            #row
+            class="row"
+            [class.active]="i === activeIndex()"
+            (mouseenter)="activeIndex.set(i)"
+          >
+            <search-result
+              [result]="rowResult.result"
+              [rootPath]="rootPath()"
+              [keyword]="cleanKeyword()"
+              [replaceMode]="showReplace()"
+              [pattern]="compiled().re"
+              [replacement]="replacement()"
+              (replaceLine)="replaceInLine(rowResult.result, $event)"
+              (replaceFile)="replaceInFile(rowResult.result)"
+            ></search-result>
+          </div>
+        }
+        @case ('task') {
+          <div #row class="row placeholder" [class.active]="i === activeIndex()">
+            <span class="placeholder-text">Task search not yet implemented</span>
+          </div>
+        }
+        @case ('code') {
+          <div #row class="row placeholder" [class.active]="i === activeIndex()">
+            <span class="placeholder-text">Code search not yet implemented</span>
+          </div>
+        }
+        @case ('command') {
+          <div #row class="row placeholder" [class.active]="i === activeIndex()">
+            <span class="placeholder-text">Command search not yet implemented</span>
+          </div>
+        }
+        @case ('create') {
+          <div
+            #row
+            class="row create"
+            [class.active]="i === activeIndex()"
+            (mouseenter)="activeIndex.set(i)"
+            (click)="create(rowResult)"
+          >
+            <span class="create-label">
+              {{ rowResult.folder ? 'Create folder' : 'Create file' }}
+            </span>
+            <span class="create-path">{{ rowResult.label }}</span>
+            <kbd class="shortcut">⇧ + ↵</kbd>
+          </div>
+        }
+      }
+    }
+  </div>
+
+  <div class="footer">
+    @if (currentMode() === 'file' && rows().length > 0) {
+      <p class="hint">↑↓ move · Enter open · Shift + Enter create</p>
+    }
+    @if (showReplace() && compiled().error && currentMode() === 'text') {
+      <p class="warning">{{ compiled().error }}</p>
+    }
+    @if (warningMessage()) {
+      <p class="warning">{{ warningMessage() }}</p>
+    } @else if (searched() && !isSearching() && rows().length === 0) {
+      <p class="no-results">No results found.</p>
+    }
+  </div>
+</div>

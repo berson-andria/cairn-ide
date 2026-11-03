@@ -37,6 +37,7 @@ import {
 import { SearchService } from '../search.service';
 import { EditorCommands } from '../../editor/editor.commands';
 import { EditorTabsStore } from '../../../core/store/editor-tabs.store';
+import { FileSearchResult } from '../search.model';
 
 interface SearchCriteria {
   query: string;
