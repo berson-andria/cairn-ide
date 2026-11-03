@@ -21,13 +21,17 @@ import { ComponentType } from '@angular/cdk/overlay';
         overflow: hidden;
         display: flex;
         flex-direction: column;
-        min-height: 20vh;
-        // max-height: 100%;
+        min-height: 0;
+        max-height: 50vh;
         color: var(--base-text) !important;
         border: 1px solid #3e4451;
       }
       .custom-dialog-body {
-        overflow-y: hidden;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
       }
     `,
   ],

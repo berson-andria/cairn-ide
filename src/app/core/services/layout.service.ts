@@ -4,6 +4,7 @@ import { FileSearch } from '../../features/search/file-search/file-search';
 import { DialogService } from './dialog/dialog.service';
 import { TerminalService } from '../../features/tooling/terminal/terminal.service';
 import { WorkspaceNodeStore } from '../store/workspace/workspace.store';
+import { Search } from '../../features/search/search';
 
 /** compact: no gap, no radius. comfortable: spaced, rounded panels. Visuals live in ide-shell.scss. */
 export type Density = 'compact' | 'comfortable';
@@ -246,6 +247,10 @@ export class LayoutService {
 
   openGlobalSearch() {
     this.dialogService.open(GlobalSearch);
+  }
+
+  openSearchDialog() {
+    this.dialogService.open(Search);
   }
 
   openFileSearch() {

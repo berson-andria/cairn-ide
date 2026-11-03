@@ -57,7 +57,7 @@ export function registerAppCommands(): void {
   //   commands.register('search.global',      () => layout.showSearchPanel('content'));
   //   commands.register('search.file',        () => layout.showSearchPanel('files'));
   commands.register('search.global', () => layout.openGlobalSearch());
-  commands.register('search.file', () => layout.openFileSearch());
+  commands.register('search.file', () => layout.openSearchDialog());
 
   commands.register('explorer.selectAll', () => store.selectAllSiblings());
   commands.register('explorer.copy', () => store.copySelection());
