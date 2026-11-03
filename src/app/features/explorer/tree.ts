@@ -44,7 +44,7 @@ import { EmptyExplorer } from './empty-explorer';
       bootstrapChevronRight,
     }),
   ],
-  host: { '[style.flex]': 'layoutService.isRailSectionActive("Files")? 1: "none"' },
+  host: { '[style.flex]': 'layoutService.isRailSectionActive("Files") ? 1: "none"' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
 })

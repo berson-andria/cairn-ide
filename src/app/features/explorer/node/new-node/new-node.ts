@@ -2,19 +2,19 @@ import { CommonModule, NgClass, NgStyle } from '@angular/common';
 import { Component, inject, input, InputSignal, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { WorkspaceNodeStore } from '../../../../core/store/workspace/workspace.store';
-import { indentStyle, getIconName } from '../../../../shared/utils/node.utils';
+import { indentStyle, getIconPath, ItemType } from '../../../../shared/utils/node.utils';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
 
 @Component({
   selector: 'new-node',
   template: `
     <div class="node-row file" [ngStyle]="indentStyle()" [ngClass]="{ 'add-node': display() }">
-      <span class="accordion"></span>
+      <span class="accordion">
+        <ng-icon name="bootstrapChevronRight" />
+      </span>
       <span>
-        <img
-          [src]="'assets/node-icons/' + getIconName() + '.svg'"
-          class="node-icon"
-          alt="node-icon"
-        />
+        <img [src]="getIconPath()" class="node-icon" alt="node-icon" />
       </span>
       <div class="node-name">
         <input
@@ -78,7 +78,8 @@ import { indentStyle, getIconName } from '../../../../shared/utils/node.utils';
       width: 100%;
     }
   `,
-  imports: [NgStyle, FormsModule, NgClass, CommonModule],
+  imports: [NgStyle, FormsModule, NgClass, NgIcon, CommonModule],
+  providers: [provideIcons({ bootstrapChevronRight })],
 })
 export class NewNode {
   nodeStore = inject(WorkspaceNodeStore);
@@ -93,8 +94,8 @@ export class NewNode {
   indentStyle() {
     return indentStyle(this.level(), 10);
   }
-  getIconName() {
-    return getIconName(this.nodeName, this.nodeType(), false);
+  getIconPath() {
+    return getIconPath(this.nodeName, <ItemType>this.nodeType(), false);
   }
   nodeNameEntry(value: string) {
     this.danger.set(

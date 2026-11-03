@@ -6,28 +6,28 @@
   color: var(--explorer-text);
   border-radius: 0.25em;
   width: 100% !important;
+  gap: 0.25em;
   cursor: pointer;
-  background-color: var(--base-bg);
+  background-color: var(--color-surface-panel);
   &.is-active {
-    background-color: var(--explorer-item-hover-bg);
+    background-color: var(--color-surface-hover);
   }
 }
 .node-row.is-selected {
-  background-color: var(--explorer-item-selected-bg, var(--explorer-item-hover-bg));
+  background-color: var(--color-surface-hover);
 }
 .node-row.is-drop-target {
   outline: 1px dashed gray;
   outline-offset: -1px;
 }
 .node-row:not(.is-cut):hover {
-  background-color: var(--explorer-item-hover-bg);
+  background-color: var(--color-surface-hover);
 }
 .node-row.is-cut {
   opacity: 0.75;
 }
 
 .node-icon {
-  margin-right: 8px;
   font-size: 16px;
   display: inline-flex;
   align-items: center;
@@ -41,7 +41,7 @@
 }
 
 .accordion {
-  width: 16px;
+  width: 14px;
   font-size: 0.8em;
   font-weight: 600;
   ng-icon {

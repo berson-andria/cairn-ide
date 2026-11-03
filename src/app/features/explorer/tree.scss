@@ -1,5 +1,7 @@
 :host {
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .container {
   height: 100%;
@@ -19,12 +21,12 @@
   }
 
   .content {
+    min-height: 0;
     overflow-y: auto;
-    position: relative;
     box-sizing: border-box;
 
     scrollbar-width: thin;
-    scrollbar-color: #282e31 #0000000f;
+    scrollbar-color: var(--color-surface-hover) var(--color-surface-panel);
     /* Width of the entire scrollbar */
     &::-webkit-scrollbar {
       width: 8px;
@@ -39,36 +41,15 @@
     }
   }
 }
-.header {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0.25em 0;
-  .btn-group {
-    display: flex;
-    flex-direction: row;
-    gap: 0.5em;
-    button {
-      display: inline-flex;
-      align-items: center;
-      ng-icon {
-        color: var(--explorer-text) !important;
-      }
-      &:hover {
-        ng-icon {
-          color: white !important;
-        }
-      }
-    }
-  }
-}
 .tree-node {
-  display: block;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   user-select: none;
 }
 .placeholder {
   width: 100%;
   min-height: 32px;
+  flex: 1;
+}
+ng-icon {
+  font-weight: 600;
 }

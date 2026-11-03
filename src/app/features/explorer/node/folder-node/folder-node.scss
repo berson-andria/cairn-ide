@@ -9,17 +9,20 @@
   border-bottom: 1px solid rgba(0, 0, 0, 0.03);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   &:hover {
-    background-color: var(--explorer-item-hover-bg) !important;
+    background-color: var(--color-surface-hover) !important;
   }
 }
-.line {
-  position: absolute;
-  top: 0;
-  height: 100% !important;
-  width: 1px;
-  background-color: rgba(128, 128, 128, 0.125);
-  &.active-line {
+.node-children {
+  position: relative;
+  .line {
+    position: absolute;
+    top: 0;
+    height: 100% !important;
     width: 1px;
-    background-color: rgba(128, 128, 128, 0.5);
+    background-color: rgba(128, 128, 128, 0.125);
+    &.active-line {
+      width: 1px;
+      background-color: rgba(128, 128, 128, 0.5);
+    }
   }
 }

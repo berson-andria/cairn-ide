@@ -7,11 +7,151 @@
   min-height: 0;
 }
 
-// Fixed-height strip. Keeps its height when empty (nothing open).
-.tabs-container {
-  flex: none;
-  min-height: var(--tabs-height);
+// Tab strip container
+.tabs {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.5em;
+  width: 100%;
   border-bottom: 1px solid var(--color-divider);
+  flex: none;
+
+  .unsaved-control {
+    text-wrap: nowrap;
+    padding: 0.25em 0.125em;
+
+    button {
+      border: 1px solid transparent;
+      background: var(--color-surface-base);
+      color: var(--color-text-primary);
+      padding: 0.25em 0.5em;
+
+      &:hover {
+        border-color: var(--color-border-strong);
+      }
+    }
+  }
+}
+
+.opened-files {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.125em;
+  flex: 1;
+  overflow-x: scroll;
+  background-color: var(--color-surface-base);
+
+  /* Standard Firefox rules */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.3s ease;
+
+  /* WebKit Custom Width (Chrome, Safari, Edge) */
+  &::-webkit-scrollbar {
+    height: 2px !important;
+    width: 2px !important;
+  }
+
+  /* WebKit Initial State (Transparent) */
+  &::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    transition: background-color 0.3s ease;
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  /* Hover States */
+  &:hover {
+    scrollbar-color: var(--color-surface-hover) var(--color-surface-base);
+
+    &::-webkit-scrollbar-thumb {
+      background-color: var(--color-surface-hover);
+    }
+
+    &::-webkit-scrollbar-track {
+      background-color: var(--color-surface-hover);
+    }
+  }
+
+  &::-webkit-scrollbar-button {
+    display: none;
+  }
+}
+
+.tab {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0.25em 0.5em;
+  border-radius: 0.5em;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  text-wrap: nowrap;
+  transition: background-color 0.2s ease, color 0.2s ease;
+
+  &.is-dirty {
+    span {
+      text-decoration-line: underline;
+      text-decoration-color: var(--color-text-secondary);
+      text-decoration-thickness: 1px;
+      text-decoration-style: wavy;
+    }
+  }
+
+  &:hover {
+    background-color: var(--color-surface-hover);
+    color: var(--color-text-primary);
+  }
+
+  &.tab--active {
+    color: var(--color-text-primary);
+    border-bottom: 2px solid var(--color-focus);
+    box-sizing: border-box;
+
+    button {
+      color: var(--color-text-primary);
+    }
+  }
+
+  button {
+    padding: 0.125em 0.45em;
+    margin-left: 0.25em;
+    color: inherit;
+
+    &:hover {
+      opacity: 0.8;
+    }
+  }
+}
+
+.tab.is-diff {
+  font-style: italic;
+}
+
+.node-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cdk-drag-preview {
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.cdk-drag-placeholder {
+  opacity: 0.3;
+}
+
+.cdk-drag-animating,
+.opened-files.cdk-drop-list-dragging .tab:not(.cdk-drag-placeholder) {
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
 }
 
 // Takes the remaining space. Whatever is rendered here owns its own scrolling.

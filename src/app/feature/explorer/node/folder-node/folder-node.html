@@ -1,0 +1,66 @@
+<div class="folder-group">
+  <div
+    class="node-row folder"
+    [ngClass]="{
+      'is-open': uiState().isExpanded,
+      'is-active': isActive(),
+      'is-selected': isSelected(),
+      'is-cut': isCut(),
+    }"
+    [ngStyle]="{
+      'padding-left': indentStyle['padding-left'],
+      top: stickyStyles['top'],
+      'z-index': stickyStyles['z-index'],
+    }"
+    [nodeDnd]="nodeId()"
+    nodeDndFolder
+    (click)="onClick($event)"
+  >
+    <span class="accordion">
+      @if (uiState().isExpanded) {
+        <ng-icon name="bootstrapChevronDown" />
+      } @else {
+        <ng-icon name="bootstrapChevronRight " />
+      }
+    </span>
+    <span>
+      <img [src]="iconName()" class="node-icon" />
+    </span>
+    @if (isRenaming()) {
+      <rename-node [nodeId]="nodeId()" />
+    } @else {
+      <span class="node-name">{{ nodeStore.nodes()[this.nodeId()].name }}</span>
+    }
+  </div>
+  @if (uiState().isExpanded) {
+    <div class="node-children">
+      @if (uiState().inlineCreation == 'folder') {
+        <new-node
+          [level]="level() + 1"
+          [display]="uiState().inlineCreation == 'folder'"
+          [nodeType]="'folder'"
+          (save)="saveNewNode($event, 'folder')"
+        ></new-node>
+      }
+      @for (child of childFolders(); track child.id) {
+        <folder-node [nodeId]="child.id" [level]="level() + 1"></folder-node>
+      }
+      @if (uiState().inlineCreation == 'file') {
+        <new-node
+          [level]="level() + 1"
+          [display]="uiState().inlineCreation == 'file'"
+          [nodeType]="'file'"
+          (save)="saveNewNode($event, 'file')"
+        ></new-node>
+      }
+      @for (child of childFiles(); track child.id) {
+        <file-node [nodeId]="child.id" [level]="level() + 1"></file-node>
+      }
+      <div
+        class="line"
+        [ngClass]="{ 'active-line': isChildActive() }"
+        [ngStyle]="lineIndentStyle"
+      ></div>
+    </div>
+  }
+</div>

@@ -24,7 +24,7 @@
       }
     </span>
     <span>
-      <img [src]="'assets/node-icons/' + iconName() + '.svg'" class="node-icon" />
+      <img [src]="iconName()" class="node-icon" />
     </span>
     @if (isRenaming()) {
       <rename-node [nodeId]="nodeId()" />

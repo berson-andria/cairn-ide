@@ -1,5 +1,39 @@
-<div class="tabs-container"></div>
+<div class="tabs">
+  <div
+    class="opened-files"
+    cdkDropList
+    cdkDropListOrientation="horizontal"
+    (cdkDropListDropped)="onTabDrop($event)"
+  >
+    @for (tab of tabs(); track tab.id) {
+      <div
+        class="tab"
+        [class.tab--active]="tab.active"
+        [class.is-dirty]="tab.dirty"
+        [class.is-diff]="tab.kind === 'diff'"
+        cdkDrag
+        cdkDragLockAxis="x"
+        [title]="tab.tooltip"
+        (click)="openTab(tab.id)"
+      >
+        <img [src]="tab.icon" class="node-icon" alt="file-icon" />
+        <span>{{ tab.label }}</span>
+        <button (click)="$event.stopPropagation(); closeTab(tab.id)">x</button>
+      </div>
+    }
+  </div>
+  <div class="unsaved-control">
+    <button title="Highlight Unsaved Files">Unsaved · {{ dirtyFileCount() }}</button>
+  </div>
+</div>
+
 <div class="workspace-content">
-  <empty-workspace />
+  @if (nodeStore.rootPath()) {
+    @if (tabStore.openTabs().length === 0) {
+      <empty-workspace />
+    }
+  } @else {
+    <no-folder />
+  }
 </div>
 <bottom-panel />

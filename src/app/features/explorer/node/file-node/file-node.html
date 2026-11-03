@@ -8,7 +8,7 @@
 >
   <span class="accordion"></span>
   <span>
-    <img [src]="'assets/node-icons/' + iconName() + '.svg'" class="node-icon" alt="file-icon" />
+    <img [src]="iconName()" class="node-icon" alt="file-icon" />
   </span>
   @if (isRenaming()) {
     <rename-node [nodeId]="nodeId()" />

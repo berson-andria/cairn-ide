@@ -3,7 +3,7 @@ import { Component, computed, inject, input, InputSignal, OnInit } from '@angula
 import { NodeDndDirective } from '../node-dnd.directive';
 import { RenameNode } from '../rename-node/rename-node';
 import { WorkspaceNodeStore } from '../../../../core/store/workspace/workspace.store';
-import { getIconName, indentStyle } from '../../../../shared/utils/node.utils';
+import { getIconPath, indentStyle } from '../../../../shared/utils/node.utils';
 import { EditorCommands } from '../../../editor/editor.commands';
 import { EditorService } from '../../../editor/services/editor.service';
 
@@ -24,7 +24,7 @@ export class FileNodeComponent {
   indentMultiplier = 10;
 
   iconName = computed(() => {
-    return getIconName(this.nodeStore.nodes()[this.nodeId()].name, 'file', false);
+    return getIconPath(this.nodeStore.nodes()[this.nodeId()].name, 'file');
   });
 
   isActive = computed(() => {

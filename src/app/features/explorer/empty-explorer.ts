@@ -1,4 +1,5 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
+import { EditorCommands } from '../editor/editor.commands';
 
 @Component({
   selector: 'empty-explorer',
@@ -10,6 +11,7 @@ import { Component } from '@angular/core';
       </div>
       <button
         style="font:inherit;font-size:13px;padding:8px 16px;border-radius:6px;cursor:pointer;width:100%;background:#E8E2D6;color:#1C1A17;border:0;font-weight:600"
+        (click)="command.openFolder()"
       >
         Open Folder</button
       ><button
@@ -20,4 +22,6 @@ import { Component } from '@angular/core';
     </div>
   `,
 })
-export class EmptyExplorer {}
+export class EmptyExplorer {
+  readonly command = inject(EditorCommands);
+}

@@ -1,0 +1,50 @@
+.node-row {
+  display: flex;
+  align-items: center;
+  height: 22px; /* Locked structural row height matches TS calculation */
+  box-sizing: border-box;
+  color: var(--explorer-text);
+  border-radius: 0.25em;
+  width: 100% !important;
+  gap: 0.25em;
+  cursor: pointer;
+  background-color: var(--color-surface-panel);
+  &.is-active {
+    background-color: var(--color-surface-hover);
+  }
+}
+.node-row.is-selected {
+  background-color: var(--color-surface-hover);
+}
+.node-row.is-drop-target {
+  outline: 1px dashed gray;
+  outline-offset: -1px;
+}
+.node-row:not(.is-cut):hover {
+  background-color: var(--color-surface-hover);
+}
+.node-row.is-cut {
+  opacity: 0.75;
+}
+
+.node-icon {
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.node-name {
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 0.95em;
+  text-overflow: ellipsis;
+}
+
+.accordion {
+  width: 14px;
+  font-size: 0.8em;
+  font-weight: 600;
+  ng-icon {
+    color: white;
+  }
+}

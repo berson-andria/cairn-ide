@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
 import { ResizeHandle } from '../../../shared/components/resize-handle/resize-handle';
 import { FileTree } from '../../../features/explorer/tree';
-import { ReviewList } from '../../../features/review/review-list';
-import { NoteList } from '../../../features/note/note-list';
-import { TaskList } from '../../../features/todo/task-list';
+import { ReviewList } from '../../../feature/review/review-list';
+import { TaskList } from '../../../feature/task/task-list';
+import { NoteList } from '../../../feature/notes/note-list/note-list';
 
 @Component({
   selector: 'left-panel',

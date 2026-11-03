@@ -1,4 +1,4 @@
-@use './app/shared/styles/token.scss';
+@use './token.scss';
 
 @import '@angular/cdk/overlay-prebuilt.css';
 @import '@xterm/xterm/css/xterm.css';
@@ -78,21 +78,25 @@ button:disabled {
   opacity: 0.4;
 }
 
-.rail__body {
-  flex: 1;
-  overflow: auto;
-  padding-left: var(--space-9);
-}
 .rail__hint {
   padding: var(--space-6) var(--space-14) var(--space-10);
   font-size: var(--font-size-label);
   color: var(--color-text-muted);
 }
 
+.rail-section-container {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
 /* Section header: Work / Files / Notes / Review */
 .rail-section {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   .rail__body {
     display: none;
   }
@@ -112,16 +116,22 @@ button:disabled {
   }
 }
 .rail-section--active {
-  // border-top-color: transparent;
   flex: 1;
+  min-height: 0;
   display: flex;
+  flex-direction: column;
   .rail-section--header {
     font-weight: var(--font-weight-semibold);
     color: var(--color-text-primary);
+    flex: none;
   }
   .rail__body {
-    flex-grow: 1;
-    display: block;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-left: var(--space-9);
   }
 }
 .rail-section__title {

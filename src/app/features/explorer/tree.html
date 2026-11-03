@@ -8,7 +8,22 @@
       }
       Files
     </span>
-    <span class="rail-section__meta--attention rail-section__meta">3 new</span>
+    @if (nodeStore.rootName()) {
+      <div class="btn-group">
+        <button class="icon-btn" (click)="$event.stopPropagation(); addNode('file')">
+          <ng-icon name="lucideFilePlus2" />
+        </button>
+        <button class="icon-btn" (click)="$event.stopPropagation(); addNode('folder')">
+          <ng-icon name="bootstrapFolderPlus" />
+        </button>
+        <button class="icon-btn" (click)="$event.stopPropagation(); nodeStore.refreshExplorer()">
+          <ng-icon name="lucideRefreshCcw" />
+        </button>
+        <button class="icon-btn" (click)="$event.stopPropagation()">
+          <ng-icon name="bootstrapArrowsCollapse" />
+        </button>
+      </div>
+    }
   </div>
   <div class="rail__body">
     <div
@@ -21,23 +36,6 @@
       (dragover)="onRootDragOver($event)"
       (drop)="onRootDrop($event)"
     >
-      @if (nodeStore.rootName()) {
-        <div class="header">
-          <span>Explorer</span>
-          <div class="btn-group">
-            <button (click)="addNode('file')">
-              <ng-icon name="lucideFilePlus2" />
-            </button>
-            <button (click)="addNode('folder')">
-              <ng-icon name="bootstrapFolderPlus" />
-            </button>
-            <button (click)="nodeStore.refreshExplorer()">
-              <ng-icon name="lucideRefreshCcw" />
-            </button>
-            <button><ng-icon name="bootstrapArrowsCollapse" /></button>
-          </div>
-        </div>
-      }
       <div class="content tree-node">
         @if (nodeStore.rootName()) {
           @if (nodeStore.rootInlineCreation() == 'folder') {

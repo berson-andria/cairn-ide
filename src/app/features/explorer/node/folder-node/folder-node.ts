@@ -8,7 +8,7 @@ import { NodeDndDirective } from '../node-dnd.directive';
 import { RenameNode } from '../rename-node/rename-node';
 import { InlineCreationMode } from '../../../../core/store/workspace/workspace.state';
 import { WorkspaceNodeStore } from '../../../../core/store/workspace/workspace.store';
-import { getIconName } from '../../../../shared/utils/node.utils';
+import { getIconPath } from '../../../../shared/utils/node.utils';
 
 @Component({
   selector: 'folder-node',
@@ -47,11 +47,7 @@ export class FolderNodeComponent {
     return this.nodeStore.explorerUiState()[this.nodeStore.nodes()[this.nodeId()].id];
   });
   iconName = computed(() => {
-    return getIconName(
-      this.nodeStore.nodes()[this.nodeId()].name,
-      'folder',
-      this.uiState().isExpanded,
-    );
+    return getIconPath(this.nodeStore.nodes()[this.nodeId()].name, 'folder');
   });
 
   isActive = computed(() => {
