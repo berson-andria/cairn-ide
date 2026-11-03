@@ -1,4 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
+import { EditorCommands } from '../../../features/editor/editor.commands';
+import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
 
 @Component({
   selector: 'no-folder',
@@ -12,7 +14,8 @@ import { Component } from '@angular/core';
             travel with your git history.
           </div>
           <div style="display:flex;gap:10px">
-            <button class="b">Open Folder</button><button class="b">Open File</button
+            <button class="b" (click)="commands.openFolder()">Open Folder</button
+            ><button class="b" (click)="openFile()">Open File</button
             ><button class="b">New Window</button>
           </div>
           <div class="s" style="letter-spacing:.08em;text-transform:uppercase;margin:34px 0 4px">
@@ -55,4 +58,14 @@ import { Component } from '@angular/core';
     }
   `,
 })
-export class NoFolderOpen {}
+export class NoFolderOpen {
+  readonly commands = inject(EditorCommands);
+  readonly nodeStore = inject(WorkspaceNodeStore);
+
+  async openFile() {
+    const files = await this.nodeStore.addStandaloneFiles();
+    for (const id of files) {
+      this.commands.openFile(id);
+    }
+  }
+}
