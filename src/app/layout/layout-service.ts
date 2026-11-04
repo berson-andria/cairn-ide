@@ -8,7 +8,9 @@ export type Toolkit = 'Terminal' | 'Git' | 'Log' | 'Problems';
 })
 export class LayoutService {
   readonly activeRail = signal<RailSection | null>('Work');
-  readonly activeToolkit = signal<Toolkit>('Terminal');
+  readonly activeToolkit = signal<Toolkit>('Problems');
+
+  readonly isBottomPanelCollapsed = signal(false);
 
   toggleRailSection(section: RailSection) {
     this.activeRail.update((v) => (v === section ? null : section));
@@ -22,5 +24,9 @@ export class LayoutService {
   }
   isToolkitActive(section: Toolkit) {
     return this.activeToolkit() === section;
+  }
+
+  toggleBottomPanel() {
+    this.isBottomPanelCollapsed.update((v) => !v);
   }
 }

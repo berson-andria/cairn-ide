@@ -146,6 +146,7 @@
       class="status-bar__item status-bar__item--strong"
       type="button"
       aria-label="Toggle bottom panel"
+      (click)="toggleToolkit('Terminal')"
     >
       <svg
         width="14"
@@ -161,10 +162,22 @@
       </svg>
       Panel <span class="status-bar__hint">Ctrl J</span>
     </button>
-    <button class="status-bar__item status-bar__item--strong" type="button" aria-label="Open Git">
+    <button
+      class="status-bar__item status-bar__item--strong"
+      type="button"
+      aria-label="Open Git"
+      (click)="toggleToolkit('Git')"
+    >
       Git <span class="status-bar__hint">{{ gitChanged }} changed</span>
     </button>
-    <span>Problems {{ problems }}</span>
+    <button
+      class="status-bar_item status-bar_item--strong"
+      type="button"
+      aria-label="Toggle Issues"
+      (click)="toggleToolkit('Problems')"
+    >
+      <span>Problems {{ problems }}</span>
+    </button>
   </div>
 
   <div class="status-bar__group">

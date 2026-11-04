@@ -11,4 +11,11 @@
   background: var(--color-surface-panel);
   border-top: 1px solid var(--color-divider);
   font-size: var(--font-size-ui);
+  &.collapsed {
+    height: 0;
+    width: 0;
+    padding: 0;
+    margin: 0;
+    border: 0;
+  }
 }

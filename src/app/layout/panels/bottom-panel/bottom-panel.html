@@ -60,7 +60,9 @@
         ><button style="padding: 2px 10px" (click)="activeGitView = 'Graph'">Graph</button>
       </div>
     }
-    <button class="icon-btn" style="margin-left: 2em"><ng-icon name="lucideMinus" /></button>
+    <button class="icon-btn" style="margin-left: 2em" (click)="layoutService.toggleBottomPanel()">
+      <ng-icon name="lucideMinus" />
+    </button>
   </div>
 </div>
 @switch (layoutService.activeToolkit()) {

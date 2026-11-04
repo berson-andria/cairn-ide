@@ -25,7 +25,10 @@ import { lucideMinus, lucidePlus } from '@ng-icons/lucide';
   imports: [ResizeHandle, Terminal, Git, NgIcon],
   templateUrl: './bottom-panel.html',
   styleUrl: './bottom-panel.scss',
-  host: { '[style.height.px]': 'height()' },
+  host: {
+    '[style.height.px]': 'height()',
+    '[class.collapsed]': 'layoutService.isBottomPanelCollapsed()',
+  },
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [provideIcons({ lucidePlus, lucideMinus })],
 })

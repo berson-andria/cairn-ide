@@ -17,6 +17,7 @@ import { EditorTabsStore } from '../../core/store/editor-tabs.store';
 import { EditorCommands } from '../../features/editor/editor.commands';
 import { EditorService } from '../../features/editor/services/editor.service';
 import { TerminalService } from '../../features/tooling/terminal/terminal.service';
+import { LayoutService, Toolkit } from '../layout-service';
 
 @Component({
   selector: 'app-shell',
@@ -27,6 +28,7 @@ import { TerminalService } from '../../features/tooling/terminal/terminal.servic
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppShell {
+  readonly layoutService = inject(LayoutService);
   readonly nodeStore = inject(WorkspaceNodeStore);
   readonly watcher = inject(WorkspaceWatcherService);
   readonly commands = inject(EditorCommands);
@@ -85,6 +87,17 @@ export class AppShell {
   }
   protected close(): void {
     void this.withWindow((w) => w.close());
+  }
+
+  protected toggleToolkit(toolkit: Toolkit) {
+    if (this.layoutService.activeToolkit() === toolkit) {
+      this.layoutService.toggleBottomPanel();
+    } else if (!this.layoutService.isBottomPanelCollapsed()) {
+      this.layoutService.toggleToolkit(toolkit);
+    } else {
+      this.layoutService.toggleToolkit(toolkit);
+      this.layoutService.toggleBottomPanel();
+    }
   }
 
   private async withWindow(
