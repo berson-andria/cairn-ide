@@ -4,10 +4,11 @@
   flex-direction: column;
   flex: none;
   height: var(--bottom-panel-height);
-  max-height: 70%;    // safety net if the window shrinks after a drag
+  max-height: 70%; // safety net if the window shrinks after a drag
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: var(--color-surface-panel);
   border-top: 1px solid var(--color-divider);
+  font-size: var(--font-size-ui);
 }
