@@ -178,11 +178,28 @@ button:disabled {
 .notif {
   color: var(--color-attention);
   background-color: var(--color-surface-raised-hover);
-  &:hover{
+  &:hover {
     background-color: var(--color-surface-raised);
     color: var(--color-attention) !important;
   }
 }
 ng-icon {
   font-size: 14px;
+}
+
+.scrolling-el {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-surface-hover) var(--color-surface-panel);
+  /* Width of the entire scrollbar */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  /* Thumb hover state */
+  &::-webkit-scrollbar-thumb:hover {
+    background: #333;
+  }
+  &::-webkit-scrollbar-button {
+    display: none;
+  }
 }

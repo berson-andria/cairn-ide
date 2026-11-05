@@ -24,21 +24,6 @@
     min-height: 0;
     overflow-y: auto;
     box-sizing: border-box;
-
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-surface-hover) var(--color-surface-panel);
-    /* Width of the entire scrollbar */
-    &::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    /* Thumb hover state */
-    &::-webkit-scrollbar-thumb:hover {
-      background: #333;
-    }
-    &::-webkit-scrollbar-button {
-      display: none;
-    }
   }
 }
 .tree-node {

@@ -29,7 +29,7 @@ import { lucideTrash2 } from '@ng-icons/lucide';
       </div>
       @if (terminals.sessions().length > 1) {
         <div class="sessions-panel">
-          <div class="sessions-list">
+          <div class="sessions-list scrolling-el">
             @for (session of terminals.sessions(); track session.id) {
               <button
                 class="session-item"
@@ -105,20 +105,6 @@ import { lucideTrash2 } from '@ng-icons/lucide';
         overflow-x: hidden;
         gap: var(--space-2);
         padding: var(--space-4);
-        scrollbar-width: thin;
-        scrollbar-color: var(--color-surface-hover) var(--color-surface-panel);
-        /* Width of the entire scrollbar */
-        &::-webkit-scrollbar {
-          width: 8px;
-        }
-
-        /* Thumb hover state */
-        &::-webkit-scrollbar-thumb:hover {
-          background: #333;
-        }
-        &::-webkit-scrollbar-button {
-          display: none;
-        }
       }
 
       .session-item {

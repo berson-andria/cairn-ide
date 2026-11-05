@@ -142,7 +142,7 @@
     </div>
   }
 
-  <div class="result">
+  <div class="result scrolling-el">
     @for (rowResult of rows(); track rowKey(rowResult); let i = $index) {
       @switch (rowResult.kind) {
         @case ('file') {
