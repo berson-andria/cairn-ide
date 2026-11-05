@@ -96,6 +96,7 @@ export class CodeEditorComponent {
     this.destroyRef.onDestroy(() => {
       this.resizeObserver?.disconnect();
       cancelAnimationFrame(this.layoutFrame);
+      this.monitoringService.setEditorInfo(null);
     });
   }
 
