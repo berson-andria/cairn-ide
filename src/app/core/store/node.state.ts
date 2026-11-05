@@ -15,7 +15,7 @@ export interface FolderNode extends BaseNode {
   children: string[] | null;
 }
 
-export type WorkspaceNode = FileNode | FolderNode;
+export type Node = FileNode | FolderNode;
 
 export type InlineCreationMode = 'none' | 'file' | 'folder';
 
@@ -24,12 +24,12 @@ export interface FolderUiState {
   inlineCreation: InlineCreationMode;
 }
 
-export interface WorkspaceState {
+export interface NodeState {
   rootPath: string | null;
   rootName: string | null;
   rootInlineCreation: InlineCreationMode;
-  rootNodes: Record<string, WorkspaceNode>;
-  nodes: Record<string, WorkspaceNode>;
+  rootNodes: Record<string, Node>;
+  nodes: Record<string, Node>;
   renamingNodeId: string | null;
 
   explorerUiState: Record<string, FolderUiState>;

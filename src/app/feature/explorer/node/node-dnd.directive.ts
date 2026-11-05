@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { message } from '@tauri-apps/plugin-dialog';
-import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../core/store/node.store';
 import { topLevelIds } from '../../../shared/utils/node.utils';
 
 /** Custom type on purpose: with 'text/plain' the editor would accept the drop and paste the ids as text. */
@@ -18,7 +18,7 @@ const MIME = 'application/x-cairn-nodes';
 /** How long a drag must hover over a collapsed folder before it opens. */
 const EXPAND_DELAY_MS = 700;
 
-type Store = InstanceType<typeof WorkspaceNodeStore>;
+type Store = InstanceType<typeof NodeStore>;
 
 /**
  * Put on a node row:  [nodeDnd]="nodeId()"   (add `nodeDndFolder` on folder rows)
@@ -44,7 +44,7 @@ export class NodeDndDirective {
   /** Ids being dragged. The browser hides dataTransfer contents during dragover, so targets read this. */
   static dragged: string[] = [];
 
-  private readonly store = inject(WorkspaceNodeStore);
+  private readonly store = inject(NodeStore);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private expandTimer?: ReturnType<typeof setTimeout>;
 

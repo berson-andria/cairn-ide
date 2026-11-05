@@ -1,4 +1,4 @@
-use crate::types::workspace_node::{BaseNode, FileNode, FolderNode, WorkspaceNode};
+use crate::types::workspace_node::{BaseNode, FileNode, FolderNode, Node};
 
 use std::fs::{create_dir_all, read_dir, File};
 use std::io::{Read, Write};
@@ -7,7 +7,7 @@ use tauri::Manager;
 use tauri_plugin_log::log::info;
 use uuid::Uuid;
 
-pub fn get_directory_content(path: &Path) -> Result<Vec<WorkspaceNode>, String> {
+pub fn get_directory_content(path: &Path) -> Result<Vec<Node>, String> {
     let mut nodes = Vec::new();
     let entries = read_dir(path).map_err(|e| format!("Failed to read directory details: {}", e))?;
 
@@ -32,7 +32,7 @@ pub fn get_directory_content(path: &Path) -> Result<Vec<WorkspaceNode>, String> 
             };
 
             if item_path.is_dir() {
-                nodes.push(WorkspaceNode::Folder(FolderNode {
+                nodes.push(Node::Folder(FolderNode {
                     base,
                     is_expanded: false,
                     children: Some(Vec::new()), // Starts empty, will be loaded later when expanded
@@ -45,7 +45,7 @@ pub fn get_directory_content(path: &Path) -> Result<Vec<WorkspaceNode>, String> 
                     .to_string_lossy()
                     .into_owned();
 
-                nodes.push(WorkspaceNode::File(FileNode {
+                nodes.push(Node::File(FileNode {
                     base,
                     content: String::new(), // Do not send contents across IPC until user opens file!
                     extension,
@@ -57,19 +57,19 @@ pub fn get_directory_content(path: &Path) -> Result<Vec<WorkspaceNode>, String> 
 
     // 5. Sort nodes so folders naturally show up on top alphabetically before individual files
     nodes.sort_by(|a, b| {
-        let is_a_folder = matches!(a, WorkspaceNode::Folder(_));
-        let is_b_folder = matches!(b, WorkspaceNode::Folder(_));
+        let is_a_folder = matches!(a, Node::Folder(_));
+        let is_b_folder = matches!(b, Node::Folder(_));
 
         if is_a_folder != is_b_folder {
             is_b_folder.cmp(&is_a_folder)
         } else {
             let name_a = match a {
-                WorkspaceNode::File(f) => &f.base.name,
-                WorkspaceNode::Folder(f) => &f.base.name,
+                Node::File(f) => &f.base.name,
+                Node::Folder(f) => &f.base.name,
             };
             let name_b = match b {
-                WorkspaceNode::File(f) => &f.base.name,
-                WorkspaceNode::Folder(f) => &f.base.name,
+                Node::File(f) => &f.base.name,
+                Node::Folder(f) => &f.base.name,
             };
             name_a.cmp(name_b)
         }
@@ -83,7 +83,7 @@ pub async fn create_fs_node(
     name: String,
     node_type: String,
     parent_id: Option<String>,
-) -> Result<WorkspaceNode, String> {
+) -> Result<Node, String> {
     let target_path = Path::new(&path);
 
     if target_path.exists() {
@@ -107,7 +107,7 @@ pub async fn create_fs_node(
         create_dir_all(target_path)
             .map_err(|e| format!("Failed to create folder directory structure: {}", e))?;
 
-        Ok(WorkspaceNode::Folder(FolderNode {
+        Ok(Node::Folder(FolderNode {
             base,
             is_expanded: false,
             children: Some(Vec::new()), // Fresh empty subdirectory layer
@@ -124,7 +124,7 @@ pub async fn create_fs_node(
             .to_string_lossy()
             .into_owned();
 
-        Ok(WorkspaceNode::File(FileNode {
+        Ok(Node::File(FileNode {
             base,
             content: String::new(), // Starts as blank text layout buffer
             extension,

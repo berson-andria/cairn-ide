@@ -4,9 +4,9 @@ import { CdkDropList, CdkDrag } from '@angular/cdk/drag-drop';
 import { BottomPanel } from '../bottom-panel/bottom-panel';
 import { EmptyWorkspace } from './empty-workspace';
 import { TabStore, TabContentType } from '../../../core/store/tab.store';
-import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../core/store/node.store';
 import { NoFolderOpen } from './no-folder';
-import { FileNode } from '../../../core/store/workspace/workspace.state';
+import { FileNode } from '../../../core/store/node.state';
 import { getIconPath } from '../../../shared/utils/node.utils';
 import { EditorService } from '../../../feature/editor/services/editor.service';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
@@ -32,7 +32,7 @@ interface TabView {
   imports: [CommonModule, BottomPanel, EmptyWorkspace, NoFolderOpen, Editor, CdkDrag, CdkDropList],
 })
 export class MainPanel {
-  readonly nodeStore = inject(WorkspaceNodeStore);
+  readonly nodeStore = inject(NodeStore);
   readonly editorService = inject(EditorService);
   readonly command = inject(EditorCommands);
   readonly injector = inject(Injector);

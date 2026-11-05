@@ -1,5 +1,5 @@
 import { Component, inject, input } from '@angular/core';
-import { WorkspaceNodeStore } from '../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../core/store/node.store';
 import { NoOpenFolder } from './no-git/no-git-folder';
 import { NoRepository } from './no-git/no-repository';
 import { GitGraph } from './graph/git-graph';
@@ -19,7 +19,7 @@ export type GitView = 'Graph' | 'Changes';
   `,
 })
 export class Git {
-  nodeStore = inject(WorkspaceNodeStore);
+  nodeStore = inject(NodeStore);
   git = inject(GitService);
   activeView = input.required<GitView>();
 }

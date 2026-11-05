@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { MainPanel } from '../panels/main/main';
 import { LeftPanel } from '../panels/left-panel/left-panel';
-import { WorkspaceNodeStore } from '../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../core/store/node.store';
 import { WorkspaceWatcherService } from '../../core/services/workspace-watcher.service';
 import { getCurrentWindow, Window, currentMonitor } from '@tauri-apps/api/window';
 
@@ -30,7 +30,7 @@ import { TabStore } from '../../core/store/tab.store';
 })
 export class AppShell {
   readonly layoutService = inject(LayoutService);
-  readonly nodeStore = inject(WorkspaceNodeStore);
+  readonly nodeStore = inject(NodeStore);
   readonly watcher = inject(WorkspaceWatcherService);
   readonly commands = inject(EditorCommands);
   readonly editorService = inject(EditorService);

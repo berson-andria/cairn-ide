@@ -3,7 +3,7 @@ import { GlobalSearch } from '../../feature/search/global-search/global-search';
 import { FileSearch } from '../../feature/search/file-search/file-search';
 import { DialogService } from './dialog/dialog.service';
 import { TerminalService } from '../../feature/terminal/terminal.service';
-import { WorkspaceNodeStore } from '../store/workspace/workspace.store';
+import { NodeStore } from '../store/node.store';
 import { Search } from '../../feature/search/search';
 
 /** compact: no gap, no radius. comfortable: spaced, rounded panels. Visuals live in ide-shell.scss. */
@@ -44,7 +44,7 @@ const LIVE_RESIZE_INTERVAL = 0;
 export class LayoutService {
   dialogService = inject(DialogService);
   terminal = inject(TerminalService);
-  store = inject(WorkspaceNodeStore);
+  store = inject(NodeStore);
   private readonly zone = inject(NgZone);
 
   readonly isSecondaryPanelCollapesed = signal(true);

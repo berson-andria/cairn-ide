@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 // Adjust these three paths to your folders.
-import { WorkspaceNodeStore } from '../store/workspace/workspace.store';
+import { NodeStore } from '../store/node.store';
 import { nonGlobal } from '../../shared/utils/replace.utils';
 import { findNodeByPath } from './file-system/external-watcher.utils';
 import { FileSystemService } from './file-system/file-system.service';
@@ -31,7 +31,7 @@ export interface ReplaceOutcome {
  */
 @Injectable({ providedIn: 'root' })
 export class ReplaceService {
-  private readonly store = inject(WorkspaceNodeStore);
+  private readonly store = inject(NodeStore);
   private readonly editorService = inject(EditorService);
   private readonly tabStore = inject(TabStore);
   private readonly files = inject(FileSystemService);

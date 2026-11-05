@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { TerminalService, TerminalSession } from './terminal.service';
-import { WorkspaceNodeStore } from '../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../core/store/node.store';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideTrash2 } from '@ng-icons/lucide';
 
@@ -220,7 +220,7 @@ import { lucideTrash2 } from '@ng-icons/lucide';
 })
 export class Terminal {
   protected readonly terminals = inject(TerminalService);
-  protected readonly nodeStore = inject(WorkspaceNodeStore);
+  protected readonly nodeStore = inject(NodeStore);
 
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
 

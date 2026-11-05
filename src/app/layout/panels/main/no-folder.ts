@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
-import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../core/store/node.store';
 
 @Component({
   selector: 'no-folder',
@@ -60,7 +60,7 @@ import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.stor
 })
 export class NoFolderOpen {
   readonly commands = inject(EditorCommands);
-  readonly nodeStore = inject(WorkspaceNodeStore);
+  readonly nodeStore = inject(NodeStore);
 
   async openFile() {
     const files = await this.nodeStore.addStandaloneFiles();

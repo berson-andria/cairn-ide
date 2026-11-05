@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 // Adjust to wherever your store lives.
 import { CommandService } from './command.service';
-import { WorkspaceNodeStore } from '../../store/workspace/workspace.store';
+import { NodeStore } from '../../store/node.store';
 import { LayoutService } from '../layout.service';
 import { message } from '@tauri-apps/plugin-dialog';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
@@ -16,7 +16,7 @@ export function registerAppCommands(): void {
   const commands = inject(CommandService);
   const editorCommand = inject(EditorCommands);
   const tabStore = inject(TabStore);
-  const store = inject(WorkspaceNodeStore);
+  const store = inject(NodeStore);
   const layout = inject(LayoutService);
 
   // ── files ──

@@ -2,7 +2,7 @@ import darkIconMap from '../../../assets/dark-jetbrains-icon-theme.json';
 import lightIconMap from '../../../assets/light-jetbrains-icon-theme.json';
 
 import languageMap from '../../../assets/file-extension-to-language.json';
-import { WorkspaceNode } from '../../core/store/workspace/workspace.state';
+import { Node } from '../../core/store/node.state';
 
 const INVALID_CHARS = /[<>:"/\\|?*\x00-\x1f]/;
 const RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
@@ -23,7 +23,7 @@ export function validateNodeName(name: string): string | null {
  * Drops any id whose ancestor is also in the list: if a folder and a file inside it are both
  * selected, deleting/copying the folder already covers the file.
  */
-export function topLevelIds(nodes: Record<string, WorkspaceNode>, ids: string[]): string[] {
+export function topLevelIds(nodes: Record<string, Node>, ids: string[]): string[] {
   const set = new Set(ids);
   return ids.filter((id) => {
     let parent = nodes[id]?.parentId ?? null;

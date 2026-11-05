@@ -1,4 +1,4 @@
-// Imports: keep your existing ones, minus NgZone, the monaco-editor types and WorkspaceNodeStore;
+// Imports: keep your existing ones, minus NgZone, the monaco-editor types and NodeStore;
 // add TabStore, EditorCommands, ModelSourceService, fileTabOwner.
 
 import {

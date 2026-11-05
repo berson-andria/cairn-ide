@@ -16,7 +16,7 @@ import { EditorCommands } from '../editor.commands';
 import { EditorService } from '../services/editor.service';
 import { ModelSourceService } from '../services/model-source.service';
 import { DiffSide } from './diff-tab';
-import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../core/store/node.store';
 import { TabStore } from '../../../core/store/tab.store';
 
 type DiffHandle = NonNullable<Awaited<ReturnType<EditorService['mountDiffEditor']>>>;
@@ -142,7 +142,7 @@ export class DiffEditorComponent {
   private readonly commands = inject(EditorCommands);
   private readonly sources = inject(ModelSourceService);
   private readonly editorService = inject(EditorService);
-  private readonly store = inject(WorkspaceNodeStore);
+  private readonly store = inject(NodeStore);
   private readonly destroyRef = inject(DestroyRef);
   private readonly diffHost = viewChild.required<ElementRef<HTMLElement>>('host');
 

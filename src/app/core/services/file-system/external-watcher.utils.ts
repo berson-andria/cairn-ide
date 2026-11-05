@@ -1,6 +1,6 @@
 // ───────────── event classification ─────────────
 
-import { WorkspaceNode } from '../../store/workspace/workspace.state';
+import { Node } from '../../store/node.state';
 
 export type WatchAction = 'create' | 'remove' | 'modify' | 'rename' | 'ignore';
 
@@ -59,16 +59,13 @@ export function extensionOf(name: string): string {
 
 // ───────────── tree ─────────────
 
-export function findNodeByPath(
-  nodes: Record<string, WorkspaceNode>,
-  path: string,
-): WorkspaceNode | undefined {
+export function findNodeByPath(nodes: Record<string, Node>, path: string): Node | undefined {
   const target = normalizePath(path);
   return Object.values(nodes).find((n) => normalizePath(n.path) === target);
 }
 
 /** The node itself plus every loaded descendant, walked through `children` (no path-prefix guessing). */
-export function collectSubtreeIds(nodes: Record<string, WorkspaceNode>, rootId: string): string[] {
+export function collectSubtreeIds(nodes: Record<string, Node>, rootId: string): string[] {
   const ids: string[] = [];
   const stack = [rootId];
   while (stack.length) {

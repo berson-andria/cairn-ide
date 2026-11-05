@@ -4,7 +4,7 @@ File: `git_service.ts` (Angular, `providedIn: 'root'`)
 
 A thin wrapper around the `git` command line, run through the Tauri command `git_run`. It keeps the repository status in Angular signals so the UI (explorer, changes panel, diff editor, history panel) can react to it, and it exposes one method per git action.
 
-**Dependencies:** `TauriBridgeService` (runs the command), `WorkspaceNodeStore` (provides `rootPath`, the open folder), `git-status.parser` / `git-parsers` (turn git output into objects), `fsEvents$` (file-system change events).
+**Dependencies:** `TauriBridgeService` (runs the command), `NodeStore` (provides `rootPath`, the open folder), `git-status.parser` / `git-parsers` (turn git output into objects), `fsEvents$` (file-system change events).
 
 ---
 
@@ -215,7 +215,7 @@ Kept here so future work doesn't rediscover them.
 7. **Leftovers:** `console.log(result)` in `commitDetails`, and `window.__git` debug helper in the constructor.
 8. **`runGitCommand` is public.** Check whether anything outside this file uses it; if not it could be private.
 9. **Windows-only path handling.** Several places hard-code `\\` as the separator (`changedFolders`, `repoPathOf`, `clone`).
-10. **Class name typo in a dependency:** the store is imported as `WorkspaceNodeStore`.
+10. **Class name typo in a dependency:** the store is imported as `NodeStore`.
 
 ---
 

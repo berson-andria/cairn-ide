@@ -4,7 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { DialogRef } from '@angular/cdk/dialog';
 import { Subject, debounceTime, switchMap, tap } from 'rxjs';
-import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../core/store/node.store';
 import { SearchService } from '../../../feature/search/search.service';
 
 /** Minimal file data returned to the caller; no search or editor state leaks out. */
@@ -21,7 +21,7 @@ export interface SelectedFile {
   styleUrl: './attach-file.scss',
 })
 export class AttachFile implements OnInit {
-  private readonly nodeStore = inject(WorkspaceNodeStore);
+  private readonly nodeStore = inject(NodeStore);
   private readonly searchService = inject(SearchService);
   private readonly dialogRef = inject(DialogRef<SelectedFile[] | undefined>, { optional: true });
   private readonly destroyRef = inject(DestroyRef);

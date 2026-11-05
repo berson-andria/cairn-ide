@@ -2,8 +2,8 @@
 // WrokspaceNodeStore; getMonacoLanguage; InlineCreationMode.
 
 import { Injectable, inject, effect, untracked } from '@angular/core';
-import { InlineCreationMode } from '../../core/store/workspace/workspace.state';
-import { WorkspaceNodeStore } from '../../core/store/workspace/workspace.store';
+import { InlineCreationMode } from '../../core/store/node.state';
+import { NodeStore } from '../../core/store/node.store';
 import { getMonacoLanguage } from '../../shared/utils/node.utils';
 import { EditorService, fileTabOwner } from './services/editor.service';
 import { MessageService } from '../../core/services/message.service';
@@ -19,7 +19,7 @@ export type SaveChoice = 'save' | 'discard' | 'cancel';
  */
 @Injectable({ providedIn: 'root' })
 export class EditorCommands {
-  private readonly nodes = inject(WorkspaceNodeStore);
+  private readonly nodes = inject(NodeStore);
   private readonly tabs = inject(TabStore);
   private readonly editor = inject(EditorService);
   private readonly messageService = inject(MessageService);

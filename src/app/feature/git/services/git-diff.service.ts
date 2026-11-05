@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../core/store/node.store';
 import { EditorCommands } from '../../editor/editor.commands';
 import { DiffRequestInput, DiffSideInput, DiffSide } from '../../editor/features/diff-tab';
 import { GitFileStatus } from '../parser/git-status.parser';
@@ -21,7 +21,7 @@ export interface GitUiFile {
 @Injectable({ providedIn: 'root' })
 export class GitDiffService {
   private readonly git = inject(GitService);
-  private readonly nodes = inject(WorkspaceNodeStore);
+  private readonly nodes = inject(NodeStore);
   private readonly tabs = inject(TabStore);
   private readonly commands = inject(EditorCommands);
 

@@ -1,4 +1,4 @@
-import { WorkspaceState } from '../../core/store/workspace/workspace.state';
+import { NodeState } from '../../core/store/node.state';
 
 // persistence.models.ts
 export interface IdeData {
@@ -15,13 +15,13 @@ export const DEFAULT_IDE_DATA: IdeData = {
   settings: {},
 };
 
-// Only the serializable part of WorkspaceState
+// Only the serializable part of NodeState
 export type PersistedWorkspace = Pick<
-  WorkspaceState,
+  NodeState,
   'rootPath' | 'explorerUiState' | 'activeNodeId' | 'selectionAnchorId' | 'selectedNodeIds'
 > & { version: 1 };
 
-export function toPersisted(s: WorkspaceState): PersistedWorkspace {
+export function toPersisted(s: NodeState): PersistedWorkspace {
   return {
     version: 1,
     rootPath: s.rootPath,

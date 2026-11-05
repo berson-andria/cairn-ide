@@ -2,7 +2,7 @@ import { Injectable, inject, effect, untracked } from '@angular/core';
 import { getMonacoLanguage } from '../../../shared/utils/node.utils';
 import { GitService } from '../../git/services/git.service';
 import { EditorService, ModelSpec } from './editor.service';
-import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../core/store/node.store';
 import { GitSide, DiffSide, sideModelId } from '../features/diff-tab';
 import { TabStore } from '../../../core/store/tab.store';
 
@@ -13,7 +13,7 @@ import { TabStore } from '../../../core/store/tab.store';
 @Injectable({ providedIn: 'root' })
 export class ModelSourceService {
   private readonly git = inject(GitService);
-  private readonly nodes = inject(WorkspaceNodeStore);
+  private readonly nodes = inject(NodeStore);
   private readonly tabs = inject(TabStore);
   private readonly editor = inject(EditorService);
 

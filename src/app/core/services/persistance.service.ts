@@ -9,7 +9,7 @@ import {
   writeTextFile,
 } from '@tauri-apps/plugin-fs';
 import { join } from '@tauri-apps/api/path';
-import { WorkspaceState } from '../store/workspace/workspace.state';
+import { NodeState } from '../store/node.state';
 import {
   IdeData,
   DEFAULT_IDE_DATA,
@@ -85,7 +85,7 @@ export class PersistenceService {
     }
   }
 
-  async saveWorkspace(state: WorkspaceState) {
+  async saveWorkspace(state: NodeState) {
     if (!state.rootPath) return;
     const dir = await join(state.rootPath, WS_DIR);
     await mkdir(dir, { recursive: true }).catch(() => {});
@@ -94,7 +94,7 @@ export class PersistenceService {
 
   // ---------- Save everything on close ----------
 
-  async saveOnClose(state: WorkspaceState) {
+  async saveOnClose(state: NodeState) {
     // allSettled so one failure doesn't block the other
     await Promise.allSettled([
       this.saveWorkspace(state),

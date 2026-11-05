@@ -2,7 +2,7 @@ import { provideIcons } from '@ng-icons/core';
 import { Component, computed, inject, Signal } from '@angular/core';
 import { bootstrapX } from '@ng-icons/bootstrap-icons';
 import { CommonModule } from '@angular/common';
-import { WorkspaceNodeStore } from '../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../core/store/node.store';
 import { EditorService } from './services/editor.service';
 import { CodeEditorComponent } from './features/code-editor.component';
 import { DiffEditorComponent } from './features/diff-editor.component';
@@ -18,7 +18,7 @@ import { baseName } from './features/diff-tab';
   providers: [provideIcons({ bootstrapX })],
 })
 export class Editor {
-  nodeStore = inject(WorkspaceNodeStore);
+  nodeStore = inject(NodeStore);
   tabStore = inject(TabStore);
   editorService = inject(EditorService);
 

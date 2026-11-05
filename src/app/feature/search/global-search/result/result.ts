@@ -2,7 +2,7 @@ import { Component, computed, inject, input, InputSignal, output } from '@angula
 import { getIconPath } from '../../../../shared/utils/node.utils';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { bootstrapChevronDown, bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
-import { WorkspaceNodeStore } from '../../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../../core/store/node.store';
 import { DialogRef } from '@angular/cdk/dialog';
 import { lucideReplace, lucideReplaceAll } from '@ng-icons/lucide';
 import { ReplacePreviewPipe } from '../../../../shared/pipe/replace-preview.pipe';

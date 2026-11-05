@@ -3,7 +3,7 @@ use walkdir::WalkDir;
 
 use crate::{
     services::fs,
-    types::workspace_node::{BaseNode, FileNode, FileSearchResult, LineMatch, WorkspaceNode},
+    types::workspace_node::{BaseNode, FileNode, FileSearchResult, LineMatch, Node},
 };
 use std::{
     fs::{create_dir_all, File},
@@ -18,7 +18,7 @@ use tauri::{ipc::Channel, State};
 pub struct SearchCancellation(pub Arc<AtomicBool>);
 
 #[tauri::command]
-pub async fn read_directory_content(path: String) -> Result<Vec<WorkspaceNode>, String> {
+pub async fn read_directory_content(path: String) -> Result<Vec<Node>, String> {
     let target_path = PathBuf::from(&path);
     if !target_path.exists() {
         return Err(format!(
@@ -95,7 +95,7 @@ pub async fn create_fs_node(
     name: String,
     node_type: String,
     parent_id: Option<String>,
-) -> Result<WorkspaceNode, String> {
+) -> Result<Node, String> {
     fs::create_fs_node(path, name, node_type, parent_id).await
 }
 

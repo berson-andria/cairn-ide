@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { TauriBridgeService } from '../tauri/tauri-bridge.service';
-import { FileNode, WorkspaceNode } from '../../store/workspace/workspace.state';
+import { FileNode, Node } from '../../store/node.state';
 import {
   stat,
   watch,
@@ -146,7 +146,7 @@ export class FileSystemService {
   async getRootFolder(rootPath: string): Promise<{
     rootPath: string;
     rootName: string;
-    nodes: WorkspaceNode[];
+    nodes: Node[];
   }> {
     const treeData = await this.readDirectoryContents(rootPath);
     const pathArray = rootPath.split('\\');
@@ -170,8 +170,8 @@ export class FileSystemService {
     };
   }
 
-  async readDirectoryContents(folderPath: string): Promise<WorkspaceNode[]> {
-    return await this.tauri.invokeCommand<WorkspaceNode[]>('read_directory_content', {
+  async readDirectoryContents(folderPath: string): Promise<Node[]> {
+    return await this.tauri.invokeCommand<Node[]>('read_directory_content', {
       path: folderPath,
     });
   }
@@ -185,8 +185,8 @@ export class FileSystemService {
     name: string,
     nodeType: 'file' | 'folder',
     parentId: string | null,
-  ): Promise<WorkspaceNode> {
-    return await this.tauri.invokeCommand<WorkspaceNode>('create_fs_node', {
+  ): Promise<Node> {
+    return await this.tauri.invokeCommand<Node>('create_fs_node', {
       path,
       name,
       nodeType,

@@ -10,7 +10,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { WorkspaceNodeStore } from '../../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../../core/store/node.store';
 import { KeybindingService } from '../../../../core/services/command/keybinding.service';
 import { validateNodeName } from '../../../../shared/utils/node.utils';
 // Adjust to wherever KeybindingService lives.
@@ -80,7 +80,7 @@ import { validateNodeName } from '../../../../shared/utils/node.utils';
   `,
 })
 export class RenameNode implements OnInit {
-  private readonly store = inject(WorkspaceNodeStore);
+  private readonly store = inject(NodeStore);
   private readonly keys = inject(KeybindingService);
 
   readonly nodeId = input.required<string>();

@@ -23,8 +23,8 @@ import { FileNodeComponent } from './node/file-node/file-node';
 import { FolderNodeComponent } from './node/folder-node/folder-node';
 import { NewNode } from './node/new-node/new-node';
 import { KeybindingService } from '../../core/services/command/keybinding.service';
-import { InlineCreationMode } from '../../core/store/workspace/workspace.state';
-import { WorkspaceNodeStore } from '../../core/store/workspace/workspace.store';
+import { InlineCreationMode } from '../../core/store/node.state';
+import { NodeStore } from '../../core/store/node.store';
 import { EditorCommands } from '../editor/editor.commands';
 import { LayoutService } from '../../layout/layout-service';
 import { EmptyExplorer } from './empty-explorer';
@@ -49,7 +49,7 @@ import { EmptyExplorer } from './empty-explorer';
   standalone: true,
 })
 export class FileTree {
-  nodeStore = inject(WorkspaceNodeStore);
+  nodeStore = inject(NodeStore);
   commands = inject(EditorCommands);
   keys = inject(KeybindingService);
 

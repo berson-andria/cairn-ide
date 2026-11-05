@@ -5,7 +5,7 @@ import { debounceTime } from 'rxjs';
 // Adjust these paths to your folders.
 import { TauriBridgeService } from '../../../core/services/tauri/tauri-bridge.service';
 
-import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../core/store/node.store';
 import {
   GitChangeKind,
   GitFileStatus,
@@ -84,7 +84,7 @@ const keyOf = (path: string) => normalizePath(path).toLowerCase();
 @Injectable({ providedIn: 'root' })
 export class GitService {
   tauri = inject(TauriBridgeService);
-  store = inject(WorkspaceNodeStore);
+  store = inject(NodeStore);
   rootPath = this.store.rootPath;
 
   /** Top of the repository, or null when the open folder is not inside one. */

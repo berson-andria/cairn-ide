@@ -2,7 +2,7 @@ import { NgClass, NgStyle } from '@angular/common';
 import { Component, computed, inject, input, InputSignal, OnInit } from '@angular/core';
 import { NodeDndDirective } from '../node-dnd.directive';
 import { RenameNode } from '../rename-node/rename-node';
-import { WorkspaceNodeStore } from '../../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../../core/store/node.store';
 import { getIconPath, indentStyle } from '../../../../shared/utils/node.utils';
 import { EditorCommands } from '../../../editor/editor.commands';
 import { EditorService } from '../../../editor/services/editor.service';
@@ -14,7 +14,7 @@ import { EditorService } from '../../../editor/services/editor.service';
   imports: [NgClass, NgStyle, RenameNode, NodeDndDirective],
 })
 export class FileNodeComponent {
-  nodeStore = inject(WorkspaceNodeStore);
+  nodeStore = inject(NodeStore);
   commands = inject(EditorCommands);
   editorService = inject(EditorService);
 

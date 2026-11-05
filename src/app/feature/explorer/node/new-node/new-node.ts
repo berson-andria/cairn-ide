@@ -1,7 +1,7 @@
 import { CommonModule, NgClass, NgStyle } from '@angular/common';
 import { Component, inject, input, InputSignal, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { WorkspaceNodeStore } from '../../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../../core/store/node.store';
 import { indentStyle, getIconPath, ItemType } from '../../../../shared/utils/node.utils';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
@@ -82,7 +82,7 @@ import { bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
   providers: [provideIcons({ bootstrapChevronRight })],
 })
 export class NewNode {
-  nodeStore = inject(WorkspaceNodeStore);
+  nodeStore = inject(NodeStore);
 
   level = input(0);
   nodeType: InputSignal<string> = input.required();

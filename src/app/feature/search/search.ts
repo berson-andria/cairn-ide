@@ -14,7 +14,7 @@ import {
 import { DialogRef } from '@angular/cdk/dialog';
 import { SearchService } from './search.service';
 import { FileSearchResult, FileNameSearchResult, LineMatch, SearchFilters } from './search.model';
-import { WorkspaceNodeStore } from '../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../core/store/node.store';
 import { ReplaceService } from '../../core/services/replace.service';
 import { compilePattern, countMatches } from '../../shared/utils/replace.utils';
 import { ask } from '@tauri-apps/plugin-dialog';
@@ -95,7 +95,7 @@ const looksLikePath = (q: string) =>
 })
 export class Search implements OnInit, OnDestroy {
   private readonly tabStore = inject(TabStore);
-  readonly nodeStore = inject(WorkspaceNodeStore);
+  readonly nodeStore = inject(NodeStore);
   searchService = inject(SearchService);
   replaceService = inject(ReplaceService);
   command = inject(EditorCommands);

@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import { DialogRef } from '@angular/cdk/dialog';
 import { SearchService } from '../search.service';
-import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../core/store/node.store';
 import { Subject, Subscription, debounceTime, switchMap, tap } from 'rxjs';
 import { SearchResult } from './result/result';
 import { FormsModule } from '@angular/forms';
@@ -56,7 +56,7 @@ const looksLikePath = (q: string) =>
   ],
 })
 export class FileSearch implements OnInit, OnDestroy {
-  nodeStore = inject(WorkspaceNodeStore);
+  nodeStore = inject(NodeStore);
   command = inject(EditorCommands);
   searchService = inject(SearchService);
   private dialogRef = inject(DialogRef, { optional: true });

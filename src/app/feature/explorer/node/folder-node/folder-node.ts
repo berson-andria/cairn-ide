@@ -6,8 +6,8 @@ import { FileNodeComponent } from '../file-node/file-node';
 import { NewNode } from '../new-node/new-node';
 import { NodeDndDirective } from '../node-dnd.directive';
 import { RenameNode } from '../rename-node/rename-node';
-import { InlineCreationMode } from '../../../../core/store/workspace/workspace.state';
-import { WorkspaceNodeStore } from '../../../../core/store/workspace/workspace.store';
+import { InlineCreationMode } from '../../../../core/store/node.state';
+import { NodeStore } from '../../../../core/store/node.store';
 import { getIconPath } from '../../../../shared/utils/node.utils';
 
 @Component({
@@ -18,7 +18,7 @@ import { getIconPath } from '../../../../shared/utils/node.utils';
   providers: [provideIcons({ bootstrapChevronDown, bootstrapChevronRight })],
 })
 export class FolderNodeComponent {
-  nodeStore = inject(WorkspaceNodeStore);
+  nodeStore = inject(NodeStore);
 
   nodeId: InputSignal<string> = input.required();
 

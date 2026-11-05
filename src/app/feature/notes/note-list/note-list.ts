@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../core/store/node.store';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { bootstrapChevronDown, bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
 import { LayoutService } from '../../../layout/layout-service';
@@ -13,6 +13,6 @@ import { LayoutService } from '../../../layout/layout-service';
   host: { '[style.flex]': 'layoutService.isRailSectionActive("Notes")? 1: "none"' },
 })
 export class NoteList {
-  readonly nodeStore = inject(WorkspaceNodeStore);
+  readonly nodeStore = inject(NodeStore);
   readonly layoutService = inject(LayoutService);
 }

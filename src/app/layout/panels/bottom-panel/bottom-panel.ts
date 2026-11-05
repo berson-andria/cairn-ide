@@ -14,7 +14,7 @@ import { Git, GitView } from '../../../feature/git/git';
 import { Terminal } from '../../../feature/terminal/terminal';
 import { DiagnosticsService } from '../../../core/services/diagnostics.service';
 import { TerminalService } from '../../../feature/terminal/terminal.service';
-import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
+import { NodeStore } from '../../../core/store/node.store';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideMinus, lucidePlus } from '@ng-icons/lucide';
 
@@ -33,7 +33,7 @@ import { lucideMinus, lucidePlus } from '@ng-icons/lucide';
 })
 export class BottomPanel {
   protected readonly layoutService = inject(LayoutService);
-  protected readonly nodeStore = inject(WorkspaceNodeStore);
+  protected readonly nodeStore = inject(NodeStore);
 
   protected readonly height = signal<number | null>(null);
   protected readonly minHeight = 100;

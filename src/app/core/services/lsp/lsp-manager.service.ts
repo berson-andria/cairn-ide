@@ -3,7 +3,7 @@ import type * as Monaco from 'monaco-editor';
 import { LspClient } from './lsp-client';
 import { LspServerConfig, serverForLanguage } from './lsp-servers';
 
-import { WorkspaceNodeStore } from '../../store/workspace/workspace.store';
+import { NodeStore } from '../../store/node.store';
 import { EditorService } from '../../../feature/editor/services/editor.service';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
 import { LspMonitor } from './lsp-monitor.service';
@@ -20,7 +20,7 @@ const IDLE_STOP_MS = 60_000;
 export class LspManager {
   private readonly editorService = inject(EditorService);
   private readonly command = inject(EditorCommands);
-  private readonly store = inject(WorkspaceNodeStore);
+  private readonly store = inject(NodeStore);
 
   private monaco?: typeof Monaco;
   private initialized = false;
