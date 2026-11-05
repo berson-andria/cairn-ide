@@ -40,7 +40,12 @@
     <span class="title-bar__project" data-tauri-drag-region>{{ project() }}</span>
   </div>
 
-  <button class="title-bar__search" type="button" aria-label="Search">
+  <button
+    class="title-bar__search"
+    type="button"
+    aria-label="Search"
+    (click)="layoutService.openSearchDialog()"
+  >
     <span>Search files, text, tasks, symbols</span>
     <span class="chip">Ctrl P</span>
   </button>

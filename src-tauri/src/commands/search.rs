@@ -1,4 +1,4 @@
-use grep_regex::RegexMatcher;
+use grep_regex::RegexMatcherBuilder;
 use grep_searcher::Searcher;
 use ignore::overrides::{Override, OverrideBuilder};
 use rayon::prelude::*;
@@ -113,8 +113,13 @@ fn run_search(
 
     // Compiled once. (It used to be rebuilt for every single file.) A bad pattern is reported
     // to the panel instead of silently producing zero results.
-    let matcher =
-        RegexMatcher::new(&query).map_err(|e| format!("Invalid regular expression: {e}"))?;
+
+    let mut builder = RegexMatcherBuilder::new();
+    builder.case_insensitive(!options.case_sensitive);
+    builder.word(options.whole_word);
+    let matcher = builder
+        .build(&query)
+        .map_err(|e| format!("Invalid regular expression: {e}"))?;
     let overrides = build_overrides(root, &options.include, &options.exclude)?;
 
     let files: Vec<PathBuf> = match &options.only_paths {

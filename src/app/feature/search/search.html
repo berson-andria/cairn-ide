@@ -66,37 +66,44 @@
         placeholder="file name • / text • # tasks • @ code • > commands"
       />
       @if (currentMode() === 'text') {
-        <button class="icon-btn" title="Case sensitive">
+        <button
+          type="button"
+          class="icon-btn"
+          [class.active]="caseSensitive()"
+          (click)="toggleCaseSensitive()"
+          title="Match Case"
+        >
           <ng-icon name="lucideCaseSensitive"></ng-icon>
         </button>
-        <button class="icon-btn" title="Whole word">
+        <button
+          type="button"
+          class="icon-btn"
+          [class.active]="wholeWord()"
+          (click)="toggleWholeWord()"
+          title="Match Whole Word"
+        >
           <ng-icon name="lucideWholeWord"></ng-icon>
         </button>
       }
     </div>
 
     @if (showReplace() && currentMode() === 'text') {
-      <div class="replace-row">
-        <span class="replace-icon">
-          <ng-icon name="lucideUnlink2"></ng-icon>
-        </span>
-        <div class="input-form">
-          <input
-            type="text"
-            placeholder="Replace (use $1 for groups)"
-            [ngModel]="replacement()"
-            (ngModelChange)="replacement.set($event)"
-            (keydown.enter)="replaceAll()"
-          />
-          <button
-            title="Replace all"
-            class="icon-btn"
-            [disabled]="!canReplace()"
-            (click)="replaceAll()"
-          >
-            <ng-icon name="lucideReplaceAll"></ng-icon>
-          </button>
-        </div>
+      <div class="input-form">
+        <input
+          type="text"
+          placeholder="Replace"
+          [ngModel]="replacement()"
+          (ngModelChange)="replacement.set($event)"
+          (keydown.enter)="replaceAll()"
+        />
+        <button
+          title="Replace all"
+          class="icon-btn"
+          [disabled]="!canReplace()"
+          (click)="replaceAll()"
+        >
+          <ng-icon name="lucideReplaceAll"></ng-icon>
+        </button>
       </div>
     }
   </div>
@@ -153,12 +160,7 @@
           </div>
         }
         @case ('text') {
-          <div
-            #row
-            class="row"
-            [class.active]="i === activeIndex()"
-            (mouseenter)="activeIndex.set(i)"
-          >
+          <div #row class="row" (mouseenter)="activeIndex.set(i)">
             <search-result
               [result]="rowResult.result"
               [rootPath]="rootPath()"

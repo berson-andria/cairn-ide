@@ -49,4 +49,8 @@ pub struct SearchOptions {
     pub exclude: String,
     /// Search exactly these files (the open editors) instead of walking the workspace.
     pub only_paths: Option<Vec<String>>,
+    /// Match case
+    pub case_sensitive: bool,
+    /// Match whole word
+    pub whole_word: bool,
 }

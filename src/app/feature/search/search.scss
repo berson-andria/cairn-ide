@@ -1,5 +1,7 @@
 :host {
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -7,10 +9,12 @@
 
 .container {
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
   width: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--color-surface-base);
+
   color: var(--color-text-primary);
 
   /* ───────────── Header ────────────────────────── */
@@ -64,6 +68,24 @@
       gap: var(--space-4);
       flex-shrink: 0;
 
+      .icon-btn {
+        padding: var(--space-4);
+        border-radius: var(--radius-chip);
+        color: var(--color-text-muted);
+        transition: all 0.2s;
+
+        &:hover:not(:disabled) {
+          background: var(--color-surface-hover);
+          color: var(--color-text-primary);
+        }
+
+        &.active {
+          background: var(--color-surface-hover);
+          color: var(--color-text-primary);
+          outline: 1px solid var(--color-border-strong);
+        }
+      }
+
       .spinner {
         display: inline-flex;
         align-items: center;
@@ -95,102 +117,89 @@
   /* ───────────── Search input ────────────────────────── */
   .search {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+
     gap: var(--space-6);
     padding: var(--space-6);
-    border-bottom: 1px solid var(--color-divider);
-    flex-shrink: 0;
-
     .input-form {
-      display: flex;
-      align-items: center;
-      gap: var(--space-4);
-      padding: 0 var(--space-8);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-control);
+      flex: 1 1 100%;
+    }
+  }
+  .input-form {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: 0 var(--space-8);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+    transition:
+      border-color 0.2s,
+      background-color 0.2s;
+
+    &:focus-within {
       background: var(--color-surface-raised);
-      transition: border-color 0.2s, background-color 0.2s;
+    }
 
-      &:focus-within {
-        border-color: var(--color-focus);
-        background: var(--color-surface-raised);
-      }
+    input {
+      flex: 1;
+      min-width: 0;
+      padding: var(--space-2) 0;
+      border: none;
+      background: transparent;
+      color: var(--color-text-primary);
+      font-family: var(--font-sans);
+      font-size: var(--font-size-ui);
+      outline: none;
 
-      input {
-        flex: 1;
-        min-width: 0;
-        padding: var(--space-6) 0;
-        border: none;
-        background: transparent;
-        color: var(--color-text-primary);
-        font-family: var(--font-sans);
-        font-size: var(--font-size-ui);
-        outline: none;
-
-        &::placeholder {
-          color: var(--color-text-muted);
-        }
-      }
-
-      .icon-btn {
-        flex-shrink: 0;
-        padding: var(--space-4);
-        border-radius: var(--radius-chip);
+      &::placeholder {
         color: var(--color-text-muted);
-        transition: all 0.2s;
-
-        &:hover:not(:disabled) {
-          background: var(--color-surface-hover);
-          color: var(--color-text-primary);
-        }
-
-        &:disabled {
-          opacity: 0.4;
-          cursor: default;
-        }
-
-        ng-icon {
-          font-size: 16px;
-        }
       }
     }
 
-    .replace-row {
-      display: flex;
-      align-items: center;
-      gap: var(--space-6);
+    .icon-btn {
+      flex-shrink: 0;
+      padding: var(--space-4);
+      border-radius: var(--radius-chip);
+      color: var(--color-text-muted);
+      transition: all 0.2s;
 
-      .replace-icon {
-        display: flex;
-        align-items: center;
-        color: var(--color-text-muted);
-        font-size: 16px;
-        flex-shrink: 0;
+      &:hover:not(:disabled) {
+        background: var(--color-surface-hover);
+        color: var(--color-text-primary);
       }
 
-      .input-form {
-        flex: 1;
+      &.active {
+        background: var(--color-surface-hover);
+        color: var(--color-text-primary);
+        outline: 1px solid var(--color-border-strong);
+      }
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      ng-icon {
+        font-size: 16px;
       }
     }
   }
-
   /* ───────────── Filters ────────────────────────── */
   .filters {
     display: flex;
     flex-direction: column;
+
     gap: var(--space-8);
     padding: var(--space-6);
     border-bottom: 1px solid var(--color-divider);
-    background: var(--color-surface-raised);
     flex-shrink: 0;
 
     label {
       display: block;
-      font-size: var(--font-size-label);
-      font-weight: var(--font-weight-medium);
+      font-size: var(--font-size-small);
       color: var(--color-text-secondary);
-      text-transform: uppercase;
-      letter-spacing: var(--letter-spacing-label);
+      // text-transform: uppercase;
     }
 
     .input-form {
@@ -226,6 +235,7 @@
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    border-top: 1px solid var(--color-divider);
 
     /* Scrollbar styling */
     scrollbar-width: thin;
@@ -252,15 +262,9 @@
       padding: var(--space-6) var(--space-8);
       cursor: pointer;
       transition: background-color 0.15s;
-
-      &:hover {
+      &.active {
         background: var(--color-surface-hover);
       }
-
-      &.active {
-        background: var(--color-surface-raised);
-      }
-
       /* File/text results use search-result component */
       search-result {
         display: block;

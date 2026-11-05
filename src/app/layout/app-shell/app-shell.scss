@@ -132,10 +132,9 @@
   align-items: center;
   justify-content: space-between;
   flex: none;
-  height: var(--statusbar-height);
-  padding: 0 var(--space-14);
+  padding: var(--space-6) var(--space-14);
   border-top: 1px solid var(--color-divider);
-  font-size: var(--font-size-label);
+  font-size: var(--font-size-small);
   color: var(--color-text-muted);
   white-space: nowrap;
 }

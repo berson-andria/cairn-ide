@@ -13,7 +13,7 @@ export class DialogService {
   open<R = any, D = any>(component: ComponentType<any>, config: CustomDialogConfig<D> = {}) {
     return this.cdkDialog.open<R>(DialogWrapper, {
       width: config.width ?? '40vw',
-      maxHeight: config.maxHeight ?? '70vh',
+      maxHeight: config.maxHeight ?? '80vh',
       disableClose: config.disableClose ?? false,
       role: config.role || 'dialog',
       data: {

@@ -1,6 +1,6 @@
 <div class="container">
   <!-- File Header (File Mode & Text Mode) -->
-  <div class="file-header" [class.is-open]="open" (click)="toggleOpen($event)">
+  <div class="header" [class.is-open]="open" (click)="toggleOpen($event)">
     <!-- Accordion (only for text mode which has line matches) -->
     @if (isTextResult()) {
       <span class="accordion">
@@ -22,11 +22,7 @@
     <!-- Actions & Count -->
     <span class="actions">
       @if (isTextResult() && replaceMode() && pattern()) {
-        <button
-          class="replace-btn"
-          title="Replace in this file"
-          (click)="onReplaceFile($event)"
-        >
+        <button class="replace-btn" title="Replace in this file" (click)="onReplaceFile($event)">
           <ng-icon name="lucideReplaceAll"></ng-icon>
         </button>
       }
@@ -54,7 +50,7 @@
             <ng-icon name="lucideReplace"></ng-icon>
           </button>
         } @else {
-          <span class="text" [innerHTML]="line.text | searchSnippet: keyword()"></span>
+          <span class="text" [innerHTML]="line.text | searchSnippet: pattern() ?? keyword()"></span>
         }
       </div>
     }

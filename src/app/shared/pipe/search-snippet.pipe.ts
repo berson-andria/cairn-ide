@@ -8,7 +8,7 @@ import { buildSearchSnippet } from '../utils/replace.utils';
  */
 @Pipe({ name: 'searchSnippet', standalone: true })
 export class SearchSnippetPipe implements PipeTransform {
-  transform(text: string, query: string, context = 40): string {
+  transform(text: string, query: string | RegExp | null, context = 40): string {
     return buildSearchSnippet(text ?? '', query ?? '', context);
   }
 }

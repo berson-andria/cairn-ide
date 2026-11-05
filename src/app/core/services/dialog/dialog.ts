@@ -15,16 +15,27 @@ import { ComponentType } from '@angular/cdk/overlay';
   `,
   styles: [
     `
+      :host {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        max-height: inherit;
+        overflow: hidden;
+      }
       .custom-dialog-container {
-        background: var(--explorer-bg) !important;
+        background: var(--color-surface-panel) !important;
         border-radius: 0.5em;
         overflow: hidden;
         display: flex;
         flex-direction: column;
         min-height: 0;
-        max-height: 50vh;
+        width: 100%;
+        height: 100%;
+        max-height: inherit;
         color: var(--base-text) !important;
-        border: 1px solid #3e4451;
+        border: 1px solid var(--color-border-strong);
       }
       .custom-dialog-body {
         flex: 1;

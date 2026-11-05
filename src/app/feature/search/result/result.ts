@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, InputSignal, output } from '@angular/core';
+import { Component, computed, effect, inject, input, InputSignal, output } from '@angular/core';
 import { getIconPath } from '../../../shared/utils/node.utils';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { bootstrapChevronDown, bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
@@ -36,14 +36,13 @@ export class SearchResult {
   replaceLine = output<LineMatch>();
   replaceFile = output<void>();
 
-  // State
-  open = true;
-
   // Computed properties
   isTextResult = computed(() => {
     const r = this.result();
     return 'matches' in r; // FileSearchResult has matches, FileNameSearchResult doesn't
   });
+
+  open = false;
 
   fileName = computed(() => {
     const r = this.result();
@@ -65,6 +64,7 @@ export class SearchResult {
   displayPath = computed(() => {
     const root = this.rootPath();
     const path = this.filePath();
+
     if (!root) return path;
     const parts = path.split(root);
     return parts[1] || path;
@@ -79,6 +79,12 @@ export class SearchResult {
     const r = this.result();
     return 'matches' in r ? r.matches : [];
   });
+
+  constructor() {
+    effect(() => {
+      this.open = this.isTextResult() ? true : false;
+    });
+  }
 
   // Methods
   getIconPath() {
@@ -111,6 +117,6 @@ export class SearchResult {
 
   toggleOpen(event: Event) {
     event.stopPropagation();
-    this.open = !this.open;
+    if (this.isTextResult()) this.open = !this.open;
   }
 }

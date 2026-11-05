@@ -57,6 +57,8 @@ interface SearchCriteria {
   include: string;
   exclude: string;
   onlyPaths: string[] | null;
+  caseSensitive: boolean;
+  wholeWord: boolean;
 }
 
 /** One line of the list: a file that was found, or the "create this path" action. */
@@ -122,7 +124,14 @@ export class Search implements OnInit, OnDestroy {
   replacement = signal('');
   isReplacing = signal(false);
   private query = signal('');
-  compiled = computed(() => compilePattern(this.query().trim()));
+  caseSensitive = signal(false);
+  wholeWord = signal(false);
+  compiled = computed(() =>
+    compilePattern(this.query().trim(), {
+      caseSensitive: this.caseSensitive(),
+      wholeWord: this.wholeWord(),
+    }),
+  );
   canReplace = computed(
     () =>
       this.currentMode() === 'text' &&
@@ -310,6 +319,16 @@ export class Search implements OnInit, OnDestroy {
     return input.replace(/^[/@#>]\s?/, '');
   }
 
+  toggleCaseSensitive() {
+    this.caseSensitive.update((v) => !v);
+    this.trigger();
+  }
+
+  toggleWholeWord() {
+    this.wholeWord.update((v) => !v);
+    this.trigger();
+  }
+
   trigger() {
     this.searchTerms.next();
   }
@@ -475,6 +494,8 @@ export class Search implements OnInit, OnDestroy {
       include: this.include().trim(),
       exclude: this.exclude().trim(),
       onlyPaths: this.openEditorsOnly() ? this.openFilePaths() : null,
+      caseSensitive: this.caseSensitive(),
+      wholeWord: this.wholeWord(),
     };
   }
 
@@ -520,6 +541,8 @@ export class Search implements OnInit, OnDestroy {
             include: c.include,
             exclude: c.exclude,
             onlyPaths: c.onlyPaths,
+            caseSensitive: c.caseSensitive,
+            wholeWord: c.wholeWord,
           }),
         };
       } else if (c.mode === 'tasks') {

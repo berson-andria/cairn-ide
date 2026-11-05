@@ -20,17 +20,28 @@ export interface CompiledPattern {
  * The search itself runs in Rust; replacing runs here, with JS regex semantics. A pattern that only
  * Rust understands (for example "(?i)foo") is rejected instead of being half-applied.
  */
-export function compilePattern(query: string): CompiledPattern {
+export interface PatternOptions {
+  caseSensitive?: boolean;
+  wholeWord?: boolean;
+}
+
+export function compilePattern(query: string, options?: PatternOptions): CompiledPattern {
   if (!query) return { re: null, error: null };
   try {
+    let source = query;
+    if (options?.wholeWord) {
+      source = `\\b(?:${source})\\b`;
+    }
+    const flags = options?.caseSensitive ? 'g' : 'gi';
+    const testFlags = options?.caseSensitive ? '' : 'i';
     // "x*", "^" and friends match everywhere; a replace with them would rewrite every line.
-    if (new RegExp(query).test('')) {
+    if (new RegExp(source, testFlags).test('')) {
       return {
         re: null,
         error: 'This pattern also matches empty text, so replacing with it is disabled.',
       };
     }
-    return { re: new RegExp(query, 'g'), error: null };
+    return { re: new RegExp(source, flags), error: null };
   } catch (e) {
     return { re: null, error: `Replace can't use this pattern: ${(e as Error).message}` };
   }
@@ -71,10 +82,17 @@ export function escapeRegExp(s: string): string {
  * The regex used to highlight what a search found. The search runs the query as a regex, so this does too;
  * when the query isn't valid JS regex (or would match empty text) it falls back to a literal match.
  */
-export function highlightRegex(query: string): RegExp | null {
+export function highlightRegex(query: string, options?: PatternOptions): RegExp | null {
   const q = query.trim();
   if (!q) return null;
-  return compilePattern(q).re ?? new RegExp(escapeRegExp(q), 'g');
+  const compiled = compilePattern(q, options);
+  if (compiled.re) return compiled.re;
+  let source = escapeRegExp(q);
+  if (options?.wholeWord) {
+    source = `\\b(?:${source})\\b`;
+  }
+  const flags = options?.caseSensitive ? 'g' : 'gi';
+  return new RegExp(source, flags);
 }
 
 /** Beginning of a line that has no match to show: escaped and cut to a readable length. */
@@ -115,12 +133,12 @@ function renderWindowed(
  */
 export function buildSearchSnippet(
   text: string,
-  query: string,
+  query: string | RegExp,
   context = 40,
   maxMatches = 20,
 ): string {
   const line = text.replace(/\r?\n$/, '');
-  const re = highlightRegex(query);
+  const re = query instanceof RegExp ? (query.global ? query : new RegExp(query.source, query.flags + 'g')) : highlightRegex(query);
   const matches = re ? [...line.matchAll(re)].slice(0, maxMatches) : [];
   if (!matches.length) return plainLine(line, context);
   return renderWindowed(

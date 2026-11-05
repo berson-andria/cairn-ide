@@ -18,4 +18,6 @@ export interface SearchFilters {
   exclude: string; // e.g. "**/*.spec.ts, dist"
   /** Search exactly these files (the open editors). null = the whole workspace. */
   onlyPaths: string[] | null;
+  caseSensitive?: boolean;
+  wholeWord?: boolean;
 }
