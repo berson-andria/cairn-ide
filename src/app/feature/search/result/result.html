@@ -1,6 +1,6 @@
 <div class="container">
   <!-- File Header (File Mode & Text Mode) -->
-  <div class="header" [class.is-open]="open" (click)="toggleOpen($event)">
+  <div class="header" [class.is-open]="open" (click)="reveal($event)">
     <!-- Accordion (only for text mode which has line matches) -->
     @if (isTextResult()) {
       <span class="accordion">
@@ -54,10 +54,5 @@
         }
       </div>
     }
-  }
-
-  <!-- File Mode: Click anywhere to open -->
-  @if (!isTextResult()) {
-    <div class="file-clickable" (click)="openFile()"></div>
   }
 </div>

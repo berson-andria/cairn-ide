@@ -105,7 +105,6 @@ export class SearchResult {
     this.dialogRef?.close();
     const r = this.result();
     const path = 'matches' in r ? r.path : r.path;
-
     if (lineNumber !== undefined) {
       // Text result: open at specific line
       await this.command.openPathAtLine(path, lineNumber, this.keyword());
@@ -115,8 +114,12 @@ export class SearchResult {
     }
   }
 
-  toggleOpen(event: Event) {
+  reveal(event: Event) {
     event.stopPropagation();
-    if (this.isTextResult()) this.open = !this.open;
+    if (this.isTextResult()) {
+      this.open = !this.open;
+    } else {
+      this.openFile();
+    }
   }
 }
