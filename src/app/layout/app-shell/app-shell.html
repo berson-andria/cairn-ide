@@ -4,7 +4,7 @@
 -->
 <header class="title-bar" data-tauri-drag-region>
   <div class="title-bar__start" data-tauri-drag-region>
-    <img src="assets/icon.png" alt="" width="26px" />
+    <img src="assets/icon.png" alt="" width="24px" />
     <button class="title-bar__menu" type="button" aria-label="Cairn menu">
       <ng-icon name="lucideFolderRoot " style="font-size: 14px" />
       <span>{{ project() }}</span>
@@ -152,12 +152,16 @@
   <div class="status-bar__group">
     <button
       class="status-bar__item status-bar__item--strong"
+      [class.notif]="gitChangesCount() > 0"
       type="button"
       aria-label="Open Git"
       (click)="toggleToolkit('Git')"
     >
       <ng-icon name="lucideGitBranch " />
       <span>Git</span>
+      @if (gitChangesCount() > 0) {
+        <span>{{ gitChangesCount() }}</span>
+      }
     </button>
     <button
       class="status-bar_item status-bar__item--strong"

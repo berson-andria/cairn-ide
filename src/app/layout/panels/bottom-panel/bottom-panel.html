@@ -28,6 +28,9 @@
     (click)="layoutService.toggleToolkit('Git')"
   >
     Git
+    @if (gitChangesCount()) {
+      <span class="rail-section__meta--attention">{{ gitChangesCount() }}</span>
+    }
   </button>
   <button
     class="tab"
@@ -35,6 +38,9 @@
     (click)="layoutService.toggleToolkit('Problems')"
   >
     Problems
+    @if (counts().error + counts().warning > 0) {
+      <span class="rail-section__meta--attention">{{ counts().error + counts().warning }}</span>
+    }
   </button>
   <button
     class="tab"
@@ -44,34 +50,49 @@
     Log
   </button>
   <div style="margin-left: auto; display: flex; flex-direction: row">
-    @if (layoutService.isToolkitActive('Terminal')) {
-      <button class="icon-btn" (click)="createNewSession()" title="New terminal session">
-        <ng-icon name="lucidePlus" />
-        <span style="margin-left: 0.25em">New Session</span>
-      </button>
-    }
-    @if (layoutService.isToolkitActive('Git')) {
-      <button>
-        <ng-icon name="lucideGitBranch" />
-        <span>{{ gitBranchName() }}</span>
-      </button>
-      <div
-        style="
-          display: flex;
-          background: #1c1a17;
-          border-radius: 6px;
-          padding: 2px;
-          margin-left: 1em;
-        "
-      >
-        <button
-          style="background: #2e2a24; color: #e8e2d6; padding: 2px 10px; border-radius: 4px"
-          (click)="activeGitView = 'Changes'"
-        >
-          Changes
+    @if (nodeStore.rootPath()) {
+      @if (layoutService.isToolkitActive('Terminal')) {
+        <button class="icon-btn" (click)="createNewSession()" title="New terminal session">
+          <ng-icon name="lucidePlus" />
+          <span style="margin-left: 0.25em">New Session</span>
         </button>
-        <button style="padding: 2px 10px" (click)="activeGitView = 'Graph'">Graph</button>
-      </div>
+      }
+      @if (layoutService.isToolkitActive('Git')) {
+        <button>
+          <ng-icon name="lucideGitBranch" />
+          <span>{{ gitBranchName() }}</span>
+        </button>
+        <div
+          style="
+            display: flex;
+            background: #1c1a17;
+            border-radius: 6px;
+            padding: 2px;
+            margin-left: 1em;
+          "
+        >
+          <button
+            style="background: #2e2a24; color: #e8e2d6; padding: 2px 10px; border-radius: 4px"
+            (click)="activeGitView = 'Changes'"
+          >
+            Changes
+          </button>
+          <button style="padding: 2px 10px" (click)="activeGitView = 'Graph'">Graph</button>
+        </div>
+      }
+      @if (layoutService.isToolkitActive('Problems')) {
+        <div class="problem__filter input-form">
+          <input
+            class="filter"
+            type="search"
+            placeholder="Filter by text or file"
+            aria-label="Filter problems"
+            spellcheck="false"
+            [value]="filter()"
+            (input)="onFilter($event)"
+          />
+        </div>
+      }
     }
     <button class="icon-btn" style="margin-left: 2em" (click)="layoutService.toggleBottomPanel()">
       <ng-icon name="lucideMinus" />
@@ -95,8 +116,7 @@
     <app-git [activeView]="activeGitView"></app-git>
   }
   @case ('Problems') {
-    <!-- Placeholder for Problems panel -->
-    <div style="padding: 16px; color: #7f848e">Problems panel placeholder</div>
+    <app-problems [filter]="filter()"></app-problems>
   }
   @case ('Log') {
     <!-- Placeholder for Log panel -->

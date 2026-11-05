@@ -1,10 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import { EditorService } from '../../feature/editor/services/editor.service';
-import { FileNode } from '../store/node.state';
-import { classifyWatchEvent, findNodeByPath } from './file-system/external-watcher.utils';
-import { FileSystemService } from './file-system/file-system.service';
-import { NodeStore } from '../store/node.store';
-import { TabStore } from '../store/tab.store';
+import { EditorService } from '../../../feature/editor/services/editor.service';
+import { FileNode } from '../../store/node.state';
+import { classifyWatchEvent, findNodeByPath } from './external-watcher.utils';
+import { FileSystemService } from './file-system.service';
+import { NodeStore } from '../../store/node.store';
+import { TabStore } from '../../store/tab.store';
 
 @Injectable({ providedIn: 'root' })
 export class WorkspaceWatcherService {

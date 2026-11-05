@@ -19,11 +19,12 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideGitBranch, lucideMinus, lucidePlus } from '@ng-icons/lucide';
 import { LayoutService } from '../../../core/services/layout.service';
 import { GitService } from '../../../feature/git/services/git.service';
+import { Problems } from '../../../feature/problems/problems';
 
 @Component({
   selector: 'bottom-panel',
   standalone: true,
-  imports: [ResizeHandle, Terminal, Git, NgIcon],
+  imports: [ResizeHandle, Terminal, Git, Problems, NgIcon],
   templateUrl: './bottom-panel.html',
   styleUrl: './bottom-panel.scss',
   host: {
@@ -47,6 +48,7 @@ export class BottomPanel {
   protected readonly terminals = inject(TerminalService);
   private readonly injector = inject(Injector);
   protected readonly counts = inject(DiagnosticsService).counts;
+  filter = signal('');
 
   gitBranchName = computed(() => {
     const status = this.git.status();
@@ -72,5 +74,9 @@ export class BottomPanel {
 
   protected createNewSession(): void {
     void this.terminals.create(this.nodeStore.rootPath());
+  }
+
+  protected onFilter(event: Event): void {
+    this.filter.set((event.target as HTMLInputElement).value);
   }
 }

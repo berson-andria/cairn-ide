@@ -342,6 +342,21 @@ export class EditorService implements OnDestroy {
     return true;
   }
 
+  revealLine(id: string, lineNumber: number, col: number): boolean {
+    const model = this.models.get(id)?.model;
+    const handle = model && [...this.handles].find((h) => h.usesModel(model));
+    if (!model || !handle) return false;
+
+    if (lineNumber < 1 || lineNumber > model.getLineCount()) return true;
+    handle.reveal({
+      startLineNumber: lineNumber,
+      startColumn: 1,
+      endLineNumber: lineNumber,
+      endColumn: col,
+    });
+    return true;
+  }
+
   /** Everything currently using this model (empty if there is no model). */
   ownersOf(id: string): string[] {
     return [...(this.models.get(id)?.owners ?? [])];

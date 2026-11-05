@@ -1,48 +1,84 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { Problem, Severity, DiagnosticsService } from '../../core/services/diagnostics.service';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import {
+  lucideAlertTriangle,
+  lucideChevronDown,
+  lucideChevronRight,
+  lucideInfo,
+  lucideOctagonX,
+} from '@ng-icons/lucide';
+
+/** One displayed row. `hint` rows are info items attached to the problem above them. */
+interface Item {
+  problem: Problem;
+  hint: boolean;
+}
 
 interface FileGroup {
   path: string;
   name: string;
   dir: string;
-  items: Problem[];
+  items: Item[];
+  /** errors + warnings only (hints and loose info are not counted) */
+  count: number;
 }
 
-const GLYPH: Record<Severity, string> = { error: '●', warning: '▲', info: '●' };
+interface Row {
+  problem: Problem;
+  hints: Problem[];
+}
+
+const GLYPH: Record<Severity, string> = {
+  error: 'lucideOctagonX',
+  warning: 'lucideAlertTriangle',
+  info: 'lucideInfo',
+};
+
+const byPosition = (a: Problem, b: Problem) => a.line - b.line || a.column - b.column;
+
+/** Same producer and (when both have one) the same code: the hint is about that problem. */
+function sameOrigin(a: Problem, b: Problem): boolean {
+  if ((a.source ?? '') !== (b.source ?? '')) return false;
+  return a.code === undefined || b.code === undefined || a.code === b.code;
+}
+
+/** Attaches info items to the error/warning on the same line. Loose info stays a row of its own. */
+function buildRows(problems: Problem[]): Row[] {
+  const rows: Row[] = [];
+  const primariesByLine = new Map<number, Row[]>();
+  const infos: Problem[] = [];
+
+  for (const p of [...problems].sort(byPosition)) {
+    if (p.severity === 'info') {
+      infos.push(p);
+      continue;
+    }
+    const row: Row = { problem: p, hints: [] };
+    rows.push(row);
+    const sameLine = primariesByLine.get(p.line);
+    if (sameLine) sameLine.push(row);
+    else primariesByLine.set(p.line, [row]);
+  }
+
+  for (const h of infos) {
+    const candidates = primariesByLine.get(h.line);
+    const owner = candidates?.find((r) => sameOrigin(r.problem, h)) ?? candidates?.[0];
+    if (owner) owner.hints.push(h);
+    else rows.push({ problem: h, hints: [] }); // not about any problem: keep it standalone
+  }
+
+  return rows.sort((a, b) => byPosition(a.problem, b.problem));
+}
+
+function matches(p: Problem, query: string): boolean {
+  return `${p.message} ${p.path} ${p.source ?? ''} ${p.code ?? ''}`.toLowerCase().includes(query);
+}
 
 @Component({
   selector: 'app-problems',
-  standalone: true,
-  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <!-- <div class="bar">
-      <input
-        class="filter"
-        type="search"
-        placeholder="Filter by text or file"
-        aria-label="Filter problems"
-        spellcheck="false"
-        [value]="filter()"
-        (input)="onFilter($event)"
-      />
-      <div class="sev">
-        @for (s of severities; track s.id) {
-          <button
-            type="button"
-            class="sev__btn"
-            [class.is-off]="!visible()[s.id]"
-            [attr.aria-pressed]="visible()[s.id]"
-            [title]="'Show ' + s.label"
-            (click)="toggleSeverity(s.id)"
-          >
-            <span class="glyph" [class]="'glyph glyph--' + s.id">{{ glyph(s.id) }}</span>
-            {{ counts()[s.id] }}
-          </button>
-        }
-      </div>
-    </div> -->
-
-    <div class="list">
+    <div class="list scrolling-el">
       @for (g of groups(); track g.path) {
         <section>
           <button
@@ -51,25 +87,38 @@ const GLYPH: Record<Severity, string> = { error: '●', warning: '▲', info: '�
             [attr.aria-expanded]="!collapsed().has(g.path)"
             (click)="toggleFile(g.path)"
           >
-            <span class="chev">{{ collapsed().has(g.path) ? '▸' : '▾' }}</span>
+            <span class="chev">
+              @if (collapsed().has(g.path)) {
+                <ng-icon name="lucideChevronRight" />
+              } @else {
+                <ng-icon name="lucideChevronDown" />
+              }
+            </span>
             <span class="file__name">{{ g.name }}</span>
             <span class="file__dir">{{ g.dir }}</span>
-            <span class="file__count">{{ g.items.length }}</span>
+            <span class="file__count">{{ g.count }}</span>
           </button>
 
           @if (!collapsed().has(g.path)) {
-            @for (p of g.items; track p.id) {
-              <button type="button" class="item" (click)="diagnostics.reveal(p)">
-                <span [class]="'glyph glyph--' + p.severity">{{ glyph(p.severity) }}</span>
-                <span class="item__msg">{{ p.message }}</span>
+            @for (it of g.items; track it.problem.id) {
+              <button
+                type="button"
+                class="item"
+                [class.item--hint]="it.hint"
+                (click)="open(it.problem)"
+              >
+                <span [class]="'glyph glyph--' + it.problem.severity">
+                  <ng-icon [name]="glyph(it.problem.severity)" />
+                </span>
+                <span class="item__msg">{{ it.problem.message }}</span>
                 <span class="item__meta">
-                  @if (p.source) {
-                    {{ p.source }}
+                  @if (it.problem.source) {
+                    {{ it.problem.source }}
                   }
-                  @if (p.code !== undefined) {
-                    ({{ p.code }})
+                  @if (it.problem.code !== undefined) {
+                    ({{ it.problem.code }})
                   }
-                  [Ln {{ p.line }}, Col {{ p.column }}]
+                  [Ln {{ it.problem.line }}, Col {{ it.problem.column }}]
                 </span>
               </button>
             }
@@ -96,17 +145,44 @@ const GLYPH: Record<Severity, string> = { error: '●', warning: '▲', info: '�
         min-height: 0;
         overflow: hidden;
       }
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 8px;
+      }
+      .filter {
+        flex: 1;
+        min-width: 0;
+      }
+      .sev {
+        display: flex;
+        gap: 4px;
+      }
+      .sev__btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+      }
+      .sev__btn.is-off {
+        opacity: 0.4;
+      }
       .list {
         flex: 1;
         min-height: 0;
         overflow: auto;
-        padding: 2px 0;
+        padding: var(--space-2) 0;
       }
       .file,
       .item {
         display: flex;
         align-items: baseline;
-        gap: 6px;
+        gap: var(--space-6);
         width: 100%;
         border: 0;
         background: transparent;
@@ -114,35 +190,38 @@ const GLYPH: Record<Severity, string> = { error: '●', warning: '▲', info: '�
         font: inherit;
         text-align: left;
         cursor: pointer;
+        &:hover {
+          background-color: var(--color-surface-hover);
+        }
       }
       .file {
-        padding: 3px 8px;
-      }
-      .file:hover,
-      .item:hover {
-        // background: #2c313c;
+        padding: var(--space-2) var(--space-8);
       }
       .chev {
         width: 1em;
       }
       .file__name {
-        font-weight: 600;
+        font-weight: var(--font-weight-semibold);
       }
       .file__dir {
-        flex: 1;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
       .file__count {
-        padding: 0 6px;
-        border-radius: 8px;
-        background: #2c313c;
-        font-size: 11px;
+        padding: 0 var(--space-6);
+        border-radius: var(--space-8);
+        background: var(--color-surface-raised);
+        font-size: var(--font-size-label);
       }
       .item {
-        padding: 2px 8px 2px 28px;
+        padding: var(--space-2) var(--space-8) var(--space-2) var(--space-24);
+      }
+      /* a hint belongs to the problem right above it */
+      .item--hint {
+        padding-left: 48px;
+        opacity: 0.85;
       }
       .item__msg {
         flex: 0 1 auto;
@@ -153,20 +232,20 @@ const GLYPH: Record<Severity, string> = { error: '●', warning: '▲', info: '�
       }
       .item__meta {
         flex: none;
-        color: #7f848e;
+        color: var(--color-text-faint);
       }
       .glyph {
         flex: none;
-        font-size: 11px;
+        font-size: var(--font-size-label);
       }
       .glyph--error {
-        color: #e05561;
+        color: var(--color-error-fg);
       }
       .glyph--warning {
-        color: #d18f52;
+        color: var(--color-warning-fg);
       }
       .glyph--info {
-        color: #4aa5f0;
+        color: var(--color-status-running);
       }
       .empty {
         display: inline-flex;
@@ -174,6 +253,18 @@ const GLYPH: Record<Severity, string> = { error: '●', warning: '▲', info: '�
       }
     `,
   ],
+  imports: [NgIcon],
+  providers: [
+    provideIcons({
+      lucideChevronDown,
+      lucideChevronRight,
+      lucideOctagonX,
+      lucideAlertTriangle,
+      lucideInfo,
+    }),
+  ],
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Problems {
   protected readonly diagnostics = inject(DiagnosticsService);
@@ -185,7 +276,7 @@ export class Problems {
     { id: 'info', label: 'info' },
   ];
 
-  protected readonly filter = signal('');
+  filter = input('');
   protected readonly visible = signal<Record<Severity, boolean>>({
     error: true,
     warning: true,
@@ -199,36 +290,45 @@ export class Problems {
     const byPath = new Map<string, Problem[]>();
 
     for (const p of this.diagnostics.problems()) {
-      if (!show[p.severity]) continue;
-      if (
-        query &&
-        !`${p.message} ${p.path} ${p.source ?? ''} ${p.code ?? ''}`.toLowerCase().includes(query)
-      )
-        continue;
       let list = byPath.get(p.path);
       if (!list) byPath.set(p.path, (list = []));
       list.push(p);
     }
 
-    return [...byPath.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([path, items]) => {
-        const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-        return {
-          path,
-          name: path.slice(cut + 1),
-          dir: cut > 0 ? path.slice(0, cut) : '',
-          items: [...items].sort((a, b) => a.line - b.line || a.column - b.column),
-        };
+    const groups: FileGroup[] = [];
+
+    for (const [path, problems] of byPath) {
+      const items: Item[] = [];
+      let count = 0;
+
+      for (const row of buildRows(problems)) {
+        if (!show[row.problem.severity]) continue; // hidden severity (hints follow their problem)
+        const hints = show.info ? row.hints : [];
+        if (query && !matches(row.problem, query) && !hints.some((h) => matches(h, query)))
+          continue;
+
+        items.push({ problem: row.problem, hint: false });
+        for (const h of hints) items.push({ problem: h, hint: true });
+        if (row.problem.severity !== 'info') count++;
+      }
+
+      if (items.length === 0) continue;
+
+      const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+      groups.push({
+        path,
+        name: path.slice(cut + 1),
+        dir: cut > 0 ? path.slice(0, cut) : '',
+        items,
+        count,
       });
+    }
+
+    return groups.sort((a, b) => a.path.localeCompare(b.path));
   });
 
   protected glyph(severity: Severity): string {
     return GLYPH[severity];
-  }
-
-  protected onFilter(event: Event): void {
-    this.filter.set((event.target as HTMLInputElement).value);
   }
 
   protected toggleSeverity(severity: Severity): void {
@@ -241,5 +341,10 @@ export class Problems {
       if (!next.delete(path)) next.add(path);
       return next;
     });
+  }
+
+  /** Called when a row (problem or hint) is clicked. Intentionally empty: it only exposes the location. */
+  protected open(problem: Problem): void {
+    this.diagnostics.reveal(problem);
   }
 }

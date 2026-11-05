@@ -11,13 +11,11 @@ import {
 import { MainPanel } from '../panels/main/main';
 import { LeftPanel } from '../panels/left-panel/left-panel';
 import { NodeStore } from '../../core/store/node.store';
-import { WorkspaceWatcherService } from '../../core/services/workspace-watcher.service';
+import { WorkspaceWatcherService } from '../../core/services/file-system/workspace-watcher.service';
 import { getCurrentWindow, Window, currentMonitor } from '@tauri-apps/api/window';
 
 import { EditorCommands } from '../../feature/editor/editor.commands';
 import { EditorService } from '../../feature/editor/services/editor.service';
-import { TerminalService } from '../../feature/terminal/terminal.service';
-import { TabStore } from '../../core/store/tab.store';
 import { LayoutService, Toolkit } from '../../core/services/layout.service';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
@@ -59,8 +57,6 @@ export class AppShell {
   readonly watcher = inject(WorkspaceWatcherService);
   readonly commands = inject(EditorCommands);
   readonly editorService = inject(EditorService);
-  readonly tabStore = inject(TabStore);
-  readonly terminalService = inject(TerminalService);
   readonly git = inject(GitService);
   readonly ngZone = inject(NgZone);
   readonly lsp = inject(LspBridgeService);
@@ -78,7 +74,11 @@ export class AppShell {
 
   isMonacoLoading = signal(true);
   isMaximized = signal(false);
-
+  gitChangesCount = computed(() => {
+    const staged = this.git.staged();
+    const unstaged = this.git.unstaged();
+    return staged.length + unstaged.length;
+  });
   cursorPosition = computed(() => {
     return {
       line: this.monitoring.editorData()?.cursorPosition?.line,

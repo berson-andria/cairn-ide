@@ -42,7 +42,11 @@ export class DiagnosticsService {
     this.byOwner.update((map) => {
       const next = new Map(map);
       if (problems.length === 0) next.delete(owner);
-      else next.set(owner, problems.map((p, i) => ({ ...p, id: `${owner}#${i}` })));
+      else
+        next.set(
+          owner,
+          problems.map((p, i) => ({ ...p, id: `${owner}#${i}` })),
+        );
       return next;
     });
   }
@@ -59,7 +63,10 @@ export class DiagnosticsService {
       for (const [key, list] of Object.entries(entries)) {
         if (list.length === 0) continue;
         const owner = prefix + key;
-        next.set(owner, list.map((p, i) => ({ ...p, id: `${owner}#${i}` })));
+        next.set(
+          owner,
+          list.map((p, i) => ({ ...p, id: `${owner}#${i}` })),
+        );
       }
       return next;
     });

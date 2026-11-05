@@ -9,6 +9,7 @@ import { EditorService, fileTabOwner } from './services/editor.service';
 import { MessageService } from '../../core/services/message.service';
 import { TerminalService } from '../terminal/terminal.service';
 import { TabStore } from '../../core/store/tab.store';
+import { DiagnosticsService } from '../../core/services/diagnostics.service';
 
 export type SaveChoice = 'save' | 'discard' | 'cancel';
 
@@ -23,6 +24,7 @@ export class EditorCommands {
   private readonly tabs = inject(TabStore);
   private readonly editor = inject(EditorService);
   private readonly messageService = inject(MessageService);
+  private readonly diagnostic = inject(DiagnosticsService);
   // private readonly terminalService = inject(TerminalService);
 
   constructor() {
@@ -33,6 +35,21 @@ export class EditorCommands {
         if (!id) this.nodes.setActiveNode(null);
         else if (!this.tabs.diffTabs()[id]) this.nodes.setActiveNode(id);
       });
+    });
+    effect(() => {
+      const diagRevealRequest = this.diagnostic.revealRequest();
+
+      if (diagRevealRequest) {
+        const problem = diagRevealRequest.problem;
+        console.log(this.nodes.rootPath() + problem.path);
+
+        this.openPathAtLine(
+          this.nodes.rootPath() + '/' + problem.path,
+          problem.line,
+          undefined,
+          problem.column,
+        );
+      }
     });
 
     // A file that no longer exists (deleted, folder switched) can't stay open.
@@ -80,12 +97,18 @@ export class EditorCommands {
   }
 
   /** Opens a file and selects `text` on `lineNumber` (search results). */
-  async openPathAtLine(path: string, lineNumber: number, text: string): Promise<void> {
+  async openPathAtLine(
+    path: string,
+    lineNumber: number,
+    text?: string,
+    col?: number,
+  ): Promise<void> {
     const id = await this.openPath(path);
     if (!id) return;
     // The editor shows the file a moment later (the tab is focused, then its model is built): retry for a while.
     for (let i = 0; i < 30; i++) {
-      if (this.editor.revealText(id, lineNumber, text)) return;
+      if (text && this.editor.revealText(id, lineNumber, text)) return;
+      if (col && this.editor.revealLine(id, lineNumber, col)) return;
       await new Promise((resolve) => requestAnimationFrame(resolve));
     }
   }
