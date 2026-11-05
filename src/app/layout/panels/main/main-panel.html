@@ -16,7 +16,7 @@
         [title]="tab.tooltip"
         (click)="openTab(tab.id)"
       >
-        <img [src]="tab.icon" class="node-icon" alt="file-icon" />
+        <file-icon [name]="tab.label" [type]="'file'" />
         <span>{{ tab.label }}</span>
         <button (click)="$event.stopPropagation(); closeTab(tab.id)">x</button>
       </div>

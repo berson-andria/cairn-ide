@@ -1,6 +1,3 @@
-import darkIconMap from '../../../assets/dark-jetbrains-icon-theme.json';
-import lightIconMap from '../../../assets/light-jetbrains-icon-theme.json';
-
 import languageMap from '../../../assets/file-extension-to-language.json';
 import { Node } from '../../core/store/node.state';
 
@@ -87,60 +84,6 @@ export function resolveNewPath(input: string): NewPath {
   return { ok: true, segments, isFolder, display: segments.join('/') + (isFolder ? '/' : '') };
 }
 
-export type ItemType = 'file' | 'folder';
-
-interface IconTheme {
-  iconDefinitions: Record<string, { iconPath: string }>;
-  file: string;
-  folder: string;
-  folderNames: Record<string, string>;
-  fileNames: Record<string, string>;
-  fileExtensions: Record<string, string>;
-}
-
-const ASSETS_ROOT = 'assets';
-
-function isDarkMode(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-color-scheme: dark)').matches
-  );
-}
-
-function lookup(map: Record<string, string>, key: string): string | undefined {
-  return map[key] ?? map[key.toLowerCase()];
-}
-
-function resolveIconId(theme: IconTheme, name: string, type: ItemType): string {
-  if (type === 'folder') {
-    return lookup(theme.folderNames, name) ?? theme.folder;
-  }
-
-  const byName = lookup(theme.fileNames, name);
-  if (byName) return byName;
-
-  // "foo.test.ts" -> ["foo", "test", "ts"] -> try "test.ts", then "ts".
-  // ".env.local"  -> ["", "env", "local"]  -> try "env.local", then "local".
-  const parts = name.split('.');
-  for (let i = 1; i < parts.length; i++) {
-    const byExt = lookup(theme.fileExtensions, parts.slice(i).join('.'));
-    if (byExt) return byExt;
-  }
-
-  return theme.file;
-}
-export function getIconPath(name: string, type: ItemType, isDark: boolean = isDarkMode()): string {
-  const theme = (isDark ? darkIconMap : lightIconMap) as unknown as IconTheme;
-
-  const iconId = resolveIconId(theme, name, type);
-  const definition =
-    theme.iconDefinitions[iconId] ??
-    theme.iconDefinitions[type === 'folder' ? theme.folder : theme.file];
-
-  // iconPath looks like "./icons/folder/folder_dark.svg"
-  return `${ASSETS_ROOT}/${definition.iconPath.replace(/^\.\//, '')}`;
-}
 export function indentStyle(level: number, multiplier: number) {
   return {
     'padding-left': `${level * multiplier + 5}px`,

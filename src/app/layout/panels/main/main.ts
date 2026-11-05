@@ -7,11 +7,11 @@ import { TabStore, TabContentType } from '../../../core/store/tab.store';
 import { NodeStore } from '../../../core/store/node.store';
 import { NoFolderOpen } from './no-folder';
 import { FileNode } from '../../../core/store/node.state';
-import { getIconPath } from '../../../shared/utils/node.utils';
 import { EditorService } from '../../../feature/editor/services/editor.service';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
 import { baseName } from '../../../feature/editor/features/diff-tab';
 import { Editor } from '../../../feature/editor/editor';
+import { FileIcon } from '../../../shared/components/file-icon';
 
 /** What the tab strip draws: a file, diff, task, review, note, or chat tab. */
 interface TabView {
@@ -19,7 +19,6 @@ interface TabView {
   kind: 'file' | 'diff' | 'task' | 'review' | 'note' | 'chat';
   type: TabContentType;
   label: string;
-  icon: string;
   dirty: boolean;
   active: boolean;
   tooltip: string;
@@ -29,7 +28,16 @@ interface TabView {
   selector: 'main-panel',
   templateUrl: './main-panel.html',
   styleUrl: './main-panel.scss',
-  imports: [CommonModule, BottomPanel, EmptyWorkspace, NoFolderOpen, Editor, CdkDrag, CdkDropList],
+  imports: [
+    CommonModule,
+    BottomPanel,
+    EmptyWorkspace,
+    NoFolderOpen,
+    Editor,
+    FileIcon,
+    CdkDrag,
+    CdkDropList,
+  ],
 })
 export class MainPanel {
   readonly nodeStore = inject(NodeStore);
@@ -62,7 +70,6 @@ export class MainPanel {
                 kind: 'diff',
                 type,
                 label: diff.title ?? tab.title ?? 'Diff',
-                icon: getIconPath(baseName(modified.path), 'file'),
                 dirty: !!fileId && this.tabStore.isDirty(fileId),
                 active: id === active,
                 tooltip:
@@ -79,7 +86,6 @@ export class MainPanel {
               kind: 'diff',
               type,
               label,
-              icon: getIconPath('diff', 'file'),
               dirty: this.tabStore.isDirty(id),
               active: id === active,
               tooltip: label,
@@ -96,7 +102,6 @@ export class MainPanel {
               kind: 'file',
               type,
               label,
-              icon: getIconPath(label, 'file'),
               dirty: this.tabStore.isDirty(id),
               active: id === active,
               tooltip: node?.path ?? label,
@@ -112,7 +117,6 @@ export class MainPanel {
               kind: 'task',
               type,
               label,
-              icon: getIconPath('task.rake', 'file'),
               dirty: this.tabStore.isDirty(id),
               active: id === active,
               tooltip: label,
@@ -128,7 +132,6 @@ export class MainPanel {
               kind: 'review',
               type,
               label,
-              icon: getIconPath('.gitignore', 'file'),
               dirty: this.tabStore.isDirty(id),
               active: id === active,
               tooltip: label,
@@ -144,7 +147,6 @@ export class MainPanel {
               kind: 'note',
               type,
               label,
-              icon: getIconPath('notes.md', 'file'),
               dirty: this.tabStore.isDirty(id),
               active: id === active,
               tooltip: label,
@@ -161,7 +163,6 @@ export class MainPanel {
               kind: 'chat',
               type,
               label,
-              icon: getIconPath('chat.json', 'file'),
               dirty: this.tabStore.isDirty(id),
               active: id === active,
               tooltip: label,
@@ -177,7 +178,6 @@ export class MainPanel {
               kind: 'file',
               type,
               label,
-              icon: getIconPath(label, 'file'),
               dirty: this.tabStore.isDirty(id),
               active: id === active,
               tooltip: label,

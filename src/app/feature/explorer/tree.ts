@@ -19,8 +19,8 @@ import {
   bootstrapFolderPlus,
 } from '@ng-icons/bootstrap-icons';
 import { NodeDndDirective } from './node/node-dnd.directive';
-import { FileNodeComponent } from './node/file-node/file-node';
-import { FolderNodeComponent } from './node/folder-node/folder-node';
+import { FileNode } from './node/file-node/file-node';
+import { FolderNode } from './node/folder-node/folder-node';
 import { NewNode } from './node/new-node/new-node';
 import { KeybindingService } from '../../core/services/command/keybinding.service';
 import { InlineCreationMode } from '../../core/store/node.state';
@@ -33,7 +33,7 @@ import { LayoutService } from '../../core/services/layout.service';
   selector: 'file-tree',
   templateUrl: './tree.html',
   styleUrl: './tree.scss',
-  imports: [FileNodeComponent, FolderNodeComponent, EmptyExplorer, NewNode, CommonModule, NgIcon],
+  imports: [FileNode, FolderNode, EmptyExplorer, NewNode, CommonModule, NgIcon],
   providers: [
     provideIcons({
       lucideFilePlus2,
@@ -91,6 +91,7 @@ export class FileTree {
     if (clickedBackground || clickedPlaceholder) {
       this.nodeStore.resetActiveNode();
       this.nodeStore.clearSelection();
+      this.nodeStore.closeInlineCreationForm();
     }
   }
 

@@ -2,22 +2,22 @@ import { Component, computed, inject, input, InputSignal, signal } from '@angula
 import { NgClass, NgStyle } from '@angular/common';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { bootstrapChevronDown, bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
-import { FileNodeComponent } from '../file-node/file-node';
+import { FileNode } from '../file-node/file-node';
 import { NewNode } from '../new-node/new-node';
 import { NodeDndDirective } from '../node-dnd.directive';
 import { RenameNode } from '../rename-node/rename-node';
 import { InlineCreationMode } from '../../../../core/store/node.state';
 import { NodeStore } from '../../../../core/store/node.store';
-import { getIconPath } from '../../../../shared/utils/node.utils';
+import { FileIcon } from '../../../../shared/components/file-icon';
 
 @Component({
   selector: 'folder-node',
   templateUrl: './folder-node.html',
   styleUrls: ['./folder-node.scss', '../node.scss'],
-  imports: [NgClass, NgStyle, NgIcon, NewNode, FileNodeComponent, RenameNode, NodeDndDirective],
+  imports: [NgClass, NgStyle, NgIcon, NewNode, FileNode, FileIcon, RenameNode, NodeDndDirective],
   providers: [provideIcons({ bootstrapChevronDown, bootstrapChevronRight })],
 })
-export class FolderNodeComponent {
+export class FolderNode {
   nodeStore = inject(NodeStore);
 
   nodeId: InputSignal<string> = input.required();
@@ -46,10 +46,6 @@ export class FolderNodeComponent {
   uiState = computed(() => {
     return this.nodeStore.explorerUiState()[this.nodeStore.nodes()[this.nodeId()].id];
   });
-  iconName = computed(() => {
-    return getIconPath(this.nodeStore.nodes()[this.nodeId()].name, 'folder');
-  });
-
   isActive = computed(() => {
     return this.nodeStore.nodes()[this.nodeId()].id == this.nodeStore.activeNodeId();
   });

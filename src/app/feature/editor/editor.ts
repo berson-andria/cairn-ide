@@ -4,17 +4,17 @@ import { bootstrapX } from '@ng-icons/bootstrap-icons';
 import { CommonModule } from '@angular/common';
 import { NodeStore } from '../../core/store/node.store';
 import { EditorService } from './services/editor.service';
-import { CodeEditorComponent } from './features/code-editor.component';
-import { DiffEditorComponent } from './features/diff-editor.component';
-import { getIconPath } from '../../shared/utils/node.utils';
+import { CodeEditor } from './features/code-editor.component';
+import { DiffEditor } from './features/diff-editor.component';
 import { TabStore } from '../../core/store/tab.store';
 import { baseName } from './features/diff-tab';
+import { FileIcon } from '../../shared/components/file-icon';
 
 @Component({
   selector: 'text-editor',
   templateUrl: './editor.html',
   styleUrl: './editor.scss',
-  imports: [CommonModule, CodeEditorComponent, DiffEditorComponent],
+  imports: [CommonModule, CodeEditor, DiffEditor, FileIcon],
   providers: [provideIcons({ bootstrapX })],
 })
 export class Editor {
@@ -32,6 +32,27 @@ export class Editor {
       return type;
     }
     return null;
+  });
+
+  name = computed(() => {
+    const active = this.tabStore.activeTab();
+    if (!active) return '';
+
+    if (active.type === 'DiffEditor') {
+      const diff = this.tabStore.diffTabs()[active.id];
+      if (diff) {
+        return baseName(diff.request.modified.path);
+      }
+      return 'diff';
+    }
+
+    if (active.type === 'CodeEditor') {
+      const node = this.nodeStore.nodes()[active.id];
+      const name = node?.name ?? active.title ?? 'file';
+      return name;
+    }
+
+    return 'file';
   });
 
   isCodeEditor = computed(() => this.activeKind() === 'CodeEditor');
@@ -60,27 +81,6 @@ export class Editor {
     }
 
     return [];
-  });
-
-  iconName = computed(() => {
-    const active = this.tabStore.activeTab();
-    if (!active) return '';
-
-    if (active.type === 'DiffEditor') {
-      const diff = this.tabStore.diffTabs()[active.id];
-      if (diff) {
-        return getIconPath(baseName(diff.request.modified.path), 'file');
-      }
-      return getIconPath('diff', 'file');
-    }
-
-    if (active.type === 'CodeEditor') {
-      const node = this.nodeStore.nodes()[active.id];
-      const name = node?.name ?? active.title ?? 'file';
-      return getIconPath(name, 'file');
-    }
-
-    return getIconPath('file', 'file');
   });
 
   getFilePathArray(path: string, rootPath: string | null) {

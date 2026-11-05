@@ -23,9 +23,7 @@
         <ng-icon name="bootstrapChevronRight " />
       }
     </span>
-    <span>
-      <img [src]="iconName()" class="node-icon" />
-    </span>
+    <file-icon [name]="nodeStore.nodes()[this.nodeId()].name" [type]="'folder'" />
     @if (isRenaming()) {
       <rename-node [nodeId]="nodeId()" />
     } @else {

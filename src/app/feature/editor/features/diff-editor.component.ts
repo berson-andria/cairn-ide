@@ -137,7 +137,7 @@ type DiffHandle = NonNullable<Awaited<ReturnType<EditorService['mountDiffEditor'
     }
   `,
 })
-export class DiffEditorComponent {
+export class DiffEditor {
   private readonly tabs = inject(TabStore);
   private readonly commands = inject(EditorCommands);
   private readonly sources = inject(ModelSourceService);

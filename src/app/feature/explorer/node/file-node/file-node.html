@@ -7,9 +7,7 @@
   (dblclick)="onDoubleClick()"
 >
   <span class="accordion"></span>
-  <span>
-    <img [src]="iconName()" class="node-icon" alt="file-icon" />
-  </span>
+  <file-icon [name]="nodeStore.nodes()[nodeId()].name" [type]="'file'" />
   @if (isRenaming()) {
     <rename-node [nodeId]="nodeId()" />
   } @else {

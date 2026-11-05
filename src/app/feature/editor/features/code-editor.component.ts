@@ -48,7 +48,7 @@ type Handle = NonNullable<Awaited<ReturnType<EditorService['mountEditor']>>>;
     `,
   ],
 })
-export class CodeEditorComponent {
+export class CodeEditor {
   private readonly tabs = inject(TabStore);
   private readonly commands = inject(EditorCommands);
   private readonly sources = inject(ModelSourceService);

@@ -1,5 +1,4 @@
 import { Component, computed, effect, inject, input, InputSignal, output } from '@angular/core';
-import { getIconPath } from '../../../shared/utils/node.utils';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { bootstrapChevronDown, bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
 import { NodeStore } from '../../../core/store/node.store';
@@ -9,12 +8,13 @@ import { ReplacePreviewPipe } from '../../../shared/pipe/replace-preview.pipe';
 import { SearchSnippetPipe } from '../../../shared/pipe/search-snippet.pipe';
 import { EditorCommands } from '../../editor/editor.commands';
 import { FileSearchResult, FileNameSearchResult, LineMatch } from '../search.model';
+import { FileIcon } from '../../../shared/components/file-icon';
 
 @Component({
   selector: 'search-result',
   templateUrl: './result.html',
   styleUrl: './result.scss',
-  imports: [NgIcon, SearchSnippetPipe, ReplacePreviewPipe],
+  imports: [NgIcon, SearchSnippetPipe, ReplacePreviewPipe, FileIcon],
   providers: [
     provideIcons({ bootstrapChevronDown, bootstrapChevronRight, lucideReplace, lucideReplaceAll }),
   ],
@@ -84,11 +84,6 @@ export class SearchResult {
     effect(() => {
       this.open = this.isTextResult() ? true : false;
     });
-  }
-
-  // Methods
-  getIconPath() {
-    return getIconPath(this.fileName(), 'file');
   }
 
   onReplaceLine(event: Event, line: LineMatch) {

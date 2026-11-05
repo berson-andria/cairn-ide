@@ -14,9 +14,11 @@
     "windows": [
       {
         "title": "cairn",
-        "visible": false,
+        "maximized": true,
         "decorations": false,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "shadow": false,
+        "transparent": true
       }
     ],
     "security": {

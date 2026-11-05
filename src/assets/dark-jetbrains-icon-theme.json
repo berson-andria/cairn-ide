@@ -473,7 +473,7 @@
     },
     "fileNames": {
         "dune": "file_dune",
-        "dune-projecT": "file_dune",
+        "dune-project": "file_dune",
         ".gitignore": "file_gitignore",
         ".gitattributes": "file_gitignore",
         ".gitmodules": "file_gitignore",

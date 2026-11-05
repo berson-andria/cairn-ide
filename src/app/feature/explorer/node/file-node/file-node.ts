@@ -3,17 +3,18 @@ import { Component, computed, inject, input, InputSignal, OnInit } from '@angula
 import { NodeDndDirective } from '../node-dnd.directive';
 import { RenameNode } from '../rename-node/rename-node';
 import { NodeStore } from '../../../../core/store/node.store';
-import { getIconPath, indentStyle } from '../../../../shared/utils/node.utils';
+import { indentStyle } from '../../../../shared/utils/node.utils';
 import { EditorCommands } from '../../../editor/editor.commands';
 import { EditorService } from '../../../editor/services/editor.service';
+import { FileIcon } from '../../../../shared/components/file-icon';
 
 @Component({
   selector: 'file-node',
   templateUrl: './file-node.html',
   styleUrl: '../node.scss',
-  imports: [NgClass, NgStyle, RenameNode, NodeDndDirective],
+  imports: [NgClass, NgStyle, RenameNode, NodeDndDirective, FileIcon],
 })
-export class FileNodeComponent {
+export class FileNode {
   nodeStore = inject(NodeStore);
   commands = inject(EditorCommands);
   editorService = inject(EditorService);
@@ -22,10 +23,6 @@ export class FileNodeComponent {
 
   level: InputSignal<number> = input.required();
   indentMultiplier = 10;
-
-  iconName = computed(() => {
-    return getIconPath(this.nodeStore.nodes()[this.nodeId()].name, 'file');
-  });
 
   isActive = computed(() => {
     return this.nodeId() == this.nodeStore.activeNodeId();

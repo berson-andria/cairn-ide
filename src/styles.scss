@@ -30,7 +30,34 @@ body {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
-
+.file-icon {
+  --icon-blue: color-mix(in srgb, var(--hue-blue) var(--icon-alpha), var(--color-surface-panel));
+  --icon-green: color-mix(in srgb, var(--hue-green) var(--icon-alpha), var(--color-surface-panel));
+  --icon-yellow: color-mix(
+    in srgb,
+    var(--hue-yellow) var(--icon-alpha),
+    var(--color-surface-panel)
+  );
+  --icon-orange: color-mix(
+    in srgb,
+    var(--hue-orange) var(--icon-alpha),
+    var(--color-surface-panel)
+  );
+  --icon-red: color-mix(in srgb, var(--hue-red) var(--icon-alpha), var(--color-surface-panel));
+  --icon-pink: color-mix(in srgb, var(--hue-pink) var(--icon-alpha), var(--color-surface-panel));
+  --icon-purple: color-mix(
+    in srgb,
+    var(--hue-purple) var(--icon-alpha),
+    var(--color-surface-panel)
+  );
+}
+.file-icon--folder {
+  --icon-alpha: 50%;
+}
+.tree-row:hover,
+.tree-row--selected {
+  --icon-stroke: var(--color-text-primary);
+}
 /* Buttons start unstyled, as in the design. Components add their own look. */
 button {
   padding: 0;

@@ -4,7 +4,7 @@
       @for (p of filePath(); track $index) {
         <span style="display: flex; align-items: center">
           @if ($last; as tab) {
-            <img [src]="iconName()" class="node-icon" alt="file-icon" style="margin-left: 4px" />
+            <file-icon [name]="name()" [type]="'file'" />
           }
           {{ p }} >
         </span>

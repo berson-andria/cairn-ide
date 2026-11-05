@@ -128,6 +128,18 @@
   --bottom-panel-height: 236px; /* default; user can drag it */
   --inspector-width: 340px;
   --window-control-width: 46px;
+
+  --icon-fill: var(--color-surface-raised-hover); /* folder / shape body */
+  --icon-stroke: var(--color-text-muted); /* outlines, neutral glyphs */
+
+  --hue-blue: #3ba2e2;
+  --hue-green: #3be27e;
+  --hue-yellow: #dec71f;
+  --hue-orange: #e27b3b;
+  --hue-red: #d55151;
+  --hue-pink: #d13be2;
+  --hue-purple: #a8a0ff;
+  --icon-alpha: 75%;
 }
 
 /* ==========================================================================
@@ -182,4 +194,12 @@
 
   --shadow-float: 0 2px 8px rgba(42, 38, 32, 0.16); /* [derived] */
   --shadow-overlay: 0 4px 14px rgba(42, 38, 32, 0.22); /* [PROVISIONAL] only the float shadow exists in light */
+
+  --hue-blue: #2f73a8;
+  --hue-green: #3f7f45;
+  --hue-yellow: #9a7a14;
+  --hue-orange: #b85a22;
+  --hue-red: #a8433a;
+  --hue-pink: #b04a68;
+  --hue-purple: #6e56b0;
 }

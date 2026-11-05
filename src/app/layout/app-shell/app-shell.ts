@@ -32,6 +32,7 @@ import { LspBridgeService } from '../../core/services/lsp/lsp-bridge.service';
 import { GitService } from '../../feature/git/services/git.service';
 import { MonitoringService } from '../../core/services/monitoring.service';
 import { CommonModule } from '@angular/common';
+import { loadIconSprite } from '../../shared/utils/icon-sprite';
 
 @Component({
   selector: 'app-shell',
@@ -97,20 +98,8 @@ export class AppShell {
   }
   async ngOnInit() {
     this.ngZone.run(async () => {
-      try {
-        const monitor = await currentMonitor();
-
-        if (monitor) {
-          await this.currentWindow.maximize();
-        }
-        await this.currentWindow.show();
-        // await this.currentWindow.setFocus();
-      } catch (err) {
-        console.error('Failed to dynamically set window scale:', err);
-        await this.currentWindow.show();
-      } finally {
-        await this.editorService.load();
-      }
+      await loadIconSprite();
+      await this.editorService.load();
     });
     this.isMaximized.set(await this.currentWindow.isMaximized());
   }

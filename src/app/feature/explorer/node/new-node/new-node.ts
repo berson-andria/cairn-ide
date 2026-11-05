@@ -2,21 +2,23 @@ import { CommonModule, NgClass, NgStyle } from '@angular/common';
 import { Component, inject, input, InputSignal, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NodeStore } from '../../../../core/store/node.store';
-import { indentStyle, getIconPath, ItemType } from '../../../../shared/utils/node.utils';
+import { indentStyle } from '../../../../shared/utils/node.utils';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
+import { FileIcon } from '../../../../shared/components/file-icon';
+import { ItemType } from '../../../../shared/utils/icon-theme';
 
 @Component({
   selector: 'new-node',
   template: `
     <div class="node-row file" [ngStyle]="indentStyle()" [ngClass]="{ 'add-node': display() }">
       <span class="accordion">
-        <ng-icon name="bootstrapChevronRight" />
+        @if (nodeType() === 'folder') {
+          <ng-icon name="bootstrapChevronRight" />
+        }
       </span>
-      <span>
-        <img [src]="getIconPath()" class="node-icon" alt="node-icon" />
-      </span>
-      <div class="node-name">
+      <file-icon [name]="nodeName" [type]="nodeType()" />
+      <div class="node-name input-form">
         <input
           type="text"
           [(ngModel)]="nodeName"
@@ -42,13 +44,15 @@ import { bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
     .node-row {
       display: flex;
       align-items: center;
-      height: 22px;
+      height: 22px; /* Locked structural row height matches TS calculation */
       box-sizing: border-box;
-      color: var(--explorer-text);
+      border-radius: 0.25em;
+      width: 100% !important;
+      gap: 0.25em;
       cursor: pointer;
-      background-color: var(--explorer-bg);
+      background-color: var(--color-surface-panel);
       &.is-active {
-        background-color: var(--explorer-item-hover-bg);
+        background-color: var(--color-surface-hover);
       }
     }
     .node-name {
@@ -61,15 +65,14 @@ import { bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
         top: 105%;
         left: 0;
         padding: 0.5em;
-        background-color: #9f2732;
-        border: 1px solid #ff001b;
+        background-color: var(--color-error-bg);
         border-radius: 0.25em;
-        color: white;
+        color: var(--color-error-fg);
         font-size: smaller;
       }
     }
     .is-danger {
-      border-color: #d73445;
+      border-color: var(--color-warning-bg);
     }
     .accordion {
       width: 16px;
@@ -78,14 +81,14 @@ import { bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
       width: 100%;
     }
   `,
-  imports: [NgStyle, FormsModule, NgClass, NgIcon, CommonModule],
+  imports: [NgStyle, FormsModule, NgClass, NgIcon, CommonModule, FileIcon],
   providers: [provideIcons({ bootstrapChevronRight })],
 })
 export class NewNode {
   nodeStore = inject(NodeStore);
 
   level = input(0);
-  nodeType: InputSignal<string> = input.required();
+  nodeType: InputSignal<ItemType> = input.required();
   display = input.required();
   danger = signal(false);
 
@@ -94,9 +97,7 @@ export class NewNode {
   indentStyle() {
     return indentStyle(this.level(), 10);
   }
-  getIconPath() {
-    return getIconPath(this.nodeName, <ItemType>this.nodeType());
-  }
+
   nodeNameEntry(value: string) {
     this.danger.set(
       Object.values(this.nodeStore.rootNodes()).filter((node) => node.name === value).length > 0,
