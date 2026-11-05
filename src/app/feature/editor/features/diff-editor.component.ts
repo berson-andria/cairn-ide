@@ -12,12 +12,12 @@ import {
   untracked,
   computed,
 } from '@angular/core';
-import { EditorTabsStore } from '../../../core/store/editor-tabs.store';
 import { EditorCommands } from '../editor.commands';
 import { EditorService } from '../services/editor.service';
 import { ModelSourceService } from '../services/model-source.service';
 import { DiffSide } from './diff-tab';
 import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
+import { TabStore } from '../../../core/store/tab.store';
 
 type DiffHandle = NonNullable<Awaited<ReturnType<EditorService['mountDiffEditor']>>>;
 
@@ -138,7 +138,7 @@ type DiffHandle = NonNullable<Awaited<ReturnType<EditorService['mountDiffEditor'
   `,
 })
 export class DiffEditorComponent {
-  private readonly tabs = inject(EditorTabsStore);
+  private readonly tabs = inject(TabStore);
   private readonly commands = inject(EditorCommands);
   private readonly sources = inject(ModelSourceService);
   private readonly editorService = inject(EditorService);

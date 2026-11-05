@@ -13,12 +13,12 @@ import { LeftPanel } from '../panels/left-panel/left-panel';
 import { WorkspaceNodeStore } from '../../core/store/workspace/workspace.store';
 import { WorkspaceWatcherService } from '../../core/services/workspace-watcher.service';
 import { getCurrentWindow, Window, currentMonitor } from '@tauri-apps/api/window';
-import { EditorTabsStore } from '../../core/store/editor-tabs.store';
 
 import { LayoutService, Toolkit } from '../layout-service';
 import { EditorCommands } from '../../feature/editor/editor.commands';
 import { EditorService } from '../../feature/editor/services/editor.service';
 import { TerminalService } from '../../feature/terminal/terminal.service';
+import { TabStore } from '../../core/store/tab.store';
 
 @Component({
   selector: 'app-shell',
@@ -34,7 +34,7 @@ export class AppShell {
   readonly watcher = inject(WorkspaceWatcherService);
   readonly commands = inject(EditorCommands);
   readonly editorService = inject(EditorService);
-  readonly tabStore = inject(EditorTabsStore);
+  readonly tabStore = inject(TabStore);
   readonly terminalService = inject(TerminalService);
   readonly ngZone = inject(NgZone);
 

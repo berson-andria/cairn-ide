@@ -29,8 +29,26 @@
 
 <div class="workspace-content">
   @if (nodeStore.rootPath()) {
-    @if (tabStore.openTabs().length === 0) {
+    @if (!activeTab()) {
       <empty-workspace />
+    } @else {
+      @switch (activeTab()?.kind) {
+        @case ('task') {
+          <p>task view</p>
+        }
+        @case ('review') {
+          <p>task review view</p>
+        }
+        @case ('note') {
+          <p>note view</p>
+        }
+        @case ('chat') {
+          <p>chat view</p>
+        }
+        @default {
+          <text-editor />
+        }
+      }
     }
   } @else {
     <no-folder />

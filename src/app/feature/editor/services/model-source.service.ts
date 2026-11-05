@@ -1,10 +1,10 @@
-import { EditorTabsStore } from '../../../core/store/editor-tabs.store';
 import { Injectable, inject, effect, untracked } from '@angular/core';
 import { getMonacoLanguage } from '../../../shared/utils/node.utils';
 import { GitService } from '../../git/services/git.service';
 import { EditorService, ModelSpec } from './editor.service';
 import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
 import { GitSide, DiffSide, sideModelId } from '../features/diff-tab';
+import { TabStore } from '../../../core/store/tab.store';
 
 /**
  * The one place that knows how something becomes a Monaco model: a working file (from the node store),
@@ -14,7 +14,7 @@ import { GitSide, DiffSide, sideModelId } from '../features/diff-tab';
 export class ModelSourceService {
   private readonly git = inject(GitService);
   private readonly nodes = inject(WorkspaceNodeStore);
-  private readonly tabs = inject(EditorTabsStore);
+  private readonly tabs = inject(TabStore);
   private readonly editor = inject(EditorService);
 
   /** Live models of the sides that can change under us (HEAD and index), so they can be refreshed. */

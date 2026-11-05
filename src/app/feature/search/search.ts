@@ -44,10 +44,10 @@ import {
   lucideChevronRight,
 } from '@ng-icons/lucide';
 import { EditorCommands } from '../editor/editor.commands';
-import { EditorTabsStore } from '../../core/store/editor-tabs.store';
 import { normalizePath, samePath } from '../../core/services/file-system/external-watcher.utils';
 import { resolveNewPath } from '../../shared/utils/node.utils';
 import { SearchResult } from './result/result';
+import { TabStore } from '../../core/store/tab.store';
 
 type SearchMode = 'file' | 'text' | 'tasks' | 'code' | 'commands';
 
@@ -94,7 +94,7 @@ const looksLikePath = (q: string) =>
   ],
 })
 export class Search implements OnInit, OnDestroy {
-  private readonly tabStore = inject(EditorTabsStore);
+  private readonly tabStore = inject(TabStore);
   readonly nodeStore = inject(WorkspaceNodeStore);
   searchService = inject(SearchService);
   replaceService = inject(ReplaceService);

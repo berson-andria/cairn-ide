@@ -1,16 +1,16 @@
 import { Injectable, inject } from '@angular/core';
 import { EditorService } from '../../feature/editor/services/editor.service';
-import { EditorTabsStore } from '../store/editor-tabs.store';
 import { FileNode } from '../store/workspace/workspace.state';
 import { classifyWatchEvent, findNodeByPath } from './file-system/external-watcher.utils';
 import { FileSystemService } from './file-system/file-system.service';
 import { WorkspaceNodeStore } from '../store/workspace/workspace.store';
+import { TabStore } from '../store/tab.store';
 
 @Injectable({ providedIn: 'root' })
 export class WorkspaceWatcherService {
   private readonly fileService = inject(FileSystemService);
   private readonly nodes = inject(WorkspaceNodeStore);
-  private readonly tabs = inject(EditorTabsStore);
+  private readonly tabs = inject(TabStore);
   private readonly editor = inject(EditorService);
 
   /** Events are handled one at a time, in order. */

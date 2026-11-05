@@ -1,29 +1,29 @@
-// Imports: effect, inject, Injectable, InjectionToken, untracked; EditorTabsStore; EditorService, fileTabOwner;
+// Imports: effect, inject, Injectable, InjectionToken, untracked; TabStore; EditorService, fileTabOwner;
 // WrokspaceNodeStore; getMonacoLanguage; InlineCreationMode.
 
-import { InjectionToken, Injectable, inject, effect, untracked } from '@angular/core';
-import { EditorTabsStore } from '../../core/store/editor-tabs.store';
+import { Injectable, inject, effect, untracked } from '@angular/core';
 import { InlineCreationMode } from '../../core/store/workspace/workspace.state';
 import { WorkspaceNodeStore } from '../../core/store/workspace/workspace.store';
 import { getMonacoLanguage } from '../../shared/utils/node.utils';
 import { EditorService, fileTabOwner } from './services/editor.service';
 import { MessageService } from '../../core/services/message.service';
 import { TerminalService } from '../terminal/terminal.service';
+import { TabStore } from '../../core/store/tab.store';
 
 export type SaveChoice = 'save' | 'discard' | 'cancel';
 
 /**
  * The user actions that cross the node store, the tabs store and the editor: open, save, close.
- * UI -> EditorCommands -> { WrokspaceNodeStore, EditorTabsStore, EditorService }. The three never import each other.
+ * UI -> EditorCommands -> { WrokspaceNodeStore, TabStore, EditorService }. The three never import each other.
  * It also keeps them in step with each other (see the effects). Inject it once at startup so they are running.
  */
 @Injectable({ providedIn: 'root' })
 export class EditorCommands {
   private readonly nodes = inject(WorkspaceNodeStore);
-  private readonly tabs = inject(EditorTabsStore);
+  private readonly tabs = inject(TabStore);
   private readonly editor = inject(EditorService);
   private readonly messageService = inject(MessageService);
-  private readonly terminalService = inject(TerminalService);
+  // private readonly terminalService = inject(TerminalService);
 
   constructor() {
     // The explorer's current node follows the focused file tab.

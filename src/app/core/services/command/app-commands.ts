@@ -5,8 +5,8 @@ import { WorkspaceNodeStore } from '../../store/workspace/workspace.store';
 import { LayoutService } from '../layout.service';
 import { message } from '@tauri-apps/plugin-dialog';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
-import { EditorTabsStore } from '../../store/editor-tabs.store';
 import { GitBlameService } from '../../../feature/git/services/git-blame.service';
+import { TabStore } from '../../store/tab.store';
 
 /**
  * Connects command ids to what the app actually does.
@@ -15,7 +15,7 @@ import { GitBlameService } from '../../../feature/git/services/git-blame.service
 export function registerAppCommands(): void {
   const commands = inject(CommandService);
   const editorCommand = inject(EditorCommands);
-  const tabStore = inject(EditorTabsStore);
+  const tabStore = inject(TabStore);
   const store = inject(WorkspaceNodeStore);
   const layout = inject(LayoutService);
 
@@ -72,7 +72,7 @@ export function registerAppCommands(): void {
   commands.register('git.toggleBlame', () => blame.toggle());
 }
 
-function cycleTab(store: InstanceType<typeof EditorTabsStore>, direction: 1 | -1): void {
+function cycleTab(store: InstanceType<typeof TabStore>, direction: 1 | -1): void {
   const tabs = store.openTabs();
   if (tabs.length < 2) return;
   const current = tabs.indexOf(store.activeTabId() ?? '');

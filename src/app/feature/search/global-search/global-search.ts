@@ -35,9 +35,9 @@ import {
   lucideReplaceAll,
 } from '@ng-icons/lucide';
 import { SearchService } from '../search.service';
-import { EditorCommands } from '../../editor/editor.commands';
-import { EditorTabsStore } from '../../../core/store/editor-tabs.store';
+
 import { FileSearchResult } from '../search.model';
+import { TabStore } from '../../../core/store/tab.store';
 
 interface SearchCriteria {
   query: string;
@@ -65,7 +65,7 @@ interface SearchCriteria {
   ],
 })
 export class GlobalSearch implements OnInit, OnDestroy {
-  private readonly tabStore = inject(EditorTabsStore);
+  private readonly tabStore = inject(TabStore);
   readonly nodeStore = inject(WorkspaceNodeStore);
   searchService = inject(SearchService);
   replaceService = inject(ReplaceService);

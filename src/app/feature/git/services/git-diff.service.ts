@@ -1,10 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import { EditorTabsStore } from '../../../core/store/editor-tabs.store';
 import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
 import { EditorCommands } from '../../editor/editor.commands';
 import { DiffRequestInput, DiffSideInput, DiffSide } from '../../editor/features/diff-tab';
 import { GitFileStatus } from '../parser/git-status.parser';
 import { GitService } from './git.service';
+import { TabStore } from '../../../core/store/tab.store';
 
 export type GitDiffMode = 'staged' | 'unstaged';
 export interface GitUiFile {
@@ -22,7 +22,7 @@ export interface GitUiFile {
 export class GitDiffService {
   private readonly git = inject(GitService);
   private readonly nodes = inject(WorkspaceNodeStore);
-  private readonly tabs = inject(EditorTabsStore);
+  private readonly tabs = inject(TabStore);
   private readonly commands = inject(EditorCommands);
 
   // ───────────── for any component ─────────────

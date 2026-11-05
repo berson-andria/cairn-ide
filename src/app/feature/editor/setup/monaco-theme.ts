@@ -68,7 +68,7 @@ export function defineGhostTheme(monaco: typeof Monaco): void {
     rules,
     colors: {
       'diffEditor.insertedTextBackground': '#00809b33',
-      'editor.background': '#181A1C',
+      'editor.background': '#1c1a17',
       'editor.findMatchBackground': '#d7a97f44',
       'editor.findMatchBorder': '#ffffff5a',
       'editor.findMatchHighlightBackground': '#ffffff22',

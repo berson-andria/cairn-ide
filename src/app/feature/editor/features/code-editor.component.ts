@@ -1,5 +1,5 @@
 // Imports: keep your existing ones, minus NgZone, the monaco-editor types and WorkspaceNodeStore;
-// add EditorTabsStore, EditorCommands, ModelSourceService, fileTabOwner.
+// add TabStore, EditorCommands, ModelSourceService, fileTabOwner.
 
 import {
   Component,
@@ -15,14 +15,14 @@ import {
 } from '@angular/core';
 import { LspManager } from '../../../core/services/lsp/lsp-manager.service';
 import { MonitoringService } from '../../../core/services/monitoring.service';
-import { EditorTabsStore } from '../../../core/store/editor-tabs.store';
 import { EditorCommands } from '../editor.commands';
 import { EditorService, fileTabOwner } from '../services/editor.service';
 import { ModelSourceService } from '../services/model-source.service';
+import { TabStore } from '../../../core/store/tab.store';
 
 type Handle = NonNullable<Awaited<ReturnType<EditorService['mountEditor']>>>;
 @Component({
-  selector: 'app-code-editor',
+  selector: 'code-editor',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: ` <div #host class="editor-host"></div> `,
@@ -49,7 +49,7 @@ type Handle = NonNullable<Awaited<ReturnType<EditorService['mountEditor']>>>;
   ],
 })
 export class CodeEditorComponent {
-  private readonly tabs = inject(EditorTabsStore);
+  private readonly tabs = inject(TabStore);
   private readonly commands = inject(EditorCommands);
   private readonly sources = inject(ModelSourceService);
   private readonly editorService = inject(EditorService);

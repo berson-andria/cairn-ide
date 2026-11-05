@@ -64,7 +64,7 @@ function indexRootNodes(list: WorkspaceNode[]) {
 
 /**
  * The workspace tree: nodes, explorer UI state, and the file system behind them.
- * It knows nothing about tabs, editor models or dirty state: those live in EditorTabsStore and EditorService,
+ * It knows nothing about tabs, editor models or dirty state: those live in TabStore and EditorService,
  * and EditorCommands is what connects them. The file watcher lives in WorkspaceWatcherService.
  */
 export const WorkspaceNodeStore = signalStore(

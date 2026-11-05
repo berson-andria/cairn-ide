@@ -1,17 +1,22 @@
 <div class="container">
-  <div class="path">
-    @for (p of filePath(); track $index) {
-      <span style="display: flex; align-items: center">
-        {{ p }} >
-      </span>
-    }
-  </div>
+  @if (filePath().length > 0) {
+    <div class="path">
+      @for (p of filePath(); track $index) {
+        <span style="display: flex; align-items: center">
+          @if ($last; as tab) {
+            <img [src]="iconName()" class="node-icon" alt="file-icon" style="margin-left: 4px" />
+          }
+          {{ p }} >
+        </span>
+      }
+    </div>
+  }
   <div class="file-content">
-    <div class="pane" [class.hidden]="activeKind() === 'diff'">
-      <app-code-editor></app-code-editor>
+    <div class="pane" [class.hidden]="activeKind() !== 'CodeEditor'">
+      <code-editor></code-editor>
     </div>
     @if (hasDiffTabs()) {
-      <div class="pane" [class.hidden]="activeKind() !== 'diff'">
+      <div class="pane" [class.hidden]="activeKind() !== 'DiffEditor'">
         <diff-editor></diff-editor>
       </div>
     }

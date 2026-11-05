@@ -5,7 +5,7 @@ import { nonGlobal } from '../../shared/utils/replace.utils';
 import { findNodeByPath } from './file-system/external-watcher.utils';
 import { FileSystemService } from './file-system/file-system.service';
 import { EditorService } from '../../feature/editor/services/editor.service';
-import { EditorTabsStore } from '../store/editor-tabs.store';
+import { TabStore } from '../store/tab.store';
 
 export interface ReplaceLine {
   lineNumber: number;
@@ -33,7 +33,7 @@ export interface ReplaceOutcome {
 export class ReplaceService {
   private readonly store = inject(WorkspaceNodeStore);
   private readonly editorService = inject(EditorService);
-  private readonly tabStore = inject(EditorTabsStore);
+  private readonly tabStore = inject(TabStore);
   private readonly files = inject(FileSystemService);
 
   async replaceLines(

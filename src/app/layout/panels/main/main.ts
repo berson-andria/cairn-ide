@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { CdkDropList, CdkDrag } from '@angular/cdk/drag-drop';
 import { BottomPanel } from '../bottom-panel/bottom-panel';
 import { EmptyWorkspace } from './empty-workspace';
-import { EditorTabsStore } from '../../../core/store/editor-tabs.store';
+import { TabStore, TabContentType } from '../../../core/store/tab.store';
 import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
 import { NoFolderOpen } from './no-folder';
 import { FileNode } from '../../../core/store/workspace/workspace.state';
@@ -11,72 +11,180 @@ import { getIconPath } from '../../../shared/utils/node.utils';
 import { EditorService } from '../../../feature/editor/services/editor.service';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
 import { baseName } from '../../../feature/editor/features/diff-tab';
+import { Editor } from '../../../feature/editor/editor';
 
-/** What the tab strip draws: a file or a diff, described the same way. */
+/** What the tab strip draws: a file, diff, task, review, note, or chat tab. */
 interface TabView {
   id: string;
-  kind: 'file' | 'diff';
+  kind: 'file' | 'diff' | 'task' | 'review' | 'note' | 'chat';
+  type: TabContentType;
   label: string;
   icon: string;
   dirty: boolean;
   active: boolean;
   tooltip: string;
 }
-export type ContentType = 'CodeEditor' | 'DiffEditor' | 'Task' | 'Review' | 'Note' | 'chat';
+
 @Component({
   selector: 'main-panel',
   templateUrl: './main-panel.html',
   styleUrl: './main-panel.scss',
-  imports: [CommonModule, BottomPanel, EmptyWorkspace, NoFolderOpen, CdkDrag, CdkDropList],
+  imports: [CommonModule, BottomPanel, EmptyWorkspace, NoFolderOpen, Editor, CdkDrag, CdkDropList],
 })
 export class MainPanel {
   readonly nodeStore = inject(WorkspaceNodeStore);
-  readonly tabStore = inject(EditorTabsStore);
   readonly editorService = inject(EditorService);
   readonly command = inject(EditorCommands);
   readonly injector = inject(Injector);
 
   private elementRef = inject(ElementRef);
 
+  readonly tabStore = inject(TabStore);
+
   tabs = computed<TabView[]>(() => {
     const nodes = this.nodeStore.nodes();
     const diffs = this.tabStore.diffTabs();
     const active = this.tabStore.activeTabId();
 
-    return this.tabStore.openTabs().flatMap((id): TabView[] => {
-      const diff = diffs[id];
-      if (diff) {
-        const { original, modified } = diff.request;
-        // A diff is dirty when the working file on its modified side has unsaved edits.
-        const fileId = modified.kind === 'worktree' ? modified.fileId : null;
-        return [
-          {
-            id,
-            kind: 'diff',
-            label: diff.title,
-            icon: getIconPath(baseName(modified.path), 'file'),
-            dirty: !!fileId && this.tabStore.isDirty(fileId),
-            active: id === active,
-            tooltip:
-              original.path !== modified.path
-                ? `${original.path} → ${modified.path}`
-                : modified.path,
-          },
-        ];
+    return this.tabStore.openedTabs().flatMap((tab): TabView[] => {
+      const { id, type } = tab;
+
+      switch (type) {
+        case 'DiffEditor': {
+          const diff = diffs[id];
+          if (diff) {
+            const { original, modified } = diff.request;
+            // A diff is dirty when the working file on its modified side has unsaved edits.
+            const fileId = modified.kind === 'worktree' ? modified.fileId : null;
+            return [
+              {
+                id,
+                kind: 'diff',
+                type,
+                label: diff.title ?? tab.title ?? 'Diff',
+                icon: getIconPath(baseName(modified.path), 'file'),
+                dirty: !!fileId && this.tabStore.isDirty(fileId),
+                active: id === active,
+                tooltip:
+                  original.path !== modified.path
+                    ? `${original.path} → ${modified.path}`
+                    : modified.path,
+              },
+            ];
+          }
+          const label = tab.title ?? 'Diff';
+          return [
+            {
+              id,
+              kind: 'diff',
+              type,
+              label,
+              icon: getIconPath('diff', 'file'),
+              dirty: this.tabStore.isDirty(id),
+              active: id === active,
+              tooltip: label,
+            },
+          ];
+        }
+
+        case 'CodeEditor': {
+          const node = nodes[id] as FileNode | undefined;
+          const label = node?.name ?? tab.title ?? id;
+          return [
+            {
+              id,
+              kind: 'file',
+              type,
+              label,
+              icon: getIconPath(label, 'file'),
+              dirty: this.tabStore.isDirty(id),
+              active: id === active,
+              tooltip: node?.path ?? label,
+            },
+          ];
+        }
+
+        case 'Task': {
+          const label = tab.title ?? 'Task';
+          return [
+            {
+              id,
+              kind: 'task',
+              type,
+              label,
+              icon: getIconPath('task.rake', 'file'),
+              dirty: this.tabStore.isDirty(id),
+              active: id === active,
+              tooltip: label,
+            },
+          ];
+        }
+
+        case 'Review': {
+          const label = tab.title ?? 'Review';
+          return [
+            {
+              id,
+              kind: 'review',
+              type,
+              label,
+              icon: getIconPath('.gitignore', 'file'),
+              dirty: this.tabStore.isDirty(id),
+              active: id === active,
+              tooltip: label,
+            },
+          ];
+        }
+
+        case 'Note': {
+          const label = tab.title ?? 'Notes';
+          return [
+            {
+              id,
+              kind: 'note',
+              type,
+              label,
+              icon: getIconPath('notes.md', 'file'),
+              dirty: this.tabStore.isDirty(id),
+              active: id === active,
+              tooltip: label,
+            },
+          ];
+        }
+
+        case 'chat':
+        case 'Chat': {
+          const label = tab.title ?? 'Chat';
+          return [
+            {
+              id,
+              kind: 'chat',
+              type,
+              label,
+              icon: getIconPath('chat.json', 'file'),
+              dirty: this.tabStore.isDirty(id),
+              active: id === active,
+              tooltip: label,
+            },
+          ];
+        }
+
+        default: {
+          const label = tab.title ?? id;
+          return [
+            {
+              id,
+              kind: 'file',
+              type,
+              label,
+              icon: getIconPath(label, 'file'),
+              dirty: this.tabStore.isDirty(id),
+              active: id === active,
+              tooltip: label,
+            },
+          ];
+        }
       }
-      const node = nodes[id] as FileNode | undefined;
-      if (!node) return []; // a stale id: nothing to draw
-      return [
-        {
-          id,
-          kind: 'file',
-          label: node.name,
-          icon: getIconPath(node.name, 'file'),
-          dirty: this.tabStore.isDirty(id),
-          active: id === active,
-          tooltip: node.path,
-        },
-      ];
     });
   });
 
@@ -115,13 +223,21 @@ export class MainPanel {
   }
 
   openTab(id: string) {
-    this.tabStore.activate(id); // handles both kinds
-    this.nodeStore.selectNode(id, 'single');
+    this.tabStore.activate(id); // handles all kinds
+    if (this.nodeStore.nodes()[id]) {
+      this.nodeStore.selectNode(id, 'single');
+    }
   }
 
   /** Asks about unsaved changes when needed, for file and diff tabs alike. */
-  closeTab(id: string) {
-    return this.command.closeTab(id);
+  async closeTab(id: string) {
+    const tab = this.tabStore.getTab(id);
+    if (tab && tab.type !== 'CodeEditor' && tab.type !== 'DiffEditor') {
+      return this.tabStore.closeTab(id);
+    }
+    const result = await this.command.closeTab(id);
+    this.tabStore.closeTab(id);
+    return result;
   }
 
   onTabDrop(e: any) {
