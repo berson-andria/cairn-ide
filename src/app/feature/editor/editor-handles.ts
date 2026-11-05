@@ -69,6 +69,8 @@ export abstract class BaseEditorHandle {
 }
 
 export class StandaloneEditorHandle extends BaseEditorHandle {
+  private onCursorChange?: (position: Monaco.Position) => void;
+
   constructor(
     private readonly code: Monaco.editor.IStandaloneCodeEditor,
     ctx: HandleContext,
@@ -79,6 +81,10 @@ export class StandaloneEditorHandle extends BaseEditorHandle {
 
   protected get textEditor() {
     return this.code;
+  }
+
+  setOnCursorChange(callback: (position: Monaco.Position) => void) {
+    this.onCursorChange = callback;
   }
 
   /**
@@ -94,6 +100,12 @@ export class StandaloneEditorHandle extends BaseEditorHandle {
     this.extensions.forEach((x) => x.attach(model));
     this.restoreViewState(fileId);
     this.currentKey = fileId;
+
+    // Report the cursor position after the model is set
+    const position = this.code.getPosition();
+    if (position && this.onCursorChange) {
+      this.onCursorChange(position);
+    }
   }
 
   usesModel(model: Monaco.editor.ITextModel) {

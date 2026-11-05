@@ -51,7 +51,7 @@ export function registerAppCommands(): void {
   commands.register('tab.next', () => cycleTab(tabStore, +1));
   commands.register('tab.previous', () => cycleTab(tabStore, -1));
 
-  // commands.register('view.toggleLeftSidebar', () => layout.togglePrimarySideBar());
+  commands.register('view.toggleBottomPanel', () => layout.toggleBottomPanel());
   // commands.register('view.toggleRightSideBar', () => layout.toggleSecondarySideBar());
 
   //   commands.register('search.global',      () => layout.showSearchPanel('content'));

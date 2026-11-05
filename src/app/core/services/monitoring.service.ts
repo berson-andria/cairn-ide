@@ -6,7 +6,7 @@ interface EditorCursorPosition {
 }
 
 interface EditorData {
-  cursorPostion: EditorCursorPosition | null;
+  cursorPosition: EditorCursorPosition | null;
   language: string;
 }
 
@@ -21,11 +21,19 @@ export class MonitoringService {
   setEditorInfo(data: EditorData | null) {
     this.#editorData.set(data);
   }
+  updateLanguage(language: string) {
+    this.#editorData.update((data) => {
+      return {
+        language,
+        cursorPosition: data?.cursorPosition ?? null,
+      };
+    });
+  }
   updatePostion(line: number, col: number) {
     this.#editorData.update((data) => {
       return {
         language: <string>data?.language,
-        cursorPostion: { line, col },
+        cursorPosition: { line, col },
       };
     });
   }

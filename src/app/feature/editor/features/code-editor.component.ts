@@ -133,10 +133,9 @@ export class CodeEditorComponent {
     // The status bar follows the editor.
     if (!tabId) this.monitoringService.resetEditorData();
     else if (model) {
-      this.monitoringService.setEditorInfo({
-        language: this.editorService.getModel(tabId)?.getLanguageId() ?? 'Plaintext',
-        cursorPostion: null,
-      });
+      this.monitoringService.updateLanguage(
+        this.editorService.getModel(tabId)?.getLanguageId() ?? 'Plaintext',
+      );
     }
   }
 }

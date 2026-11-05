@@ -8,6 +8,8 @@
   { "key": "mod+tab", "command": "tab.next" },
   { "key": "mod+shift+tab", "command": "tab.previous" },
 
+  { "key": "mod+j", "command": "view.toggleBottomPanel" },
+
   { "key": "mod+p", "command": "search.file" },
   { "key": "mod+a", "command": "explorer.selectAll", "when": "explorerFocus && !renaming" },
   { "key": "mod+c", "command": "explorer.copy", "when": "explorerFocus && !renaming" },

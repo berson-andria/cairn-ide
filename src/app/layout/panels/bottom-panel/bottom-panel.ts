@@ -2,6 +2,7 @@ import {
   afterNextRender,
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   ElementRef,
   inject,
@@ -15,8 +16,9 @@ import { DiagnosticsService } from '../../../core/services/diagnostics.service';
 import { TerminalService } from '../../../feature/terminal/terminal.service';
 import { NodeStore } from '../../../core/store/node.store';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideMinus, lucidePlus } from '@ng-icons/lucide';
+import { lucideGitBranch, lucideMinus, lucidePlus } from '@ng-icons/lucide';
 import { LayoutService } from '../../../core/services/layout.service';
+import { GitService } from '../../../feature/git/services/git.service';
 
 @Component({
   selector: 'bottom-panel',
@@ -29,12 +31,12 @@ import { LayoutService } from '../../../core/services/layout.service';
     '[class.collapsed]': 'layoutService.isBottomPanelCollapsed()',
   },
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [provideIcons({ lucidePlus, lucideMinus })],
+  providers: [provideIcons({ lucidePlus, lucideMinus, lucideGitBranch })],
 })
 export class BottomPanel {
   protected readonly layoutService = inject(LayoutService);
   protected readonly nodeStore = inject(NodeStore);
-
+  protected readonly git = inject(GitService);
   protected readonly height = signal<number | null>(null);
   protected readonly minHeight = 100;
 
@@ -46,6 +48,15 @@ export class BottomPanel {
   private readonly injector = inject(Injector);
   protected readonly counts = inject(DiagnosticsService).counts;
 
+  gitBranchName = computed(() => {
+    const status = this.git.status();
+    return status?.branch ?? (status?.detached ? 'detached HEAD' : 'no branch');
+  });
+  gitChangesCount = computed(() => {
+    const staged = this.git.staged();
+    const unstaged = this.git.unstaged();
+    return staged.length + unstaged.length;
+  });
   constructor() {
     effect(() => {
       const terminalVisible =

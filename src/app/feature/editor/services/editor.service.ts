@@ -134,6 +134,9 @@ export class EditorService implements OnDestroy {
     return this.mount(destroyRef, (monaco) => {
       const editor = monaco.editor.create(host, { ...this.editorOption, readOnly: false });
 
+      const extensions = this.extensionFactories.map((create) => create(monaco, editor));
+      const handle = new StandaloneEditorHandle(editor, this.ctx, extensions);
+
       if (opts.onCursorChange) {
         const report = () => {
           const position = editor.getPosition();
@@ -141,14 +144,16 @@ export class EditorService implements OnDestroy {
         };
         editor.onDidFocusEditorText(report);
         editor.onDidChangeCursorPosition(report);
+        // Pass the callback to the handle so it can report position on show()
+        handle.setOnCursorChange((position) => this.zone.run(() => opts.onCursorChange!(position)));
       }
       if (opts.onSave) {
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () =>
           this.zone.run(opts.onSave!),
         );
       }
-      const extensions = this.extensionFactories.map((create) => create(monaco, editor));
-      return new StandaloneEditorHandle(editor, this.ctx, extensions);
+
+      return handle;
     });
   }
 

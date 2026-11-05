@@ -49,11 +49,16 @@
 }
 
 .title-bar__menu {
+  margin-left: var(--space-10);
   margin-right: var(--space-6);
   padding: 3px var(--space-10);
   border-radius: var(--radius-chip);
   background: var(--color-surface-hover);
   color: var(--color-text-primary);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5em;
 }
 
 .title-bar__project {
@@ -132,11 +137,15 @@
   align-items: center;
   justify-content: space-between;
   flex: none;
-  padding: var(--space-6) var(--space-14);
+  padding: var(--space-2) var(--space-14);
   border-top: 1px solid var(--color-divider);
   font-size: var(--font-size-small);
   color: var(--color-text-muted);
   white-space: nowrap;
+
+  button:hover {
+    color: var(--color-text-secondary);
+  }
 }
 
 .status-bar__group {
@@ -145,16 +154,19 @@
   gap: var(--space-16);
   min-width: 0;
 }
-
+button.status-bar__item{
+  border-radius: var(--space-4);
+  padding: var(--space-4);
+}
 .status-bar__item {
   display: flex;
   align-items: center;
   gap: var(--space-6);
 }
-.status-bar__item--strong,
-.status-bar__strong {
-  color: var(--color-text-primary);
-}
+// .status-bar__item--strong,
+// .status-bar__strong {
+//   color: var(--color-text-secondary);
+// }
 .status-bar__hint {
   margin-left: var(--space-4);
   color: var(--color-text-muted);

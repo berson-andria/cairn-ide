@@ -51,13 +51,26 @@
       </button>
     }
     @if (layoutService.isToolkitActive('Git')) {
-      <div style="display: flex; background: #1c1a17; border-radius: 6px; padding: 2px">
+      <button>
+        <ng-icon name="lucideGitBranch" />
+        <span>{{ gitBranchName() }}</span>
+      </button>
+      <div
+        style="
+          display: flex;
+          background: #1c1a17;
+          border-radius: 6px;
+          padding: 2px;
+          margin-left: 1em;
+        "
+      >
         <button
           style="background: #2e2a24; color: #e8e2d6; padding: 2px 10px; border-radius: 4px"
           (click)="activeGitView = 'Changes'"
         >
-          Changes</button
-        ><button style="padding: 2px 10px" (click)="activeGitView = 'Graph'">Graph</button>
+          Changes
+        </button>
+        <button style="padding: 2px 10px" (click)="activeGitView = 'Graph'">Graph</button>
       </div>
     }
     <button class="icon-btn" style="margin-left: 2em" (click)="layoutService.toggleBottomPanel()">

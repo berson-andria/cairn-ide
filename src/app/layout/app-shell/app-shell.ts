@@ -19,14 +19,39 @@ import { EditorService } from '../../feature/editor/services/editor.service';
 import { TerminalService } from '../../feature/terminal/terminal.service';
 import { TabStore } from '../../core/store/tab.store';
 import { LayoutService, Toolkit } from '../../core/services/layout.service';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import {
+  lucideAlertTriangle,
+  lucideBraces,
+  lucideChevronDown,
+  lucideFolderRoot,
+  lucideGitBranch,
+  lucideOctagonX,
+  lucideTerminalSquare,
+} from '@ng-icons/lucide';
+import { DiagnosticsService } from '../../core/services/diagnostics.service';
+import { LspBridgeService } from '../../core/services/lsp/lsp-bridge.service';
+import { GitService } from '../../feature/git/services/git.service';
+import { MonitoringService } from '../../core/services/monitoring.service';
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [LeftPanel, MainPanel],
+  imports: [LeftPanel, MainPanel, NgIcon, CommonModule],
   templateUrl: './app-shell.html',
   styleUrl: './app-shell.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [
+    provideIcons({
+      lucideChevronDown,
+      lucideFolderRoot,
+      lucideGitBranch,
+      lucideOctagonX,
+      lucideAlertTriangle,
+      lucideBraces,
+    }),
+  ],
 })
 export class AppShell {
   readonly layoutService = inject(LayoutService);
@@ -36,15 +61,17 @@ export class AppShell {
   readonly editorService = inject(EditorService);
   readonly tabStore = inject(TabStore);
   readonly terminalService = inject(TerminalService);
+  readonly git = inject(GitService);
   readonly ngZone = inject(NgZone);
+  readonly lsp = inject(LspBridgeService);
+  readonly monitoring = inject(MonitoringService);
 
   protected readonly project = computed(() => {
     return this.nodeStore.rootName() ? this.nodeStore.rootName() : 'cairn-ide';
   });
   protected readonly nextReview = 'Retry once on network failure';
-  protected readonly gitChanged = 4;
-  protected readonly problems = 3;
   protected readonly model = 'qwen-local';
+  protected readonly counts = inject(DiagnosticsService).counts;
 
   currentWindow: Window;
   hasActiveProject = false;
@@ -52,11 +79,18 @@ export class AppShell {
   isMonacoLoading = signal(true);
   isMaximized = signal(false);
 
+  cursorPosition = computed(() => {
+    return {
+      line: this.monitoring.editorData()?.cursorPosition?.line,
+      col: this.monitoring.editorData()?.cursorPosition?.col,
+    };
+  });
+
   constructor() {
     this.currentWindow = getCurrentWindow();
     effect(() => {
       const root = this.nodeStore.rootPath();
-      console.log(this.nodeStore.rootName());
+      console.log(this.nodeStore.rootName(), this.counts());
 
       if (root) untracked(() => void this.watcher.start(root));
     });
