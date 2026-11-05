@@ -3,7 +3,7 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { Terminal } from '@xterm/xterm';
+import { ITheme, Terminal } from '@xterm/xterm';
 
 type PtyEvent = { event: 'data'; data: string } | { event: 'exit'; data: number | null };
 
@@ -22,29 +22,115 @@ export interface TerminalSession {
   queue: Promise<unknown>;
 }
 
-// One Dark Pro's terminal colors.
-const THEME = {
-  background: '#211e1a',
-  foreground: '#e8e2d6',
-  cursor: '#d8dde5d4',
-  selectionBackground: '#abb2bf30',
-  black: '#3f4451',
-  red: '#e05561',
-  green: '#8cc265',
-  yellow: '#d18f52',
-  blue: '#4aa5f0',
-  magenta: '#c162de',
-  cyan: '#42b3c2',
-  white: '#d7dae0',
-  brightBlack: '#4f5666',
-  brightRed: '#ff616e',
-  brightGreen: '#a5e075',
-  brightYellow: '#f0a45d',
-  brightBlue: '#4dc4ff',
-  brightMagenta: '#de73ff',
-  brightCyan: '#4cd1e0',
-  brightWhite: '#e6e6e6',
+// ───────────────────────── theme ─────────────────────────
+// xterm takes static hex values, so the theme is rebuilt from the current token values
+// (token.scss) and re-applied to every session whenever <html data-theme> changes.
+
+type Mode = 'dark' | 'light';
+
+const getMode = (): Mode =>
+  document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+
+/** Fallbacks = the values in token.scss, used only if a variable can't be read. */
+const FALLBACKS: Record<Mode, Record<string, string>> = {
+  dark: {
+    '--color-surface-panel': '#211e1a',
+    '--color-border-strong': '#4a443a',
+    '--color-text-primary': '#e8e2d6',
+    '--color-text-secondary': '#c9c1b0',
+    '--color-text-muted': '#a39b8b',
+    '--color-text-faint': '#7f7868',
+  },
+  light: {
+    '--color-surface-panel': '#f3efe6',
+    '--color-surface-raised-hover': '#d9d2c1',
+    '--color-border-strong': '#c4bca8',
+    '--color-text-primary': '#2a2620',
+    '--color-text-secondary': '#4a443a',
+    '--color-text-muted': '#6e6657',
+    '--color-text-faint': '#8a8372',
+  },
 };
+
+/** ANSI hues stay One Dark (dark) / One Light (light). Neutrals come from the tokens. */
+const ANSI: Record<Mode, Partial<ITheme>> = {
+  dark: {
+    red: '#e05561',
+    green: '#8cc265',
+    yellow: '#d18f52',
+    blue: '#4aa5f0',
+    magenta: '#c162de',
+    cyan: '#42b3c2',
+    brightRed: '#ff616e',
+    brightGreen: '#a5e075',
+    brightYellow: '#f0a45d',
+    brightBlue: '#4dc4ff',
+    brightMagenta: '#de73ff',
+    brightCyan: '#4cd1e0',
+  },
+  light: {
+    red: '#ca1243',
+    green: '#4e8c3a',
+    yellow: '#986801',
+    blue: '#4078f2',
+    magenta: '#a626a4',
+    cyan: '#0184bc',
+    brightRed: '#e45649',
+    brightGreen: '#50a14f',
+    brightYellow: '#c18401',
+    brightBlue: '#5b8def',
+    brightMagenta: '#c25dc0',
+    brightCyan: '#2b9fcf',
+  },
+};
+
+/** '#rrggbb' + 0..1 alpha -> '#rrggbbaa' */
+const alpha = (hex: string, a: number): string =>
+  hex.slice(0, 7) +
+  Math.round(Math.min(Math.max(a, 0), 1) * 255)
+    .toString(16)
+    .padStart(2, '0');
+
+function buildTheme(): ITheme {
+  const mode = getMode();
+  const cs = getComputedStyle(document.documentElement);
+  const t = (name: string): string =>
+    cs.getPropertyValue(name).trim() || FALLBACKS[mode][name] || '#000000';
+
+  const background = t('--color-surface-panel'); // the bottom panel surface
+  const textPrimary = t('--color-text-primary');
+  const textSecondary = t('--color-text-secondary');
+  const textMuted = t('--color-text-muted');
+  const textFaint = t('--color-text-faint');
+  const borderStrong = t('--color-border-strong');
+
+  // ANSI "black/white" must stay visible on the background in both modes.
+  const neutrals: Partial<ITheme> =
+    mode === 'dark'
+      ? {
+          black: borderStrong,
+          brightBlack: textFaint, // dim text, autosuggestions
+          white: textSecondary,
+          brightWhite: textPrimary,
+        }
+      : {
+          black: textPrimary,
+          brightBlack: textMuted,
+          white: borderStrong,
+          brightWhite: t('--color-surface-raised-hover'),
+        };
+
+  return {
+    background,
+    foreground: textPrimary,
+    cursor: textPrimary,
+    cursorAccent: background,
+    selectionBackground: alpha(textMuted, 0.3),
+    selectionInactiveBackground: alpha(textMuted, 0.18),
+    ...ANSI[mode],
+    ...neutrals,
+  };
+}
 
 @Injectable({ providedIn: 'root' })
 export class TerminalService {
@@ -56,6 +142,22 @@ export class TerminalService {
   readonly activeSession = computed(
     () => this.sessions().find((s) => s.id === this.activeId()) ?? null,
   );
+
+  constructor() {
+    // Re-theme every open terminal when <html data-theme> changes. Lives as long as the app.
+    this.zone.runOutsideAngular(() => {
+      new MutationObserver(() => this.applyTheme()).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme'],
+      });
+    });
+  }
+
+  /** Pushes the current theme to all sessions. Safe to call manually (e.g. after changing tokens). */
+  applyTheme(): void {
+    const theme = buildTheme();
+    for (const s of this.sessions()) s.term.options.theme = theme;
+  }
 
   /** Starts a shell. `cwd` null = the user's home. */
   async create(cwd: string | null, shell?: string): Promise<TerminalSession> {
@@ -141,7 +243,7 @@ export class TerminalService {
       fontSize: 13,
       cursorBlink: true,
       scrollback: 5000,
-      theme: THEME,
+      theme: buildTheme(),
       allowProposedApi: false,
     });
     const fit = new FitAddon();
