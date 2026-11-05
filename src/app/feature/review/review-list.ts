@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { bootstrapChevronDown, bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { LayoutService } from '../../layout/layout-service';
+import { LayoutService } from '../../core/services/layout.service';
 
 @Component({
   selector: 'review-list',

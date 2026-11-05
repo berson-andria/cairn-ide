@@ -26,8 +26,8 @@ import { KeybindingService } from '../../core/services/command/keybinding.servic
 import { InlineCreationMode } from '../../core/store/node.state';
 import { NodeStore } from '../../core/store/node.store';
 import { EditorCommands } from '../editor/editor.commands';
-import { LayoutService } from '../../layout/layout-service';
 import { EmptyExplorer } from './empty-explorer';
+import { LayoutService } from '../../core/services/layout.service';
 
 @Component({
   selector: 'file-tree',

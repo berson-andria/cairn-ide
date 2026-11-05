@@ -51,12 +51,12 @@ export function registerAppCommands(): void {
   commands.register('tab.next', () => cycleTab(tabStore, +1));
   commands.register('tab.previous', () => cycleTab(tabStore, -1));
 
-  commands.register('view.toggleLeftSidebar', () => layout.togglePrimarySideBar());
-  commands.register('view.toggleRightSideBar', () => layout.toggleSecondarySideBar());
+  // commands.register('view.toggleLeftSidebar', () => layout.togglePrimarySideBar());
+  // commands.register('view.toggleRightSideBar', () => layout.toggleSecondarySideBar());
 
   //   commands.register('search.global',      () => layout.showSearchPanel('content'));
   //   commands.register('search.file',        () => layout.showSearchPanel('files'));
-  commands.register('search.global', () => layout.openGlobalSearch());
+  // commands.register('search.global', () => layout.openGlobalSearch());
   commands.register('search.file', () => layout.openSearchDialog());
 
   commands.register('explorer.selectAll', () => store.selectAllSiblings());

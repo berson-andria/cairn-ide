@@ -9,7 +9,6 @@ import {
   signal,
 } from '@angular/core';
 import { ResizeHandle } from '../../../shared/components/resize-handle/resize-handle';
-import { LayoutService } from '../../layout-service';
 import { Git, GitView } from '../../../feature/git/git';
 import { Terminal } from '../../../feature/terminal/terminal';
 import { DiagnosticsService } from '../../../core/services/diagnostics.service';
@@ -17,6 +16,7 @@ import { TerminalService } from '../../../feature/terminal/terminal.service';
 import { NodeStore } from '../../../core/store/node.store';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideMinus, lucidePlus } from '@ng-icons/lucide';
+import { LayoutService } from '../../../core/services/layout.service';
 
 @Component({
   selector: 'bottom-panel',

@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { NodeStore } from '../../../core/store/node.store';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { bootstrapChevronDown, bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
-import { LayoutService } from '../../../layout/layout-service';
+import { LayoutService } from '../../../core/services/layout.service';
 
 @Component({
   selector: 'note-list',
