@@ -8,21 +8,6 @@ import {
   signal,
 } from '@angular/core';
 
-/**
- * Drag handle that resizes the element it is placed in (its parent).
- *
- *   axis="x"  resizes WIDTH   (vertical bar,   cursor col-resize)
- *   axis="y"  resizes HEIGHT  (horizontal bar, cursor row-resize)
- *   edge      which edge of the panel the handle sits on. "end" = right/bottom,
- *             "start" = left/top. This decides the drag direction:
- *               left panel   -> axis x, edge end    (drag right = bigger)
- *               bottom panel -> axis y, edge start  (drag up    = bigger)
- *
- * It does not store anything: it measures the panel, clamps, and emits the new
- * size in px. The panel owns the value and binds it to its own width/height.
- * The parent must be position: relative (or absolute) and is where the handle
- * is anchored.
- */
 @Component({
   selector: 'app-resize-handle',
   standalone: true,
