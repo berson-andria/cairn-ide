@@ -1,11 +1,6 @@
 import { computed } from '@angular/core';
 import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
-import {
-  DiffTab,
-  DiffRequest,
-  diffTabId,
-  diffTitle,
-} from '../../features/editor/features/diff-tab';
+import { DiffTab, DiffRequest, diffTabId, diffTitle } from '../../feature/editor/features/diff-tab';
 
 interface TabsState {
   /** Tab-bar order: file ids and diff tab ids. */

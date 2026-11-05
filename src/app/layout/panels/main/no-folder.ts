@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { EditorCommands } from '../../../features/editor/editor.commands';
+import { EditorCommands } from '../../../feature/editor/editor.commands';
 import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
 
 @Component({

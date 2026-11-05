@@ -8,9 +8,9 @@ import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.stor
 import { NoFolderOpen } from './no-folder';
 import { FileNode } from '../../../core/store/workspace/workspace.state';
 import { getIconPath } from '../../../shared/utils/node.utils';
-import { EditorService } from '../../../features/editor/services/editor.service';
-import { EditorCommands } from '../../../features/editor/editor.commands';
-import { baseName } from '../../../features/editor/features/diff-tab';
+import { EditorService } from '../../../feature/editor/services/editor.service';
+import { EditorCommands } from '../../../feature/editor/editor.commands';
+import { baseName } from '../../../feature/editor/features/diff-tab';
 
 /** What the tab strip draws: a file or a diff, described the same way. */
 interface TabView {
@@ -22,7 +22,7 @@ interface TabView {
   active: boolean;
   tooltip: string;
 }
-
+export type ContentType = 'CodeEditor' | 'DiffEditor' | 'Task' | 'Review' | 'Note' | 'chat';
 @Component({
   selector: 'main-panel',
   templateUrl: './main-panel.html',
@@ -93,7 +93,7 @@ export class MainPanel {
   }
 
   scrollActiveIntoView(): void {
-    const container = this.elementRef.nativeElement.querySelector('.opened-files') as HTMLElement;
+    const container = this.elementRef.nativeElement.querySelector('.opened-tabs') as HTMLElement;
     const active = container?.querySelector<HTMLElement>('.is-active');
 
     if (!container || !active) return;

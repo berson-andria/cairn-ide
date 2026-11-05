@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
 import { ResizeHandle } from '../../../shared/components/resize-handle/resize-handle';
-import { FileTree } from '../../../features/explorer/tree';
+import { FileTree } from '../../../feature/explorer/tree';
 import { ReviewList } from '../../../feature/review/review-list';
 import { TaskList } from '../../../feature/task/task-list';
 import { NoteList } from '../../../feature/notes/note-list/note-list';

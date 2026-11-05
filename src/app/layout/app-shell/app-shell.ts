@@ -14,10 +14,11 @@ import { WorkspaceNodeStore } from '../../core/store/workspace/workspace.store';
 import { WorkspaceWatcherService } from '../../core/services/workspace-watcher.service';
 import { getCurrentWindow, Window, currentMonitor } from '@tauri-apps/api/window';
 import { EditorTabsStore } from '../../core/store/editor-tabs.store';
-import { EditorCommands } from '../../features/editor/editor.commands';
-import { EditorService } from '../../features/editor/services/editor.service';
-import { TerminalService } from '../../features/tooling/terminal/terminal.service';
+
 import { LayoutService, Toolkit } from '../layout-service';
+import { EditorCommands } from '../../feature/editor/editor.commands';
+import { EditorService } from '../../feature/editor/services/editor.service';
+import { TerminalService } from '../../feature/terminal/terminal.service';
 
 @Component({
   selector: 'app-shell',

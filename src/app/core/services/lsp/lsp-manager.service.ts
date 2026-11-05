@@ -4,8 +4,8 @@ import { LspClient } from './lsp-client';
 import { LspServerConfig, serverForLanguage } from './lsp-servers';
 
 import { WorkspaceNodeStore } from '../../store/workspace/workspace.store';
-import { EditorService } from '../../../features/editor/services/editor.service';
-import { EditorCommands } from '../../../features/editor/editor.commands';
+import { EditorService } from '../../../feature/editor/services/editor.service';
+import { EditorCommands } from '../../../feature/editor/editor.commands';
 import { LspMonitor } from './lsp-monitor.service';
 
 const IDLE_STOP_MS = 60_000;

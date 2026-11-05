@@ -14,7 +14,6 @@ import { Git, GitView } from '../../../feature/git/git';
 import { Terminal } from '../../../feature/terminal/terminal';
 import { DiagnosticsService } from '../../../core/services/diagnostics.service';
 import { TerminalService } from '../../../feature/terminal/terminal.service';
-import { ToolingService, ToolId } from '../../../features/tooling/tooling.service';
 import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideMinus, lucidePlus } from '@ng-icons/lucide';
@@ -43,14 +42,15 @@ export class BottomPanel {
   protected readonly maxHeight = () => this.host.nativeElement.parentElement!.clientHeight * 0.7;
   protected activeGitView: GitView = 'Changes';
 
-  protected readonly tooling = inject(ToolingService);
   protected readonly terminals = inject(TerminalService);
   private readonly injector = inject(Injector);
   protected readonly counts = inject(DiagnosticsService).counts;
 
   constructor() {
     effect(() => {
-      const terminalVisible = this.tooling.active() === 'terminal';
+      const terminalVisible =
+        this.layoutService.isToolkitActive('Terminal') &&
+        !this.layoutService.isBottomPanelCollapsed();
       if (terminalVisible) {
         afterNextRender(() => this.terminals.activeSession()?.term.focus(), {
           injector: this.injector,

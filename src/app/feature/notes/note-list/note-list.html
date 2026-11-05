@@ -1,0 +1,156 @@
+<div class="rail-section" [class.rail-section--active]="layoutService.isRailSectionActive('Notes')">
+  <div class="rail-section--header" (click)="layoutService.toggleRailSection('Notes')">
+    <span class="rail-section__title">
+      @if (layoutService.isRailSectionActive('Notes')) {
+        <ng-icon name="bootstrapChevronDown" />
+      } @else {
+        <ng-icon name="bootstrapChevronRight" />
+      }
+      Notes
+    </span>
+    <span class="rail-section__meta rail-section__meta--attention">2</span>
+  </div>
+  <div class="rail__body">
+    <div style="padding: 4px 14px 8px">
+      <input
+        aria-label="New note"
+        placeholder="New note, Enter to save"
+        style="
+          width: 100%;
+          box-sizing: border-box;
+          background: #1c1a17;
+          border: 1px solid #3a352d;
+          border-radius: 6px;
+          color: #e8e2d6;
+          font: inherit;
+          font-size: 13px;
+          padding: 8px 10px;
+        "
+      />
+    </div>
+    <div style="display: flex; gap: 2px; padding: 0 10px 8px; font-size: 11px; color: #a39b8b">
+      <span style="background: #2e2a24; color: #e8e2d6; padding: 3px 8px; border-radius: 12px"
+        >Open 5</span
+      ><span style="padding: 3px 8px">Inbox 2</span
+      ><span style="padding: 3px 8px">Re-anchor <span style="color: #e2a93b">1</span></span>
+    </div>
+    <div
+      style="
+        margin: 0 10px 8px;
+        border: 1px solid #e8e2d6;
+        border-radius: 6px;
+        padding: 9px 11px;
+        font-size: 12px;
+        line-height: 1.4;
+        background: #2a2620;
+      "
+    >
+      Depends on the session store, which doesn't exist yet.
+      <div style="margin-top: 6px">
+        <span
+          style="
+            border: 1px solid #4a443a;
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 11px;
+            color: #c9c1b0;
+          "
+          >AuthClient.refresh</span
+        >
+      </div>
+    </div>
+    <div
+      style="
+        margin: 0 10px 8px;
+        border: 1px solid #3a352d;
+        border-radius: 6px;
+        padding: 9px 11px;
+        font-size: 12px;
+        line-height: 1.4;
+        background: none;
+      "
+    >
+      FEEDBACK · Retry should not loop on 401.
+      <div style="margin-top: 6px">
+        <span
+          style="
+            border: 1px solid #4a443a;
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 11px;
+            color: #c9c1b0;
+          "
+          >t-7f3b</span
+        >
+      </div>
+    </div>
+    <div
+      style="
+        margin: 0 10px 8px;
+        border: 1px solid #3a352d;
+        border-radius: 6px;
+        padding: 9px 11px;
+        font-size: 12px;
+        line-height: 1.4;
+        background: none;
+      "
+    >
+      QUESTION · Should expiry use server time?
+      <div style="margin-top: 6px">
+        <span
+          style="
+            border: 1px solid #4a443a;
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 11px;
+            color: #c9c1b0;
+          "
+          >Token</span
+        >
+      </div>
+    </div>
+    <div
+      style="
+        margin: 0 10px 8px;
+        border: 1px dashed #3a352d;
+        border-radius: 6px;
+        padding: 9px 11px;
+        font-size: 12px;
+        line-height: 1.4;
+        background: none;
+      "
+    >
+      Cache the parsed token.
+      <div style="margin-top: 6px">
+        <span
+          style="
+            border: 1px solid #4a443a;
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 11px;
+            color: #c9c1b0;
+            border-style: dashed;
+            color: #d49a8a;
+          "
+          >anchor lost</span
+        >
+      </div>
+    </div>
+    <div
+      style="
+        margin: 0 10px 8px;
+        border: 1px solid #3a352d;
+        border-radius: 6px;
+        padding: 9px 11px;
+        font-size: 12px;
+        line-height: 1.4;
+        background: none;
+      "
+    >
+      Look at retry backoff later.
+      <div style="margin-top: 6px">
+        <span style="color: #a39b8b; font-size: 11px">Inbox</span>
+      </div>
+    </div>
+  </div>
+</div>

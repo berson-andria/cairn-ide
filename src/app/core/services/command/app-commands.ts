@@ -4,9 +4,9 @@ import { CommandService } from './command.service';
 import { WorkspaceNodeStore } from '../../store/workspace/workspace.store';
 import { LayoutService } from '../layout.service';
 import { message } from '@tauri-apps/plugin-dialog';
-import { EditorCommands } from '../../../features/editor/editor.commands';
+import { EditorCommands } from '../../../feature/editor/editor.commands';
 import { EditorTabsStore } from '../../store/editor-tabs.store';
-import { GitBlameService } from '../../../features/git/services/git-blame.service';
+import { GitBlameService } from '../../../feature/git/services/git-blame.service';
 
 /**
  * Connects command ids to what the app actually does.

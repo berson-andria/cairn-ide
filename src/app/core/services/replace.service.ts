@@ -1,11 +1,10 @@
-import { ModelSourceService } from './../../features/editor/services/model-source.service';
 import { Injectable, inject } from '@angular/core';
 // Adjust these three paths to your folders.
 import { WorkspaceNodeStore } from '../store/workspace/workspace.store';
 import { nonGlobal } from '../../shared/utils/replace.utils';
 import { findNodeByPath } from './file-system/external-watcher.utils';
 import { FileSystemService } from './file-system/file-system.service';
-import { EditorService } from '../../features/editor/services/editor.service';
+import { EditorService } from '../../feature/editor/services/editor.service';
 import { EditorTabsStore } from '../store/editor-tabs.store';
 
 export interface ReplaceLine {

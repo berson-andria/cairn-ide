@@ -1,10 +1,10 @@
 import { effect, inject, Injectable, NgZone, signal } from '@angular/core';
-import { GlobalSearch } from '../../features/search/global-search/global-search';
-import { FileSearch } from '../../features/search/file-search/file-search';
+import { GlobalSearch } from '../../feature/search/global-search/global-search';
+import { FileSearch } from '../../feature/search/file-search/file-search';
 import { DialogService } from './dialog/dialog.service';
-import { TerminalService } from '../../features/tooling/terminal/terminal.service';
+import { TerminalService } from '../../feature/terminal/terminal.service';
 import { WorkspaceNodeStore } from '../store/workspace/workspace.store';
-import { Search } from '../../features/search/search';
+import { Search } from '../../feature/search/search';
 
 /** compact: no gap, no radius. comfortable: spaced, rounded panels. Visuals live in ide-shell.scss. */
 export type Density = 'compact' | 'comfortable';

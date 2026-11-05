@@ -4,8 +4,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { DialogRef } from '@angular/cdk/dialog';
 import { Subject, debounceTime, switchMap, tap } from 'rxjs';
-import { SearchService } from '../../../features/search/search.service';
 import { WorkspaceNodeStore } from '../../../core/store/workspace/workspace.store';
+import { SearchService } from '../../../feature/search/search.service';
 
 /** Minimal file data returned to the caller; no search or editor state leaks out. */
 export interface SelectedFile {

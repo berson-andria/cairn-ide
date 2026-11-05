@@ -34,7 +34,7 @@
   }
 }
 
-.opened-files {
+.opened-tabs {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -91,7 +91,9 @@
   color: var(--color-text-muted);
   cursor: pointer;
   text-wrap: nowrap;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 
   &.is-dirty {
     span {
@@ -150,7 +152,7 @@
 }
 
 .cdk-drag-animating,
-.opened-files.cdk-drop-list-dragging .tab:not(.cdk-drag-placeholder) {
+.opened-tabs.cdk-drop-list-dragging .tab:not(.cdk-drag-placeholder) {
   transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
 }
 

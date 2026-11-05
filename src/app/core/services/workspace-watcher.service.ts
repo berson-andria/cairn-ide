@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { EditorService } from '../../features/editor/services/editor.service';
+import { EditorService } from '../../feature/editor/services/editor.service';
 import { EditorTabsStore } from '../store/editor-tabs.store';
 import { FileNode } from '../store/workspace/workspace.state';
 import { classifyWatchEvent, findNodeByPath } from './file-system/external-watcher.utils';

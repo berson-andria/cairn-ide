@@ -95,7 +95,7 @@ export class NewNode {
     return indentStyle(this.level(), 10);
   }
   getIconPath() {
-    return getIconPath(this.nodeName, <ItemType>this.nodeType(), false);
+    return getIconPath(this.nodeName, <ItemType>this.nodeType());
   }
   nodeNameEntry(value: string) {
     this.danger.set(

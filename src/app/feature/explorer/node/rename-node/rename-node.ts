@@ -56,10 +56,9 @@ import { validateNodeName } from '../../../../shared/utils/node.utils';
       height: 18px;
       padding: 0 4px;
       font: inherit;
-      color: var(--explorer-text);
-      background: var(--explorer-bg);
-      border: 1px solid var(--explorer-item-hover-bg);
-      border-radius: 2px;
+      background: var(--color-surface-base);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-chip);
       outline: none;
     }
     input.is-danger {

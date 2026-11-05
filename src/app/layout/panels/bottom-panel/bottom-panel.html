@@ -68,7 +68,7 @@
 @switch (layoutService.activeToolkit()) {
   @case ('Terminal') {
     <app-terminal />
-    @if (tooling.terminalError(); as error) {
+    <!-- @if (tooling.terminalError(); as error) {
       @if (terminals.sessions().length === 0) {
         <div class="error" role="alert">
           <p>Could not start a shell.</p>
@@ -76,7 +76,7 @@
           <button type="button" (click)="tooling.newTerminal()">Retry</button>
         </div>
       }
-    }
+    } -->
   }
   @case ('Git') {
     <app-git [activeView]="activeGitView"></app-git>
