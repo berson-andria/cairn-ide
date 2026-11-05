@@ -17,12 +17,15 @@
 - add git graph **DONE**
 - add menu directive **DONE**
 - check git blame **DONE**
-- system logs. *DONE*
-
+- system logs. **DONE**
+- create ide icon **DONE**
 
 ### PROCESSED:
 - save state after app close.*PROCESSED*
 - Setting *PROCESSED*
+- Redesign the note, the actual note is too much for the IDE *PROCESSED*
+
+
 ### REVIEW:
 - lsp note: stop lsp on folder change.*REVIEW*
 
@@ -31,9 +34,8 @@
 - Integrate agentic ai *STAND BY, require model download.*
 - add sandbox cmd *AFTER THE AGENT AI*
 - add right click option, ...right click action attach to task *NO NEED CLAUD FOR THIS*
-- Redesign the note, the actual note is too much for the IDE
 - highlight unsaved file.*LOW PRIORITY*
-- create ide icon
+
 - terminal creation sync
 - save file as
 - workspace reset after selecting
@@ -43,5 +45,5 @@
 
 ### ADDITIONAL TASKS
 - add restapi interaction as new functionality *LOW PRIORITY*
-- *LOW PRIORITY* check for potential redesign : [IDE UI DESIGN](https://dribbble.com/shots/27023881-IDE-AI-developer-environment-Anatoliy-Demyanchuk) 
+- *LOW PRIORITY* check for potential redesign : [IDE UI DESIGN](https://dribbble.com/shots/27023881-IDE-AI-developer-environment-Anatoliy-Demyanchuk) **DONE**
 
