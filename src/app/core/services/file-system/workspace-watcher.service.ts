@@ -5,6 +5,7 @@ import { classifyWatchEvent, findNodeByPath } from './external-watcher.utils';
 import { FileSystemService } from './file-system.service';
 import { NodeStore } from '../../store/node.store';
 import { TabStore } from '../../store/tab.store';
+import { fsEvents$ } from './fs-events';
 
 @Injectable({ providedIn: 'root' })
 export class WorkspaceWatcherService {
@@ -24,6 +25,9 @@ export class WorkspaceWatcherService {
   }
 
   private enqueue(event: { type: unknown; paths: string[] }) {
+    // Notify all subscribers (like GitService) that a file system event occurred
+    fsEvents$.next();
+    
     this.queue = this.queue
       .then(() => this.process(event))
       .catch((err) => console.error('External watcher event failed', event, err));

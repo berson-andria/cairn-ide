@@ -1,0 +1,206 @@
+<div style="height: 100%; overflow: hidden; min-height: 0; display: flex; flex-direction: row">
+  <div style="flex: 1" class="scrolling-el changes-list">
+    <!-- Staged Files Group -->
+    <div
+      style="
+        padding: 8px 16px 2px;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #a39b8b;
+      "
+    >
+      Staged · {{ stagedFiles().length }}
+    </div>
+    @for (file of stagedFiles(); track file.path) {
+      <div
+        style="
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 6px 16px;
+          font-size: 13px;
+          background: #2a2620;
+          border-left: 3px solid #e8e2d6;
+          padding-left: 13px;
+          cursor: pointer;
+        "
+        (click)="openDiff(file)"
+      >
+        <span
+          [style]="
+            'font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background:' +
+            statusClass(file.status)
+          "
+          >{{ file.status }}</span
+        >
+        <span style="flex: 1">{{ file.path }}</span>
+        <button
+          type="button"
+          (click)="unstageFile(file); $event.stopPropagation()"
+          style="
+            background: none;
+            border: none;
+            color: #a39b8b;
+            cursor: pointer;
+            padding: 2px 6px;
+            font-size: 16px;
+          "
+          title="Unstage file"
+        >
+          −
+        </button>
+      </div>
+    } @empty {
+      <div style="padding: 6px 16px; font-size: 13px; color: #a39b8b; font-style: italic">
+        No staged changes
+      </div>
+    }
+
+    <!-- Changes Group -->
+    <div
+      style="
+        padding: 8px 16px 2px;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #a39b8b;
+      "
+    >
+      Changes · {{ changedFiles().length }}
+    </div>
+    @for (file of changedFiles(); track file.path) {
+      <div
+        style="
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 6px 16px;
+          font-size: 13px;
+          cursor: pointer;
+        "
+        (click)="openDiff(file)"
+      >
+        <span
+          [style]="
+            'font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background:' +
+            statusClass(file.status)
+          "
+          >{{ file.status }}</span
+        >
+        <span style="flex: 1">{{ file.path }}</span>
+        <div class="btn-group">
+          <button
+            type="button"
+            style="
+              background: none;
+              border: none;
+              color: #a39b8b;
+              cursor: pointer;
+              padding: 2px 6px;
+              font-size: 16px;
+            "
+            [title]="file.status === 'U' ? 'Delete untracked file' : 'Discard changes'"
+            [attr.aria-label]="'Discard ' + file.path"
+            [disabled]="git.busy()"
+            (click)="discardFile(file)"
+          >
+            <ng-icon name="lucideUndo " />
+          </button>
+          <button
+            type="button"
+            style="
+              background: none;
+              border: none;
+              color: #a39b8b;
+              cursor: pointer;
+              padding: 2px 6px;
+              font-size: 16px;
+            "
+            title="Stage file"
+          >
+            <ng-icon name="lucideFileSymlink " />
+          </button>
+          <button
+            type="button"
+            (click)="stageFile(file); $event.stopPropagation()"
+            style="
+              background: none;
+              border: none;
+              color: #a39b8b;
+              cursor: pointer;
+              padding: 2px 6px;
+              font-size: 16px;
+            "
+            title="Stage file"
+          >
+            +
+          </button>
+        </div>
+      </div>
+    } @empty {
+      <div style="padding: 6px 16px; font-size: 13px; color: #a39b8b; font-style: italic">
+        No changes detected
+      </div>
+    }
+  </div>
+  <div style="width: 320px; border-left: 1px solid #2e2a24; padding: 14px; box-sizing: border-box">
+    <div class="input-form">
+      <input
+        type="text"
+        [ngModel]="commitMessage()"
+        (ngModelChange)="commitMessage.set($event)"
+        placeholder="Message (Ctrl+Enter to commit on '{{ branchName() }}')"
+        (keydown.control.enter)="commit()"
+        (keydown.meta.enter)="commit()"
+      />
+    </div>
+    <button
+      class="btn-action full_width"
+      style="margin-top: var(--space-10)"
+      [disabled]="!commitMessage().trim() || stagedFiles().length === 0 || git.busy()"
+      (click)="commit()"
+    >
+      Commit
+    </button>
+    @if (notice(); as n) {
+      <div class="notice" [class.notice--error]="n.kind === 'error'" role="alert">
+        <span class="notice-text">{{ n.text }}</span>
+        <button type="button" class="notice-close" aria-label="Dismiss" (click)="notice.set(null)">
+          ×
+        </button>
+      </div>
+    }
+    @if (conflictFiles().length) {
+      <section class="file-group expanded">
+        <header class="group-header">
+          <span class="group-toggle">
+            <span>Merge Conflicts</span>
+            <span class="count">{{ conflictFiles().length }}</span>
+          </span>
+        </header>
+        @for (file of conflictFiles(); track file.path) {
+          <div class="file-row">
+            <ng-icon class="file-icon" name="lucideFile" />
+            <span class="file-path" [title]="file.path" (click)="openDiff(file)">{{
+              file.path
+            }}</span>
+            <span [class]="statusClass(file.status)" [title]="statusLabel(file.status)">{{
+              file.status
+            }}</span>
+            <button
+              class="row-action"
+              type="button"
+              title="Mark as resolved (stage)"
+              [attr.aria-label]="'Mark ' + file.path + ' as resolved'"
+              [disabled]="git.busy()"
+              (click)="stageFile(file)"
+            >
+              +
+            </button>
+          </div>
+        }
+      </section>
+    }
+  </div>
+</div>

@@ -10,10 +10,10 @@ import { Component } from '@angular/core';
           <div class="s" style="font-size:14px;margin:8px 0 18px">
             Pick a file, or start capturing work.
           </div>
-          <div class="h"><span>Go to file</span><span class="c">Ctrl P</span></div>
-          <div class="h"><span>New task</span><span class="c">Ctrl+Alt+T</span></div>
-          <div class="h"><span>New note</span><span class="c">Ctrl+Alt+N</span></div>
-          <div class="h"><span>Toggle panel</span><span class="c">Ctrl J</span></div>
+          <div class="action-list"><span>Go to file</span><span class="chip">Ctrl P</span></div>
+          <div class="action-list"><span>New task</span><span class="chip">Ctrl+Alt+T</span></div>
+          <div class="action-list"><span>New note</span><span class="chip">Ctrl+Alt+N</span></div>
+          <div class="action-list"><span>Toggle panel</span><span class="chip">Ctrl J</span></div>
         </div>
       </div>
     </div>
@@ -27,14 +27,7 @@ import { Component } from '@angular/core';
       color: #a39b8b;
       font-size: 12px;
     }
-    .h {
-      display: flex;
-      justify-content: space-between;
-      width: 400px;
-      padding: 10px 0;
-      border-bottom: 1px solid #2e2a24;
-      font-size: 13px;
-    }
+
     .c {
       border: 1px solid #4a443a;
       border-radius: 4px;

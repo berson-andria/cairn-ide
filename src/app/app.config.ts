@@ -10,7 +10,7 @@ import { TauriBootService } from './core/services/tauri/tauri-boot.service';
 import { OVERLAY_DEFAULT_CONFIG } from '@angular/cdk/overlay';
 import { registerAppCommands } from './core/services/command/app-commands';
 import { KeybindingService } from './core/services/command/keybinding.service';
-import { provideGitBlame } from './feature/git/blame/git-blame.provider';
+import { provideGitBlame } from './feature/git/features/blame/git-blame.provider';
 
 export const appConfig: ApplicationConfig = {
   providers: [

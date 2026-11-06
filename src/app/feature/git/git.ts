@@ -1,9 +1,9 @@
 import { Component, inject, input } from '@angular/core';
 import { NodeStore } from '../../core/store/node.store';
-import { NoOpenFolder } from './no-git/no-git-folder';
-import { NoRepository } from './no-git/no-repository';
-import { GitGraph } from './graph/git-graph';
-import { GitChanges } from './changes/git-changes';
+import { NoOpenFolder } from './features/no-git/no-git-folder';
+import { NoRepository } from './features/no-git/no-repository';
+import { GitGraph } from './features/graph/git-graph';
+import { GitChanges } from './features/changes/git-changes';
 import { GitService } from './services/git.service';
 export type GitView = 'Graph' | 'Changes';
 @Component({
@@ -12,9 +12,7 @@ export type GitView = 'Graph' | 'Changes';
   imports: [NoOpenFolder, NoRepository, GitGraph, GitChanges],
   styles: `
     :host {
-      flex: 1;
-      display: flex;
-      justify-content: center;
+      height: 100%;
     }
   `,
 })

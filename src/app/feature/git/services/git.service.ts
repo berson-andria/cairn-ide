@@ -95,6 +95,12 @@ export class GitService {
   readonly isRepo = computed(() => this.repoRoot() !== null);
   /** True while a change to the repository is running (to disable buttons). */
   readonly busy = signal(false);
+
+  private readonly _branches = signal<GitBranch[]>([]);
+  /** Cached list. Filled by loadBranches(); never read git by itself. */
+  readonly branchList = this._branches.asReadonly();
+  private branchesRun = 0;
+
   /** Bumps after every successful status load. The diff editor watches it to reload the git-side text. */
   readonly statusVersion = signal(0);
 
@@ -253,6 +259,7 @@ export class GitService {
     this.repoRoot.set(null);
     this.status.set(null);
     this.error.set(error);
+    this._branches.set([]);
   }
 
   // ───────────── explorer helpers ─────────────
@@ -385,7 +392,6 @@ export class GitService {
       COMMIT_DETAILS_FORMAT,
       hash,
     ]);
-    console.log(result);
 
     return result.ok ? parseCommitDetails(result.output) : null;
   }
@@ -418,9 +424,13 @@ export class GitService {
 
   // ───────────── branches ─────────────
 
-  async branches(): Promise<GitBranch[]> {
+  async loadBranches(): Promise<void> {
+    if (!this.repoRoot()) return this._branches.set([]);
+    const run = ++this.branchesRun;
     const result = await this.exec(['branch', '-a', BRANCH_FORMAT]);
-    return result.ok ? parseBranches(result.output) : [];
+    if (run === this.branchesRun && result.ok) {
+      this._branches.set(parseBranches(result.output));
+    }
   }
 
   /** null = valid; otherwise git's reason. Use it while the user types a new branch name. */

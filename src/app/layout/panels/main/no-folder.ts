@@ -14,16 +14,20 @@ import { NodeStore } from '../../../core/store/node.store';
             travel with your git history.
           </div>
           <div style="display:flex;gap:10px">
-            <button class="b" (click)="commands.openFolder()">Open Folder</button
-            ><button class="b" (click)="openFile()">Open File</button
-            ><button class="b">New Window</button>
+            <button class="btn-primary" (click)="commands.openFolder()">Open Folder</button
+            ><button class="btn-primary" (click)="openFile()">Open File</button
+            ><button class="btn-primary">New Window</button>
           </div>
           <div class="s" style="letter-spacing:.08em;text-transform:uppercase;margin:34px 0 4px">
             Recent
           </div>
-          <div class="r"><span>auth-client</span><span class="s">~/dev/auth-client</span></div>
-          <div class="r"><span>cairn-ide</span><span class="s">~/dev/cairn-ide</span></div>
-          <div class="r">
+          <div class="action-list">
+            <span>auth-client</span><span class="s">~/dev/auth-client</span>
+          </div>
+          <div class="action-list">
+            <span>cairn-ide</span><span class="s">~/dev/cairn-ide</span>
+          </div>
+          <div class="action-list">
             <span>portfolio-site</span><span class="s">~/dev/portfolio-site</span>
           </div>
         </div>
@@ -38,23 +42,6 @@ import { NodeStore } from '../../../core/store/node.store';
     .s {
       color: #a39b8b;
       font-size: 12px;
-    }
-    .b {
-      background: none;
-      border: 1px solid #4a443a;
-      border-radius: 6px;
-      color: #e8e2d6;
-      font: inherit;
-      font-size: 13px;
-      padding: 8px 16px;
-      cursor: pointer;
-    }
-    .r {
-      display: flex;
-      justify-content: space-between;
-      padding: 9px 0;
-      border-bottom: 1px solid #2e2a24;
-      font-size: 14px;
     }
   `,
 })

@@ -1,9 +1,9 @@
 import { effect, EffectRef, Injector, untracked } from '@angular/core';
 import type * as Monaco from 'monaco-editor';
-import { GitBlameService } from '../services/git-blame.service';
+import { GitBlameService } from '../../services/git-blame.service';
 import { describeBlameLine, hoverMarkdown } from './git-blame.utils';
-import { FileBlame } from '../parser/git-parsers';
-import { EditorExtension } from '../../editor/editor-extensions';
+import { FileBlame } from '../../parser/git-parsers';
+import { EditorExtension } from '../../../editor/editor-extensions';
 
 let hoverRegistered = false;
 

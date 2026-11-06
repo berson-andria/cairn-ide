@@ -150,7 +150,10 @@ export class MenuDirective {
       this.renderer.listen(win, 'resize', reposition),
     );
 
-    // Scroll doesn't bubble, so listen in the capture phase to catch any scroller.
+    const observer = new ResizeObserver(reposition);
+    observer.observe(this.panel!);
+    this.teardown.push(() => observer.disconnect());
+
     this.document.addEventListener('scroll', reposition, true);
     this.teardown.push(() => this.document.removeEventListener('scroll', reposition, true));
   }
@@ -205,8 +208,14 @@ export class MenuDirective {
     }
 
     // If neither side fits (menu bigger than the free space), keep it on screen.
-    const left = Math.min(Math.max(pos.left, VIEWPORT_MARGIN), Math.max(VIEWPORT_MARGIN, vw - menu.width - VIEWPORT_MARGIN));
-    const top = Math.min(Math.max(pos.top, VIEWPORT_MARGIN), Math.max(VIEWPORT_MARGIN, vh - menu.height - VIEWPORT_MARGIN));
+    const left = Math.min(
+      Math.max(pos.left, VIEWPORT_MARGIN),
+      Math.max(VIEWPORT_MARGIN, vw - menu.width - VIEWPORT_MARGIN),
+    );
+    const top = Math.min(
+      Math.max(pos.top, VIEWPORT_MARGIN),
+      Math.max(VIEWPORT_MARGIN, vh - menu.height - VIEWPORT_MARGIN),
+    );
 
     this.renderer.setStyle(panel, 'left', `${left}px`);
     this.renderer.setStyle(panel, 'top', `${top}px`);

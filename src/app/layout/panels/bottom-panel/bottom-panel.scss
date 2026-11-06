@@ -19,3 +19,17 @@
     border: 0;
   }
 }
+.git-actions {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-12);
+  margin-left: 1em;
+}
+.git_section_btn {
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--space-4);
+}
+.git_section_btn--active {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}

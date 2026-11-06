@@ -1,7 +1,7 @@
 import { inject, Injector, Provider } from '@angular/core';
-import { GitBlameService } from '../services/git-blame.service';
+import { GitBlameService } from '../../services/git-blame.service';
 import { BlameController } from './blame.controller';
-import { EDITOR_EXTENSIONS, EditorExtensionFactory } from '../../editor/editor-extensions';
+import { EDITOR_EXTENSIONS, EditorExtensionFactory } from '../../../editor/editor-extensions';
 
 /**
  * Adds git blame to every code editor. Put it in the app providers (app.config.ts):

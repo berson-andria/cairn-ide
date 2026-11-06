@@ -70,6 +70,43 @@ button {
 button:disabled {
   cursor: default;
 }
+.full_width {
+  width: 100%;
+}
+.btn-primary {
+  font-size: var(--font-size-ui);
+  font-weight: var(--font-weight-semibold);
+  padding: var(--space-4);
+  border-radius: var(--space-6);
+  background: none;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-strong);
+  &:hover {
+    color: var(--color-text-primary);
+  }
+}
+
+.btn-action {
+  font-size: var(--font-size-ui);
+  font-weight: var(--font-weight-semibold);
+  padding: var(--space-4);
+  border-radius: var(--space-6);
+  background: var(--color-action);
+  color: var(--color-text-on-action);
+  border: 0;
+  &:hover {
+    background: var(--color-action-hover);
+  }
+}
+
+.action-list {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 400px;
+  padding: var(--space-6) 0;
+  border-bottom: 1px solid var(--color-divider);
+}
 
 /* ---------- Common classes ---------------------------------------------- */
 
@@ -210,8 +247,54 @@ button:disabled {
 ng-icon {
   font-size: 14px;
 }
-
+.menu {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-panel);
+  padding: var(--space-4) 0;
+  border-radius: var(--space-6);
+  border: 1px solid var(--color-border-strong);
+  min-width: 300px;
+  .menu-item-group {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-10) 0;
+  }
+  .menu-item-group:not(:last-child) {
+    border-bottom: 1px solid var(--color-border);
+  }
+  .menu-accordion-btn {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .menu-btn-danger {
+    color: var(--color-error-fg);
+    &:hover {
+      background-color: var(--color-error-bg) !important;
+    }
+  }
+  .menu-item-label {
+    padding: var(--space-2) var(--space-8);
+    margin-bottom: var(--space-4);
+    color: var(--color-text-faint);
+    text-transform: uppercase;
+  }
+  .menu-item {
+    width: 100%;
+    text-align: left;
+    padding: var(--space-4) var(--space-8);
+    border-radius: var(--space-4);
+    &:hover {
+      background-color: var(--color-surface-raised-hover);
+    }
+  }
+}
 .scrolling-el {
+  overflow: auto;
+  min-height: 0;
+  box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: var(--color-surface-hover) var(--color-surface-panel);
   /* Width of the entire scrollbar */

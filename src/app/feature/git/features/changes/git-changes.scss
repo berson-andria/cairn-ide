@@ -1,0 +1,29 @@
+:host {
+  height: 100%;
+}
+.changes-list {
+  display: flex;
+  flex-direction: column;
+}
+.notice {
+  position: relative;
+  margin-top: 1em;
+  padding: var(--space-8) var(--space-10);
+  border-radius: var(--space-8);
+  &:hover {
+    .notice-close {
+      visibility: visible;
+    }
+  }
+}
+.notice--error {
+  background-color: var(--color-error-bg);
+  color: var(--color-error-fg);
+}
+.notice-close {
+  visibility: hidden;
+  position: absolute;
+  top: calc(-1 * var(--space-10));
+  right: 0;
+  font-size: var(--font-size-page-title);
+}
