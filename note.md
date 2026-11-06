@@ -19,11 +19,14 @@
 - check git blame **DONE**
 - system logs. **DONE**
 - create ide icon **DONE**
+- terminal creation sync **DONE**
+
 
 ### PROCESSED:
 - save state after app close.*PROCESSED*
 - Setting *PROCESSED*
 - Redesign the note, the actual note is too much for the IDE *PROCESSED*
+- *LOW PRIORITY* check for potential redesign : [IDE UI DESIGN](https://dribbble.com/shots/27023881-IDE-AI-developer-environment-Anatoliy-Demyanchuk) *PROCESSED*
 
 
 ### REVIEW:
@@ -36,7 +39,6 @@
 - add right click option, ...right click action attach to task *NO NEED CLAUD FOR THIS*
 - highlight unsaved file.*LOW PRIORITY*
 
-- terminal creation sync
 - save file as
 - workspace reset after selecting
 - documentation model, for every change made, the model will update the documentation(it is not app documetion, it's functions documention). this documention will then serve as base for coding agent. It should be coupled with git.
@@ -45,5 +47,5 @@
 
 ### ADDITIONAL TASKS
 - add restapi interaction as new functionality *LOW PRIORITY*
-- *LOW PRIORITY* check for potential redesign : [IDE UI DESIGN](https://dribbble.com/shots/27023881-IDE-AI-developer-environment-Anatoliy-Demyanchuk) **DONE**
+
 
