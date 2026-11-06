@@ -70,12 +70,10 @@ export class CodeEditor {
 
   constructor() {
     afterNextRender(() => this.init());
-
-    // Show the focused tab, creating its model the first time it is shown.
     effect(() => {
       const handle = this.handle();
       if (!handle) return;
-      this.editorService.modelsVersion(); // a renamed file gets a new model: show it again
+      this.editorService.modelsVersion();
       const tabId = this.tabs.activeTabId();
       untracked(() => this.show(handle, tabId));
     });

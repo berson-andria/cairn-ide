@@ -25,8 +25,8 @@ export abstract class BaseEditorHandle {
   /** Detach whatever model(s) are shown so they can be disposed safely. */
   abstract detach(): void;
 
-  layout() {
-    this.editor.layout();
+  layout(dimension?: Monaco.editor.IDimension) {
+    this.editor.layout(dimension);
   }
 
   focus() {

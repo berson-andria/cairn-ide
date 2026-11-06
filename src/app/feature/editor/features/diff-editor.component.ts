@@ -146,13 +146,10 @@ export class DiffEditor {
   private readonly destroyRef = inject(DestroyRef);
   private readonly diffHost = viewChild.required<ElementRef<HTMLElement>>('host');
 
-  /** Set once the editor is mounted; the effects below wait for it. */
   private readonly handle = signal<DiffHandle | null>(null);
 
-  /** Diff tab id -> the sides it holds a model for. */
   private readonly held = new Map<string, DiffSide[]>();
 
-  /** The file behind the editable (modified) side of the shown diff, for Ctrl+S. */
   private editableFileId: string | null = null;
 
   inline = signal(false);
@@ -173,8 +170,6 @@ export class DiffEditor {
 
   constructor() {
     afterNextRender(() => this.init());
-
-    // Show the focused diff, loading its sides the first time.
     effect(() => {
       const handle = this.handle();
       if (!handle) return;
@@ -209,11 +204,12 @@ export class DiffEditor {
     });
     if (!handle) return; // destroyed while Monaco was loading
 
-    this.resizeObserver = new ResizeObserver(() => {
+    this.resizeObserver = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
       cancelAnimationFrame(this.layoutFrame);
-      this.layoutFrame = requestAnimationFrame(() => handle.layout());
+      this.layoutFrame = requestAnimationFrame(() => handle.layout({ width, height }));
     });
-    this.resizeObserver.observe(host);
+    this.resizeObserver.observe(host.parentElement!);
 
     this.handle.set(handle);
   }
