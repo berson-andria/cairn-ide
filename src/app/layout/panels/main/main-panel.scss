@@ -6,140 +6,64 @@
   min-width: 0;
   min-height: 0;
 }
-
-// Tab strip container
 .tabs {
   display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 0.5em;
-  width: 100%;
-  border-bottom: 1px solid var(--color-divider);
-  flex: none;
-
-  .unsaved-control {
-    text-wrap: nowrap;
-    padding: 0.25em 0.125em;
-
-    button {
-      border: 1px solid transparent;
-      background: var(--color-surface-base);
-      color: var(--color-text-primary);
-      padding: 0.25em 0.5em;
-
-      &:hover {
-        border-color: var(--color-border-strong);
-      }
-    }
-  }
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-surface-panel);
 }
 
 .opened-tabs {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.125em;
   flex: 1;
-  overflow-x: scroll;
-  background-color: var(--color-surface-base);
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+}
+.opened-tabs::-webkit-scrollbar {
+  display: none;
+} /* Chromium (Tauri on Windows) */
 
-  /* Standard Firefox rules */
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-  transition: scrollbar-color 0.3s ease;
-
-  /* WebKit Custom Width (Chrome, Safari, Edge) */
-  &::-webkit-scrollbar {
-    height: 2px !important;
-    width: 2px !important;
-  }
-
-  /* WebKit Initial State (Transparent) */
-  &::-webkit-scrollbar-thumb {
-    background-color: transparent;
-    transition: background-color 0.3s ease;
-  }
-
-  &::-webkit-scrollbar-track {
-    background-color: transparent;
-  }
-
-  /* Hover States */
-  &:hover {
-    scrollbar-color: var(--color-surface-hover) var(--color-surface-base);
-
-    &::-webkit-scrollbar-thumb {
-      background-color: var(--color-surface-hover);
-    }
-
-    &::-webkit-scrollbar-track {
-      background-color: var(--color-surface-hover);
-    }
-  }
-
-  &::-webkit-scrollbar-button {
-    display: none;
+.editor-tab {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-8) !important;
+  align-items: center;
+  border-right: 1px solid var(--color-border);
+  flex: none;
+  cursor: pointer;
+  button {
+    visibility: hidden;
   }
 }
+.editor-tab:hover,
+.editor-tab.tab--active {
+  button {
+    visibility: visible;
+  }
+}
+.editor-tab.tab--active {
+  background: var(--color-surface-base); /* same as the editor below */
+  box-shadow: inset 0 2px 0 var(--color-text-faint); /* top line, nothing at the bottom */
+  height: var(--space-32); /* covers the container's bottom border */
+}
+.opened-tabs.is-overflowing {
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
 
-.tab {
+.unsaved-control {
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 0.25em 0.5em;
-  border-radius: 0.5em;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  text-wrap: nowrap;
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
-
-  &.is-dirty {
-    span {
-      text-decoration-line: underline;
-      text-decoration-color: var(--color-text-secondary);
-      text-decoration-thickness: 1px;
-      text-decoration-style: wavy;
-    }
-  }
-
-  &:hover {
-    background-color: var(--color-surface-hover);
-    color: var(--color-text-primary);
-  }
-
-  &.tab--active {
-    color: var(--color-text-primary);
-    border-bottom: 2px solid var(--color-focus);
-    box-sizing: border-box;
-
-    button {
-      color: var(--color-text-primary);
-    }
-  }
-
+  gap: var(--space-8);
+  padding: 0 var(--space-8);
   button {
-    padding: 0.125em 0.45em;
-    margin-left: 0.25em;
-    color: inherit;
-
+    background: transparent;
+    border-radius: var(--space-4);
+    padding: var(--space-4);
     &:hover {
-      opacity: 0.8;
+      background: var(--color-surface-raised-hover);
     }
   }
-}
-
-.tab.is-diff {
-  font-style: italic;
-}
-
-.node-icon {
-  width: 16px;
-  height: 16px;
-  margin-right: 6px;
-  display: inline-flex;
-  align-items: center;
 }
 
 .cdk-drag-preview {

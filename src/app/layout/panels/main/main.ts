@@ -1,4 +1,15 @@
-import { Component, computed, effect, ElementRef, inject, Injector } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  ElementRef,
+  inject,
+  Injector,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CdkDropList, CdkDrag } from '@angular/cdk/drag-drop';
 import { BottomPanel } from '../bottom-panel/bottom-panel';
@@ -12,6 +23,11 @@ import { EditorCommands } from '../../../feature/editor/editor.commands';
 import { baseName } from '../../../feature/editor/features/diff-tab';
 import { Editor } from '../../../feature/editor/editor';
 import { FileIcon } from '../../../shared/components/file-icon';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { lucideFileWarning, lucideX } from '@ng-icons/lucide';
+import { MenuDirective } from '../../../shared/directives/menu.directive';
+import { LayoutService, Toolkit } from '../../../core/services/layout.service';
+import { GitService } from '../../../feature/git/services/git.service';
 
 /** What the tab strip draws: a file, diff, task, review, note, or chat tab. */
 interface TabView {
@@ -37,13 +53,17 @@ interface TabView {
     FileIcon,
     CdkDrag,
     CdkDropList,
+    NgIcon,
   ],
+  providers: [provideIcons({ lucideFileWarning, lucideX })],
 })
 export class MainPanel {
   readonly nodeStore = inject(NodeStore);
   readonly editorService = inject(EditorService);
   readonly command = inject(EditorCommands);
   readonly injector = inject(Injector);
+  protected layoutService = inject(LayoutService);
+  readonly git = inject(GitService);
 
   private elementRef = inject(ElementRef);
 
@@ -191,6 +211,18 @@ export class MainPanel {
   activeTab = computed(() => this.tabs().find((t) => t.active) ?? null);
   dirtyFileCount = computed(() => this.tabStore.dirtyIds().length);
 
+  gitChangesCount = computed(() => {
+    const staged = this.git.staged();
+    const unstaged = this.git.unstaged();
+    return staged.length + unstaged.length;
+  });
+
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly strip = viewChild.required<ElementRef<HTMLElement>>('strip');
+  readonly overflowing = signal(false);
+  readonly atEnd = signal(true);
+
   constructor() {
     effect(() => {
       // activeTabId (not the explorer's active node): opening a diff doesn't change the explorer's active node.
@@ -198,6 +230,36 @@ export class MainPanel {
         setTimeout(() => this.scrollActiveIntoView(), 0);
       }
     });
+    effect(() => {
+      const tab = this.activeTab();
+      if (!tab) return;
+      afterNextRender(
+        () => {
+          this.elementRef.nativeElement
+            .querySelector(`[data-tab-id="${tab.id}"]`)
+            ?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+        },
+        { injector: this.injector },
+      );
+    });
+
+    afterNextRender(() => {
+      const observer = new ResizeObserver(() => this.measure());
+      observer.observe(this.strip().nativeElement);
+      this.destroyRef.onDestroy(() => observer.disconnect());
+    });
+
+    // Tabs opening, closing or renaming change scrollWidth without resizing the strip
+    effect(() => {
+      this.tabs();
+      afterNextRender(() => this.measure(), { injector: this.injector });
+    });
+  }
+
+  measure() {
+    const el = this.strip().nativeElement;
+    this.overflowing.set(el.scrollWidth > el.clientWidth + 1);
+    this.atEnd.set(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1);
   }
 
   scrollActiveIntoView(): void {
@@ -242,6 +304,23 @@ export class MainPanel {
 
   onTabDrop(e: any) {
     this.tabStore.reorder(e.previousIndex, e.currentIndex);
+  }
+  onTabsWheel(event: WheelEvent, el: HTMLElement) {
+    if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+      el.scrollLeft += event.deltaY;
+      event.preventDefault();
+    }
+  }
+
+  protected toggleToolkit(toolkit: Toolkit) {
+    if (this.layoutService.activeToolkit() === toolkit) {
+      this.layoutService.toggleBottomPanel();
+    } else if (!this.layoutService.isBottomPanelCollapsed()) {
+      this.layoutService.toggleToolkit(toolkit);
+    } else {
+      this.layoutService.toggleToolkit(toolkit);
+      this.layoutService.toggleBottomPanel();
+    }
   }
 
   isDirty(nodeId: string) {

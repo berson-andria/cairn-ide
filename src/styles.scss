@@ -69,6 +69,7 @@ button {
 }
 button:disabled {
   cursor: default;
+  opacity: 0.5;
 }
 .full_width {
   width: 100%;
@@ -223,19 +224,6 @@ button:disabled {
   color: var(--color-attention);
 }
 
-.tab {
-  color: var(--color-text-muted);
-  height: 100%;
-  line-height: 100%;
-  &:hover {
-    color: var(--color-text-secondary);
-  }
-}
-.tab--active {
-  color: var(--color-text-primary);
-  border-bottom: 2px solid var(--color-focus);
-  box-sizing: border-box;
-}
 .notif {
   color: var(--color-attention);
   background-color: var(--color-surface-raised-hover);
@@ -369,4 +357,7 @@ ng-icon {
       font-size: 16px;
     }
   }
+}
+.git-blame-inline {
+  color: color-mix(in srgb, var(--color-text-faint) 50%, transparent) !important;
 }

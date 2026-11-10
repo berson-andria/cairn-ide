@@ -1,32 +1,58 @@
-<div class="tabs">
-  <div
-    class="opened-tabs"
-    cdkDropList
-    cdkDropListOrientation="horizontal"
-    (cdkDropListDropped)="onTabDrop($event)"
-  >
-    @for (tab of tabs(); track tab.id) {
-      <div
-        class="tab"
-        [class.tab--active]="tab.active"
-        [class.is-dirty]="tab.dirty"
-        [class.is-diff]="tab.kind === 'diff'"
-        cdkDrag
-        cdkDragLockAxis="x"
-        [title]="tab.tooltip"
-        (click)="openTab(tab.id)"
-      >
-        <file-icon [name]="tab.label" [type]="'file'" />
-        <span>{{ tab.label }}</span>
-        <button (click)="$event.stopPropagation(); closeTab(tab.id)">x</button>
-      </div>
-    }
-  </div>
-  <div class="unsaved-control">
-    <button title="Highlight Unsaved Files">Unsaved · {{ dirtyFileCount() }}</button>
-  </div>
-</div>
+@if (activeTab()) {
+  <div class="tabs">
+    <div
+      class="opened-tabs"
+      cdkDropList
+      cdkDropListOrientation="horizontal"
+      (cdkDropListDropped)="onTabDrop($event)"
+      #strip
+      [class.is-overflowing]="overflowing()"
+      [class.at-end]="atEnd()"
+      (scroll)="measure()"
+      (wheel)="onTabsWheel($event, strip)"
+    >
+      @for (tab of tabs(); track tab.id) {
+        <div
+          class="editor-tab"
+          [class.tab--active]="tab.active"
+          [class.is-dirty]="tab.dirty"
+          [class.is-diff]="tab.kind === 'diff'"
+          [attr.data-tab-id]="tab.id"
+          cdkDrag
+          cdkDragLockAxis="x"
+          [title]="tab.tooltip"
+          (click)="openTab(tab.id)"
+        >
+          <file-icon [name]="tab.label" [type]="'file'" />
+          <span>{{ tab.label }}</span>
+          <button class="icon-btn" (click)="$event.stopPropagation(); closeTab(tab.id)">
+            <ng-icon name="lucideX"></ng-icon>
+          </button>
+        </div>
+      }
+    </div>
+    <div class="unsaved-control">
+      @if (dirtyFileCount()) {
+        <button class="notif" title="Highlight Unsaved Files">
+          <span>{{ dirtyFileCount() }} </span><ng-icon name="lucideFileWarning "></ng-icon>
+        </button>
+      }
 
+      @if (gitChangesCount() > 0) {
+        <button
+          class="notif"
+          [class.notif]="gitChangesCount() > 0"
+          type="button"
+          aria-label="Open Git"
+          (click)="toggleToolkit('Git')"
+        >
+          <span>{{ gitChangesCount() }}</span>
+          <ng-icon name="lucideGitBranch " />
+        </button>
+      }
+    </div>
+  </div>
+}
 <div class="workspace-content">
   @if (nodeStore.rootPath()) {
     @if (!activeTab()) {
