@@ -5,11 +5,75 @@
 <header class="title-bar" data-tauri-drag-region>
   <div class="title-bar__start" data-tauri-drag-region>
     <img src="assets/icon.png" alt="" width="24px" />
-    <button class="title-bar__menu" type="button" aria-label="Cairn menu">
+    <button
+      class="title-bar__menu"
+      type="button"
+      aria-label="Cairn menu"
+      [appMenu]="main_menu"
+      [menuPosition]="['left', 'bottom']"
+    >
       <ng-icon name="lucideFolderRoot " style="font-size: 14px" />
       <span>{{ project() }}</span>
       <ng-icon name="lucideChevronDown" />
     </button>
+    <ng-template #main_menu>
+      <div class="menu actions-menu" role="menu">
+        <div class="menu-item-group">
+          <button class="menu-item" role="menuitem">
+            New Windows <span class="chip">Ctrl + Shift + N</span>
+          </button>
+          <button class="menu-item" role="menuitem">
+            New Task <span class="chip">Ctrl + Alt + T</span>
+          </button>
+          <button class="menu-item" role="menuitem">
+            New Note <span class="chip">Ctrl + Alt + N</span>
+          </button>
+        </div>
+        <div class="menu-item-group">
+          <button class="menu-item" role="menuitem" (click)="commands.openFolder()">
+            Open Folder... <span class="chip">Ctrl + Shift + O</span>
+          </button>
+          <button class="menu-item" role="menuitem" (click)="openFile()">
+            Open File... <span class="chip">Ctrl + O</span>
+          </button>
+          <button
+            class="menu-item menu-accordion-btn"
+            [appMenu]="history"
+            [menuPosition]="['right', 'center']"
+            [disabled]="true"
+          >
+            <span>Open Recent</span> <ng-icon name="lucideChevronRight" />
+          </button>
+          <ng-template #history>
+            <div class="menu">
+              <div class="menu-item-group">
+                <!-- <button class="menu-item" role="menuitem">Commit</button>
+                <button class="menu-item" role="menuitem">Commit Staged</button>
+                <button class="menu-item" role="menuitem">Commit All</button> -->
+              </div>
+            </div>
+          </ng-template>
+        </div>
+        <div class="menu-item-group">
+          <button class="menu-item" role="menuitem" (click)="saveFile()">
+            Save <span class="chip">Ctrl + S</span>
+          </button>
+          <button class="menu-item" role="menuitem">
+            Save All<span class="chip">Ctrl + Alt + S</span>
+          </button>
+          <button class="menu-item" role="menuitem">
+            Save As... <span class="chip">Ctrl + Shift + S</span>
+          </button>
+        </div>
+        <div class="menu-item-group">
+          <button class="menu-item" role="menuitem">Close Folder</button>
+          <button class="menu-item" role="menuitem">
+            Setting <span class="chip" (click)="layoutService.openSettingDialog()">Ctrl + ,</span>
+          </button>
+          <button class="menu-item" role="menuitem" (click)="close()">Exit</button>
+        </div>
+      </div>
+    </ng-template>
 
     <button class="icon-btn" type="button" aria-label="Back">
       <svg

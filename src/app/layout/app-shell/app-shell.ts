@@ -22,6 +22,7 @@ import {
   lucideAlertTriangle,
   lucideBraces,
   lucideChevronDown,
+  lucideChevronRight,
   lucideFolderRoot,
   lucideGitBranch,
   lucideOctagonX,
@@ -33,17 +34,20 @@ import { GitService } from '../../feature/git/services/git.service';
 import { MonitoringService } from '../../core/services/monitoring.service';
 import { CommonModule } from '@angular/common';
 import { loadIconSprite } from '../../shared/utils/icon-sprite';
+import { MenuDirective } from '../../shared/directives/menu.directive';
+import { TabStore } from '../../core/store/tab.store';
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [LeftPanel, MainPanel, NgIcon, CommonModule],
+  imports: [LeftPanel, MainPanel, NgIcon, CommonModule, MenuDirective],
   templateUrl: './app-shell.html',
   styleUrl: './app-shell.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [
     provideIcons({
       lucideChevronDown,
+      lucideChevronRight,
       lucideFolderRoot,
       lucideGitBranch,
       lucideOctagonX,
@@ -61,6 +65,7 @@ export class AppShell {
   readonly git = inject(GitService);
   readonly ngZone = inject(NgZone);
   readonly lsp = inject(LspBridgeService);
+  protected tabStore = inject(TabStore);
   readonly monitoring = inject(MonitoringService);
 
   protected readonly project = computed(() => {
@@ -103,6 +108,21 @@ export class AppShell {
     });
     this.isMaximized.set(await this.currentWindow.isMaximized());
   }
+
+  async saveFile() {
+    const id = this.tabStore.activeTabId();
+    if (!id || !this.tabStore.isDirty(id)) return;
+    if (this.tabStore.isDiffTab(id)) {
+      const modified = this.tabStore.diffTabs()[id].request.modified;
+      if (modified.kind === 'worktree') {
+        return await this.commands.saveFile(modified.fileId);
+      }
+      return;
+    } else {
+      return await this.commands.saveFile(id);
+    }
+  }
+
   protected minimize(): void {
     void this.withWindow((w) => w.minimize());
   }
@@ -121,6 +141,12 @@ export class AppShell {
     } else {
       this.layoutService.toggleToolkit(toolkit);
       this.layoutService.toggleBottomPanel();
+    }
+  }
+  protected async openFile() {
+    const files = await this.nodeStore.addStandaloneFiles();
+    for (const id of files) {
+      this.commands.openFile(id);
     }
   }
 

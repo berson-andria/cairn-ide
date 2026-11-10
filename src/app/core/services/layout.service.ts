@@ -36,4 +36,5 @@ export class LayoutService {
   openSearchDialog() {
     this.dialogService.open(Search);
   }
+  openSettingDialog() {}
 }

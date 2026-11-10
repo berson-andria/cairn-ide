@@ -154,7 +154,7 @@
   gap: var(--space-16);
   min-width: 0;
 }
-button.status-bar__item{
+button.status-bar__item {
   border-radius: var(--space-4);
   padding: var(--space-4);
 }
@@ -170,4 +170,11 @@ button.status-bar__item{
 .status-bar__hint {
   margin-left: var(--space-4);
   color: var(--color-text-muted);
+}
+.menu-item {
+  .chip {
+    border: 0;
+    color: var(--color-text-muted);
+    float: right;
+  }
 }
