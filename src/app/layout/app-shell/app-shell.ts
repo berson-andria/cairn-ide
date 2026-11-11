@@ -96,7 +96,6 @@ export class AppShell {
     this.currentWindow = getCurrentWindow();
     effect(() => {
       const root = this.nodeStore.rootPath();
-      console.log(this.nodeStore.rootName(), this.counts());
 
       if (root) untracked(() => void this.watcher.start(root));
     });
