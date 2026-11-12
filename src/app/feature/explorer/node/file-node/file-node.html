@@ -5,6 +5,7 @@
   [nodeDnd]="nodeId()"
   (click)="onClick($event)"
   (dblclick)="onDoubleClick()"
+  [style.color]="statusStyle()"
 >
   <span class="accordion"></span>
   <file-icon [name]="nodeStore.nodes()[nodeId()].name" [type]="'file'" />
@@ -13,4 +14,7 @@
   } @else {
     <span class="node-name">{{ nodeStore.nodes()[nodeId()].name }}</span>
   }
+  <span class="git-letter" style="margin-left: auto; margin-right: var(--space-6)">{{
+    fileBadge()?.letter
+  }}</span>
 </div>

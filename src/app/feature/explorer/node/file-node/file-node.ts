@@ -1,3 +1,4 @@
+import { statusStyle } from './../../../git/ui/git-ui';
 import { NgClass, NgStyle } from '@angular/common';
 import { Component, computed, inject, input, InputSignal, OnInit } from '@angular/core';
 import { NodeDndDirective } from '../node-dnd.directive';
@@ -7,6 +8,7 @@ import { indentStyle } from '../../../../shared/utils/node.utils';
 import { EditorCommands } from '../../../editor/editor.commands';
 import { EditorService } from '../../../editor/services/editor.service';
 import { FileIcon } from '../../../../shared/components/file-icon';
+import { GitService } from '../../../git/services/git.service';
 
 @Component({
   selector: 'file-node',
@@ -15,14 +17,17 @@ import { FileIcon } from '../../../../shared/components/file-icon';
   imports: [NgClass, NgStyle, RenameNode, NodeDndDirective, FileIcon],
 })
 export class FileNode {
-  nodeStore = inject(NodeStore);
-  commands = inject(EditorCommands);
-  editorService = inject(EditorService);
+  protected readonly nodeStore = inject(NodeStore);
+  protected readonly commands = inject(EditorCommands);
+  protected readonly editorService = inject(EditorService);
+  protected readonly git = inject(GitService);
 
   nodeId: InputSignal<string> = input.required();
 
   level: InputSignal<number> = input.required();
   indentMultiplier = 10;
+
+  fileBadge = computed(() => this.git.badgeFor(this.nodeStore.nodes()[this.nodeId()].path));
 
   isActive = computed(() => {
     return this.nodeId() == this.nodeStore.activeNodeId();
@@ -31,6 +36,10 @@ export class FileNode {
   isCut = computed(() => this.nodeStore.isCutNode(this.nodeId()));
   isRenaming = computed(() => this.nodeStore.renamingNodeId() === this.nodeId());
   fetched = false;
+
+  statusStyle() {
+    return this.fileBadge() ? statusStyle(<any>this.fileBadge()?.letter).color : 'inherit';
+  }
 
   indentStyle() {
     return indentStyle(this.level(), 10);

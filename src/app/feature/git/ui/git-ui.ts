@@ -46,7 +46,7 @@ const COLORS: Record<GitUiStatus, { background: string; color: string }> = {
   R: { background: '#2a2f3a', color: '#a5c7e8' },
   C: { background: '#2f2a3a', color: '#c7a5e8' },
   T: { background: '#3a2f2a', color: '#e8c7a5' },
-  U: { background: '#2a2a2a', color: '#b0b0b0' },
+  U: { background: '#1f2a1e', color: '#b9d2ae' },
   '!': { background: '#4a1d24', color: '#ff9aa5' },
 };
 
