@@ -122,6 +122,21 @@ button:disabled {
   font-size: var(--font-size-label);
   color: var(--color-text-secondary);
 }
+.linked-btn {
+  display: flex;
+  flex-direction: row;
+  height: fit-content;
+  border-radius: var(--radius-chip);
+  overflow: hidden;
+  gap: 1px;
+  button {
+    margin: 0;
+    border-radius: 0 !important;
+  }
+  button.main-btn {
+    flex: 1;
+  }
+}
 
 /* Icon-only button. Muted until hovered; dimmed when disabled. */
 .icon-btn {

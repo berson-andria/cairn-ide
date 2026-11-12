@@ -49,8 +49,8 @@ export interface GitIdentity {
   email: string;
 }
 
-const ok = (output = ''): GitResult => ({ ok: true, output, error: '' });
-const fail = (error: string): GitResult => ({ ok: false, output: '', error });
+export const ok = (output = ''): GitResult => ({ ok: true, output, error: '' });
+export const fail = (error: string): GitResult => ({ ok: false, output: '', error });
 
 /** What git says when user.name / user.email aren't configured (wording varies by version and platform). */
 const IDENTITY_ERROR =

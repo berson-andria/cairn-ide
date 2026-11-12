@@ -5,7 +5,7 @@ import { PickerDialogComponent, PickerDialogData } from '../features/dialogs/pic
 import { FormDialog, FormDialogData, FormDialogResult } from '../features/dialogs/form-dialog';
 
 import { GitBranch } from '../parser/branch.parser';
-import { GitService } from './git.service';
+import { GitResult, GitService } from './git.service';
 import { plural } from '../features/dialogs/dialog-shared';
 import { ChoiceDialog, ChoiceDialogData } from '../features/dialogs/choice-dialog';
 import { GitIdentityDialog } from '../features/dialogs/identity-dialog';
@@ -107,23 +107,50 @@ export class GitDialogService {
     return r && { name: r['name'], url: r['url'] };
   }
 
-  /** Commit message box. When amending, an empty message keeps the previous one. */
+  /** Replaces the earlier commitMessage preset: `message` is a short line shown above the box. */
   async commitMessage(
-    options: { amend?: boolean; initial?: string } = {},
+    options: { amend?: boolean; initial?: string; message?: string } = {},
   ): Promise<string | undefined> {
     const r = await this.form(options.amend ? 'Amend commit' : 'Commit', {
-      fields: [
-        {
-          key: 'message',
-          label: 'Message',
-          value: options.initial ?? '',
-          multiline: true,
-          optional: !!options.amend,
-        },
-      ],
+      message: options.message,
+      fields: [{ key: 'message', label: 'Message', value: options.initial ?? '', multiline: true }],
       submitLabel: options.amend ? 'Amend' : 'Commit',
     });
     return r?.['message'];
+  }
+
+  async unsavedChoice(count: number): Promise<'save' | 'skip' | undefined> {
+    return (await this.choose('Unsaved files', {
+      message: `${count} ${plural(count, 'file has', 'files have')} unsaved changes. Only what is saved to disk can be committed.`,
+      legend: 'What to do with unsaved files',
+      submitLabel: 'Continue',
+      initial: 'save',
+      options: [
+        { value: 'save', label: 'Save All & Commit' },
+        { value: 'skip', label: 'Commit Without Saving', hint: 'unsaved edits stay in the editor' },
+      ],
+    })) as 'save' | 'skip' | undefined;
+  }
+
+  /**
+   * Runs a git action. If it fails because git doesn't know who you are, asks for the identity and
+   * retries once. Logins and passphrases are handled by askpass, so there is no 'auth' case any more.
+   */
+  async withRecovery(action: () => Promise<GitResult>): Promise<GitResult> {
+    const result = await action();
+    if (result.code === 'identity') {
+      if (!(await this.identity())) {
+        return { ...result, error: 'Cancelled: git needs your name and email first.' };
+      }
+      return action();
+    }
+    if (result.code === 'ssh') {
+      return {
+        ...result,
+        error: `${result.error}\n\nCheck that this key is added to your account and loaded (ssh-add).`,
+      };
+    }
+    return result;
   }
 
   /** Branch name validated by git itself (check-ref-format). */

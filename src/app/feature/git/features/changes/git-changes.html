@@ -156,29 +156,64 @@
       />
     </div>
     <div class="btn-group" style="display: flex; gap: var(--space-6); margin-top: var(--space-10)">
-      <button
-        class="btn-action"
-        style="flex: 1"
-        [disabled]="!commitMessage().trim() || stagedFiles().length === 0 || git.busy()"
-        (click)="commit()"
-      >
-        Commit
-      </button>
-      <button class="btn-action" [appMenu]="action" [menuPosition]="['left', 'bottom']">
-        <ng-icon name="lucideEllipsis" />
-      </button>
-      <ng-template #action>
-        <div class="menu actions-menu" role="menu">
-          <div class="menu-item-group">
-            <button class="menu-item" role="menuitem">Commit</button>
-            <button class="menu-item" role="menuitem">Commit (Amend)</button>
-          </div>
-          <div class="menu-item-group">
-            <button class="menu-item" role="menuitem">Commit & Push</button>
-            <button class="menu-item" role="menuitem">Commit & Sync</button>
-          </div>
+      @if (ahead() > 0 && stagedFiles().length == 0 && changedFiles().length == 0) {
+        <button class="btn-action full_width" [disabled]="git.busy()" (click)="sync()">
+          <ng-icon name="lucideRefreshCcw" />
+          <span style="margin: 0 var(--space-6)">Sync Changes {{ ahead() }}</span>
+          <ng-icon name="lucideArrowUp" />
+        </button>
+      } @else {
+        <div class="linked-btn full_width">
+          <button
+            class="btn-action main-btn"
+            style="flex: 1"
+            [disabled]="!hasChanges() || git.busy()"
+            (click)="commit()"
+          >
+            Commit
+          </button>
+          <button
+            class="btn-action"
+            [appMenu]="action"
+            [menuPosition]="['left', 'bottom']"
+            [disabled]="!hasChanges() || git.busy()"
+          >
+            <ng-icon name="lucideEllipsis" />
+          </button>
         </div>
-      </ng-template>
+        <ng-template #action>
+          <div class="menu actions-menu" role="menu">
+            <div class="menu-item-group">
+              <button
+                class="menu-item"
+                role="menuitem"
+                [disabled]="git.busy()"
+                (click)="commitAmend()"
+              >
+                Commit (Amend)
+              </button>
+            </div>
+            <div class="menu-item-group">
+              <button
+                class="menu-item"
+                role="menuitem"
+                [disabled]="!hasChanges() || git.busy()"
+                (click)="commitAndPush()"
+              >
+                Commit &amp; Push
+              </button>
+              <button
+                class="menu-item"
+                role="menuitem"
+                [disabled]="!hasChanges() || git.busy()"
+                (click)="commitAndSync()"
+              >
+                Commit &amp; Sync
+              </button>
+            </div>
+          </div>
+        </ng-template>
+      }
     </div>
     @if (notice(); as n) {
       <div class="notice" [class.notice--error]="n.kind === 'error'" role="alert">

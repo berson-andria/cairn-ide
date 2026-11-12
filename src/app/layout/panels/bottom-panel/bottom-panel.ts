@@ -45,6 +45,7 @@ import {
 } from '../../../feature/git/services/git-dialog.service';
 import { confirmAction } from '../../../feature/git/ui/git-dialogs';
 import { plural } from '../../../feature/git/features/dialogs/dialog-shared';
+import { GitCommitService } from '../../../feature/git/services/git-commit.service';
 
 @Component({
   selector: 'bottom-panel',
@@ -75,6 +76,7 @@ export class BottomPanel {
   protected readonly layoutService = inject(LayoutService);
   protected readonly nodeStore = inject(NodeStore);
   protected readonly git = inject(GitService);
+  private readonly commits = inject(GitCommitService);
   protected readonly dialogs = inject(GitDialogService);
   protected readonly height = signal<number | null>(null);
   protected readonly minHeight = 100;
@@ -343,23 +345,13 @@ export class BottomPanel {
         error: `${result.error}\n\nSSH is used without prompts. Load your key into ssh-agent (ssh-add), connect once in a terminal to trust the host, or use an HTTPS remote.`,
       };
     }
-    console.log(result);
     return result;
   }
 
   // ── Commit ──────────────────────────────────────────────────────────────────
   // 'staged' = what is staged, 'all' = git commit -a, 'amend' = rewrite the last commit.
   async commit(mode: 'staged' | 'all' | 'amend') {
-    const amend = mode === 'amend';
-    const message = await this.dialogs.commitMessage({
-      amend,
-      initial: amend ? await this.git.lastCommitMessage() : '',
-    });
-    if (message === undefined) return;
-    await this.runAction(
-      () => this.git.commit(message, { all: mode === 'all', amend }),
-      amend ? 'Commit amended.' : 'Committed.',
-    );
+    return this.commits.commit(mode);
   }
 
   async undoLastCommit() {
