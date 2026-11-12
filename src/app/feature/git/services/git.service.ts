@@ -6,29 +6,22 @@ import { debounceTime } from 'rxjs';
 import { TauriBridgeService } from '../../../core/services/tauri/tauri-bridge.service';
 
 import { NodeStore } from '../../../core/store/node.store';
+import { GitChangeKind } from '../parser/git-types';
+import { GitFileStatus, GitStatus, parseStatusV2, STATUS_ARGS } from '../parser/status.parser';
+import { BRANCH_FORMAT, GitBranch, parseBranches } from '../parser/branch.parser';
+import { FileBlame, parseBlame } from '../parser/blame.parser';
 import {
-  GitChangeKind,
-  GitFileStatus,
-  GitStatus,
-  parseStatusV2,
-} from '../parser/git-status.parser';
-import {
-  BRANCH_FORMAT,
-  GitBranch,
-  GitCommit,
-  GitStash,
-  LOG_FORMAT,
-  parseBranches,
-  parseLog,
-  parseStashes,
-  STASH_FORMAT,
-  FileBlame,
-  parseBlame,
   COMMIT_DETAILS_FORMAT,
   CommitDetails,
   CommitFile,
+  GitCommit,
+  GitStash,
+  LOG_FORMAT,
   parseCommitDetails,
-} from '../parser/git-parsers';
+  parseLog,
+  parseStashes,
+  STASH_FORMAT,
+} from '../parser/log.parser';
 import { normalizePath } from '../../../core/services/file-system/external-watcher.utils';
 
 export interface GitCommandOutput {
@@ -47,7 +40,13 @@ export interface GitResult {
   /** True when git could not be run at all (not installed, refused by the allowlist, timed out). */
   unavailable?: boolean;
   /** Set when the failure has a known remedy: 'identity' = git doesn't know the user's name/email yet. */
-  code?: 'identity';
+  code?: 'identity' | 'auth' | 'ssh';
+}
+
+/** The name and email git puts on a commit. */
+export interface GitIdentity {
+  name: string;
+  email: string;
 }
 
 const ok = (output = ''): GitResult => ({ ok: true, output, error: '' });
@@ -56,6 +55,9 @@ const fail = (error: string): GitResult => ({ ok: false, output: '', error });
 /** What git says when user.name / user.email aren't configured (wording varies by version and platform). */
 const IDENTITY_ERROR =
   /Please tell me who you are|Author identity unknown|unable to auto-detect email address/i;
+const AUTH_ERROR =
+  /Authentication failed|could not read (Username|Password)|terminal prompts disabled|Invalid username or password|HTTP Basic: Access denied|returned error: 40[13]|password authentication was removed/i;
+const SSH_ERROR = /Permission denied \(publickey|Host key verification failed/i;
 
 /** What the explorer shows next to a file. */
 export interface GitBadge {
@@ -80,6 +82,9 @@ const SLOW_TIMEOUT = 120; // commit hooks can take a while
 
 /** Paths from git and from the explorer are compared in one normal form (backslashes, lower case). */
 const keyOf = (path: string) => normalizePath(path).toLowerCase();
+
+/** Without this, git reads "a*.ts" or "[id].ts" as a pattern and touches the wrong files. */
+const literal = (path: string) => `:(literal)${path}`;
 
 @Injectable({ providedIn: 'root' })
 export class GitService {
@@ -151,7 +156,6 @@ export class GitService {
     });
     // Any file-system activity (including .git/index changing after a terminal `git add`).
     fsEvents$.pipe(debounceTime(500), takeUntilDestroyed()).subscribe(() => void this.refresh());
-
     (window as any).__git = () => ({
       repoRoot: this.repoRoot(),
       error: this.error(),
@@ -223,6 +227,7 @@ export class GitService {
       this.refreshAgain = true;
       return this.running;
     }
+
     this.running = this.load().finally(() => {
       this.running = undefined;
       if (this.refreshAgain) {
@@ -241,12 +246,7 @@ export class GitService {
     if (top.unavailable) return this.clear(top.error); // git missing or refused
     if (!top.ok) return this.clear(null); // a plain folder, not a repository
 
-    const status = await this.exec(
-      ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all'],
-      {
-        cwd: workspace,
-      },
-    );
+    const status = await this.exec(STATUS_ARGS, { cwd: workspace });
     if (!status.ok) return this.clear(`git status failed: ${status.error}`);
 
     this.repoRoot.set(normalizePath(top.output.trim()));
@@ -364,12 +364,16 @@ export class GitService {
   }
 
   async history(limit = 50, absolutePath?: string, skip: number = 0): Promise<GitCommit[]> {
-    const args = ['log', `-n${Math.max(1, Math.floor(limit))}`, LOG_FORMAT];
+    const args = [
+      'log',
+      `-n${Math.max(1, Math.floor(limit))}`,
+      `--skip=${Math.max(0, skip)}`,
+      LOG_FORMAT,
+    ];
     if (absolutePath) {
       const relative = this.repoPathOf(absolutePath);
       if (!relative) return [];
       args.push('--follow', '--', relative);
-      args.push(`--skip=${skip}`);
     }
     const result = await this.exec(args);
     return result.ok ? parseLog(result.output) : [];
@@ -408,7 +412,7 @@ export class GitService {
 
   /**
    * Both sides of a commit's change to one file, ready for a diff editor.
-   * Uses oldPath for renames; the parent side is null for added files and for the root commit.
+   * Uses origPath for renames; the parent side is null for added files and for the root commit.
    */
   async readCommitDiff(
     hash: string,
@@ -417,9 +421,38 @@ export class GitService {
     const before =
       file.status === 'added'
         ? null
-        : await this.readAtCommit(`${hash}^`, file.oldPath ?? file.path);
+        : await this.readAtCommit(`${hash}^`, file.origPath ?? file.path);
     const after = file.status === 'deleted' ? null : await this.readAtCommit(hash, file.path);
     return { before, after };
+  }
+
+  /** Pull, then push. Stops at the first failure. */
+  async sync(): Promise<GitResult> {
+    const pulled = await this.pull();
+    return pulled.ok ? this.push() : pulled;
+  }
+
+  renameBranch(oldName: string, newName: string): Promise<GitResult> {
+    if (!oldName || !newName || oldName.startsWith('-') || newName.startsWith('-'))
+      return Promise.resolve(fail('Invalid branch name.'));
+    return this.mutate(['branch', '-m', oldName, newName]);
+  }
+
+  checkoutDetached(ref: string): Promise<GitResult> {
+    if (!ref || ref.startsWith('-')) return Promise.resolve(fail('Invalid branch or commit.'));
+    return this.mutate(['switch', '--detach', ref]);
+  }
+
+  rebase(branch: string): Promise<GitResult> {
+    if (!branch || branch.startsWith('-')) return Promise.resolve(fail('Invalid branch name.'));
+    return this.mutate(['rebase', branch]); // on conflicts ok=false and conflicts() lists the files
+  }
+  rebaseAbort() {
+    return this.mutate(['rebase', '--abort']);
+  }
+
+  stashDropAll() {
+    return this.mutate(['stash', 'clear']);
   }
 
   // ───────────── branches ─────────────
@@ -487,7 +520,7 @@ export class GitService {
   // ───────────── identity ─────────────
 
   /** What git would put on a commit; empty strings when not configured. */
-  async getIdentity(): Promise<{ name: string; email: string }> {
+  async getIdentity(): Promise<GitIdentity> {
     const [name, email] = await Promise.all([
       this.exec(['config', '--get', 'user.name']),
       this.exec(['config', '--get', 'user.email']),
@@ -509,19 +542,79 @@ export class GitService {
     if (!nameResult.ok) return nameResult;
     return this.exec(['config', `--${scope}`, 'user.email', e]);
   }
+  // -- credentials
+  /** The URL of a remote ("origin" or the first one when omitted). */
+  async remoteUrl(remote?: string): Promise<string | null> {
+    const name = remote ?? (await this.defaultRemote());
+    if (!name) return null;
+    const result = await this.exec(['remote', 'get-url', name]);
+    return result.ok ? result.output.trim() : null;
+  }
+
+  /** What a credential helper keys a login on. null for SSH or local remotes: they have no password to type. */
+  async credentialTarget(
+    remote?: string,
+  ): Promise<{ protocol: string; host: string; username: string } | null> {
+    const url = await this.remoteUrl(remote);
+    if (!url) return null;
+    try {
+      const u = new URL(url); // "git@github.com:a/b.git" is not a URL: throws, so SSH ends up null
+      if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+      return {
+        protocol: u.protocol.slice(0, -1),
+        host: u.host,
+        username: decodeURIComponent(u.username),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /** The configured helper ("manager", "osxkeychain"...), or null: then nothing can remember a password. */
+  async credentialHelper(): Promise<string | null> {
+    const result = await this.exec(['config', '--get', 'credential.helper']);
+    return result.ok && result.output.trim() ? result.output.trim() : null;
+  }
+
+  /**
+   * Hands a login to the user's credential helper (Windows Credential Manager through Git Credential
+   * Manager, macOS Keychain, libsecret...). The app never keeps it: the password goes to git's stdin
+   * and nowhere else. The old entry is forgotten first so the new one replaces it.
+   */
+  async saveCredentials(
+    target: { protocol: string; host: string },
+    username: string,
+    secret: string,
+  ): Promise<GitResult> {
+    if (!username || !secret || /[\r\n\0]/.test(username + secret))
+      return fail('Enter a username and a token.');
+    const base = `protocol=${target.protocol}\nhost=${target.host}\n`;
+    await this.exec(['credential', 'reject'], { stdin: `${base}username=${username}\n\n` });
+    return this.exec(['credential', 'approve'], {
+      stdin: `${base}username=${username}\npassword=${secret}\n\n`,
+    });
+  }
 
   // ───────────── remotes ─────────────
+  private async network(args: string[]): Promise<GitResult> {
+    const result = await this.mutate(args, { timeoutSecs: NETWORK_TIMEOUT });
+    if (result.ok) return result;
+    if (AUTH_ERROR.test(result.error)) return { ...result, code: 'auth' };
+    if (SSH_ERROR.test(result.error)) return { ...result, code: 'ssh' };
+    return result;
+  }
 
-  fetch(): Promise<GitResult> {
-    return this.mutate(['fetch', '--prune'], { timeoutSecs: NETWORK_TIMEOUT });
+  fetch() {
+    return this.network(['fetch', '--prune']);
   }
 
   /**
    * Fast-forward only: if both sides have new commits this fails instead of silently creating a merge
    * commit. Merge or rebase yourself in that case.
    */
-  pull(): Promise<GitResult> {
-    return this.mutate(['pull', '--ff-only'], { timeoutSecs: NETWORK_TIMEOUT });
+
+  pull() {
+    return this.network(['pull', '--ff-only']);
   }
 
   async push(options: { force?: boolean } = {}): Promise<GitResult> {
@@ -540,7 +633,50 @@ export class GitService {
         );
       args.push('--set-upstream', remote, status.branch);
     }
-    return this.mutate(args, { timeoutSecs: NETWORK_TIMEOUT });
+    return this.network(args);
+  }
+
+  // GitService: replaces the earlier pullRebase()
+  pullRebase(autostash = false) {
+    return this.network(['pull', '--rebase', ...(autostash ? ['--autostash'] : [])]);
+  }
+
+  pullFrom(remote: string, branch: string): Promise<GitResult> {
+    if (!remote || !branch || remote.startsWith('-') || branch.startsWith('-'))
+      return Promise.resolve(fail('Invalid remote or branch.'));
+    return this.network(['pull', '--ff-only', remote, branch]);
+  }
+
+  /** Pushes the current branch to `remote` and makes it the upstream. Also "Publish Branch". */
+  pushTo(remote: string): Promise<GitResult> {
+    const branch = this.status()?.branch;
+    if (!branch) return Promise.resolve(fail('You are not on a branch (detached HEAD).'));
+    if (!remote || remote.startsWith('-')) return Promise.resolve(fail('Invalid remote.'));
+    return this.network(['push', '--set-upstream', remote, branch]);
+  }
+
+  async remotes(): Promise<string[]> {
+    const result = await this.exec(['remote']);
+    return result.ok ? result.output.split(/\r?\n/).filter(Boolean) : [];
+  }
+
+  addRemote(name: string, url: string): Promise<GitResult> {
+    const n = name.trim();
+    const u = url.trim();
+    if (!n || !u || n.startsWith('-') || u.startsWith('-'))
+      return Promise.resolve(fail('Invalid remote name or URL.'));
+    return this.mutate(['remote', 'add', n, u]);
+  }
+
+  removeRemote(name: string): Promise<GitResult> {
+    if (!name || name.startsWith('-')) return Promise.resolve(fail('Invalid remote name.'));
+    return this.mutate(['remote', 'remove', name]);
+  }
+
+  deleteRemoteBranch(remote: string, branch: string): Promise<GitResult> {
+    if (!remote || !branch || remote.startsWith('-') || branch.startsWith('-'))
+      return Promise.resolve(fail('Invalid remote or branch.'));
+    return this.network(['push', remote, '--delete', branch]);
   }
 
   async defaultRemote(): Promise<string | null> {
@@ -552,9 +688,10 @@ export class GitService {
   // ───────────── stash ─────────────
 
   /** Includes untracked files, so the working tree really ends up clean. */
-  stash(message?: string): Promise<GitResult> {
-    const args = ['stash', 'push', '--include-untracked'];
-    if (message?.trim()) args.push('-m', message.trim());
+  stash(message = '', includeUntracked = false) {
+    const args = ['stash', 'push'];
+    if (includeUntracked) args.push('--include-untracked');
+    if (message.trim()) args.push('-m', message.trim());
     return this.mutate(args);
   }
 

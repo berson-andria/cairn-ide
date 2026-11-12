@@ -1,9 +1,22 @@
+use std::process::ExitCode;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+
+use tauri::Manager;
 
 mod commands;
 mod services;
 mod types;
+
+/// True when this process was started by git or ssh as their askpass program (see commands/askpass.rs).
+pub fn is_askpass_helper() -> bool {
+    commands::askpass::is_helper()
+}
+
+/// Answers one git / ssh question through the running app, then exits. No window, no Tauri.
+pub fn run_askpass_helper() -> ExitCode {
+    commands::askpass::run_helper()
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -13,6 +26,11 @@ pub fn run() {
         ))))
         .manage(commands::lsp::LspState::default())
         .manage(commands::pty::PtyState::default())
+        .setup(|app| {
+            // Local server that git / ssh questions (password, passphrase, host key) are sent to.
+            app.manage(commands::askpass::Askpass::start(app.handle().clone())?);
+            Ok(())
+        })
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(tauri_plugin_log::log::LevelFilter::Info)
@@ -31,6 +49,7 @@ pub fn run() {
             commands::search::global_search,
             commands::search::search_files,
             commands::git::git_run,
+            commands::askpass::askpass_answer,
             commands::lsp::lsp_start,
             commands::lsp::lsp_send,
             commands::lsp::lsp_stop,

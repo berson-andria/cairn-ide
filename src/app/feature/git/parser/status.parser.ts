@@ -1,18 +1,6 @@
-export type GitChangeKind =
-  | 'modified'
-  | 'added'
-  | 'deleted'
-  | 'renamed'
-  | 'copied'
-  | 'typechange'
-  | 'untracked'
-  | 'conflicted';
+import { ChangedPath, GitChangeKind, KIND_BY_LETTER, Tracking } from './git-types';
 
-export interface GitFileStatus {
-  /** Relative to the repository root, '/' separators (git's own style). */
-  path: string;
-  /** Previous path, for renames and copies. */
-  origPath?: string;
+export interface GitFileStatus extends ChangedPath {
   /** Change letter on the staged side ('.' = nothing staged). */
   index: string;
   /** Change letter on the working-tree side ('.' = nothing unstaged). */
@@ -22,23 +10,11 @@ export interface GitFileStatus {
   unstaged: boolean;
 }
 
-export interface GitStatus {
+export interface GitStatus extends Tracking {
   branch: string | null;
   detached: boolean;
-  upstream: string | null;
-  ahead: number;
-  behind: number;
   files: GitFileStatus[];
 }
-
-const KIND_BY_LETTER: Record<string, GitChangeKind> = {
-  M: 'modified',
-  A: 'added',
-  D: 'deleted',
-  R: 'renamed',
-  C: 'copied',
-  T: 'typechange',
-};
 
 /** One badge kind per file. A new file stays "added" even if it was edited again after `git add`. */
 function kindFor(index: string, worktree: string): GitChangeKind {
@@ -75,13 +51,23 @@ function parseHeader(line: string, status: GitStatus): void {
   }
 }
 
+/** The command this parser reads. Kept next to it so the two can't drift apart. */
+export const STATUS_ARGS = ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all'];
+
 /**
- * Parses the output of:  git status --porcelain=v2 --branch -z --untracked-files=all
+ * Parses the output of `git status` run with STATUS_ARGS.
  * With -z every record ends in NUL and paths are raw (no quoting, spaces and unicode are fine).
  * A rename record is followed by one extra NUL-terminated token holding the old path.
  */
 export function parseStatusV2(stdout: string): GitStatus {
-  const status: GitStatus = { branch: null, detached: false, upstream: null, ahead: 0, behind: 0, files: [] };
+  const status: GitStatus = {
+    branch: null,
+    detached: false,
+    upstream: null,
+    ahead: 0,
+    behind: 0,
+    files: [],
+  };
   const tokens = stdout.split('\0');
 
   for (let i = 0; i < tokens.length; i++) {

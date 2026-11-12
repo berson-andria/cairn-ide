@@ -2,17 +2,12 @@ import { Injectable, inject } from '@angular/core';
 import { NodeStore } from '../../../core/store/node.store';
 import { EditorCommands } from '../../editor/editor.commands';
 import { DiffRequestInput, DiffSideInput, DiffSide } from '../../editor/features/diff-tab';
-import { GitFileStatus } from '../parser/git-status.parser';
+import { GitFileStatus } from '../parser/status.parser';
+import { ChangedPath } from '../parser/git-types';
 import { GitService } from './git.service';
 import { TabStore } from '../../../core/store/tab.store';
 
 export type GitDiffMode = 'staged' | 'unstaged';
-export interface GitUiFile {
-  path: string;
-  status: 'M' | 'A' | 'D' | 'R' | 'C' | 'T' | 'U' | '!';
-  /** The git record this row stands for (what the actions operate on). */
-  source: GitFileStatus;
-}
 
 /**
  * Opens diffs. It only DESCRIBES the two sides: ModelSourceService reads their text from git when the tab
@@ -45,16 +40,12 @@ export class GitDiffService {
    * A file between two commits, for the graph. `from` is the older one: pass `${hash}^` to compare a commit with
    * its parent. `file.path` is repo-relative, as in CommitFile. Null if the file is outside the repository.
    */
-  requestForCommits(
-    from: string,
-    to: string,
-    file: { path: string; oldPath?: string },
-  ): DiffRequestInput | null {
+  requestForCommits(from: string, to: string, file: ChangedPath): DiffRequestInput | null {
     const path = this.git.absolutePathOf(file.path);
     if (!path) return null;
-    const oldPath = file.oldPath ? this.git.absolutePathOf(file.oldPath) : null;
+    const origPath = file.origPath ? this.git.absolutePathOf(file.origPath) : null;
     return {
-      original: { kind: 'commit', rev: from, path: oldPath ?? path },
+      original: { kind: 'commit', rev: from, path: origPath ?? path },
       modified: { kind: 'commit', rev: to, path },
     };
   }
@@ -63,14 +54,15 @@ export class GitDiffService {
 
   /**
    * A click on a row shows what changed. Untracked and conflicted files have nothing to compare, so they just open.
+   * `mode` is the LIST the row was clicked in, not a guess from the file's flags: a file with both staged and
+   * unstaged changes appears in both lists, and each row must open its own diff.
    * Staged list: HEAD -> index. Unstaged list: index -> working file (the only editable one).
    */
-  async openChange(file: GitUiFile, mode?: GitDiffMode): Promise<string | null> {
-    const change = file.source;
+  async openChange(change: GitFileStatus, mode: GitDiffMode): Promise<string | null> {
     const path = this.git.absolutePathOf(change.path);
     if (!path) return `${change.path} is outside the repository.`;
 
-    if (file.status === 'U' || file.status === '!') {
+    if (change.kind === 'untracked' || change.kind === 'conflicted') {
       const id = await this.commands.openPath(path);
       return id ? null : `Could not find ${change.path} in the workspace.`;
     }
@@ -80,11 +72,9 @@ export class GitDiffService {
   private requestForChange(
     change: GitFileStatus,
     path: string,
-    mode?: GitDiffMode,
+    mode: GitDiffMode,
   ): DiffRequestInput {
-    const staged = mode ? mode === 'staged' : change.staged && !change.unstaged;
-
-    if (staged) {
+    if (mode === 'staged') {
       return {
         original: { kind: 'head', path: this.before(change, 'index', path) },
         modified: { kind: 'index', path },

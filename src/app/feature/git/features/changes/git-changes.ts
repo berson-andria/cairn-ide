@@ -1,34 +1,45 @@
-import { Component, computed, HostListener, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { GitResult, GitService } from '../../services/git.service';
 import { DialogService } from '../../../../core/services/dialog/dialog.service';
-import { GitDiffService, GitUiFile } from '../../services/git-diff.service';
+import { GitDiffService } from '../../services/git-diff.service';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideFileSymlink, lucideUndo } from '@ng-icons/lucide';
-import { GitBranch } from '../../parser/git-parsers';
 import {
-  sideLetter,
-  GitNoticeManager,
-  firstLine,
-  statusLabel,
-  statusClass,
-  confirm,
-  openGitIdentityDialog,
-  editGitIdentity,
-} from '../../git.helper';
+  lucideEllipsis,
+  lucideFileSymlink,
+  lucideHardDriveDownload,
+  lucideMinus,
+  lucideUndo,
+} from '@ng-icons/lucide';
+import { MenuDirective } from '../../../../shared/directives/menu.directive';
+import { EditorCommands } from '../../../editor/editor.commands';
+import { firstLine, GitUiFile, sideLetter, statusLabel, statusStyle } from '../../ui/git-ui';
+import { confirmAction } from '../../ui/git-dialogs';
+import { GitNoticeManager } from '../../ui/git-notice';
+import { GitBranch } from '../../parser/branch.parser';
+import { GitDialogService } from '../../services/git-dialog.service';
 
 @Component({
   selector: 'git-changes',
   templateUrl: './git-changes.html',
   styleUrl: './git-changes.scss',
-  imports: [FormsModule, NgIcon],
-  providers: [provideIcons({ lucideFileSymlink, lucideUndo })],
+  imports: [FormsModule, NgIcon, MenuDirective],
+  providers: [
+    provideIcons({
+      lucideFileSymlink,
+      lucideUndo,
+      lucideEllipsis,
+      lucideHardDriveDownload,
+      lucideMinus,
+    }),
+  ],
   standalone: true,
 })
 export class GitChanges {
   readonly git = inject(GitService);
   private readonly gitDiff = inject(GitDiffService);
-  private dialog = inject(DialogService);
+  private dialog = inject(GitDialogService);
+  protected editorCommands = inject(EditorCommands);
 
   // ───────────── what the template shows ─────────────
   branchName = computed(() => {
@@ -40,17 +51,20 @@ export class GitChanges {
   hasUpstream = computed(() => !!this.git.status()?.upstream);
 
   stagedFiles = computed<GitUiFile[]>(() =>
-    this.git.staged().map((f) => ({ path: f.path, status: sideLetter(f.index), source: f })),
+    this.git
+      .staged()
+      .map((f) => ({ path: f.path, status: sideLetter(f.index), source: f, mode: 'staged' })),
   );
-  changedFiles = computed<GitUiFile[]>(() =>
-    this.git.unstaged().map((f) => ({
+  changedFiles = computed<GitUiFile[]>(() => {
+    return this.git.unstaged().map((f) => ({
       path: f.path,
       status: f.kind === 'untracked' ? 'U' : sideLetter(f.worktree),
       source: f,
-    })),
-  );
+      mode: 'unstaged',
+    }));
+  });
   conflictFiles = computed<GitUiFile[]>(() =>
-    this.git.conflicts().map((f) => ({ path: f.path, status: '!', source: f })),
+    this.git.conflicts().map((f) => ({ path: f.path, status: '!', source: f, mode: 'unstaged' })),
   );
 
   commitMessage = signal('');
@@ -94,7 +108,7 @@ export class GitChanges {
 
     // Git refuses to commit until it knows who you are. The dialog saves the identity; then retry once.
     if (!result.ok && result.code === 'identity') {
-      if (!(await this.askForIdentity())) {
+      if (!(await this.dialog.identity())) {
         this.noticeManager.report({
           ...result,
           error: 'Commit cancelled: git needs your name and email first.',
@@ -108,14 +122,6 @@ export class GitChanges {
     this.noticeManager.report(result, 'Committed.');
   }
 
-  private async askForIdentity(): Promise<boolean> {
-    return openGitIdentityDialog();
-  }
-
-  /** "Git identity…" in the menu: change it any time, not only after a failed commit. */
-  async editIdentity() {
-    await editGitIdentity(this.notice);
-  }
   // ───────────── staging and discarding ─────────────
 
   async stageFile(file: GitUiFile) {
@@ -139,7 +145,7 @@ export class GitChanges {
       file.status === 'U'
         ? `Delete the untracked file "${file.path}"?`
         : `Discard your changes to "${file.path}"?`;
-    if (!(await confirm(`${question}\n\nThis cannot be undone.`, 'Discard'))) return;
+    if (!(await confirmAction(`${question}\n\nThis cannot be undone.`, 'Discard'))) return;
     this.noticeManager.report(await this.git.discard([file.source]));
   }
 
@@ -151,7 +157,7 @@ export class GitChanges {
       ? ` (${untracked} untracked file${untracked === 1 ? '' : 's'} will be deleted)`
       : '';
     if (
-      !(await confirm(
+      !(await confirmAction(
         `Discard all changes in ${files.length} file${files.length === 1 ? '' : 's'}${detail}?\n\nThis cannot be undone.`,
         'Discard all',
       ))
@@ -162,12 +168,17 @@ export class GitChanges {
 
   /** A click on a row shows what changed. Untracked and conflicted files have nothing to compare, so they just open. */
   async openDiff(file: GitUiFile) {
-    const mode = file.source.staged ? 'staged' : 'unstaged';
+    const mode = !file.source.unstaged ? 'staged' : 'unstaged';
     try {
-      await this.gitDiff.openChange(file, mode);
+      await this.gitDiff.openChange(file.source, mode);
     } catch (error) {
       this.notice.set({ kind: 'error', text: `Could not open ${file.path}.` });
     }
+  }
+
+  openFile(file: GitUiFile) {
+    const abs = this.git.absolutePathOf(file.path);
+    if (abs) void this.editorCommands.openPath(abs);
   }
 
   // ───────────── remote and other actions (header menu, footer) ─────────────
@@ -193,7 +204,7 @@ export class GitChanges {
   // ───────────── template helpers ─────────────
 
   statusLabel = statusLabel;
-  statusClass = statusClass;
+  statusClass = statusStyle;
 
   /** Runs a git action, closes menus, and reports the result. */
   runAction = async (action: () => Promise<GitResult>, success: string) => {

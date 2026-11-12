@@ -219,7 +219,7 @@ export class MainPanel {
 
   private readonly destroyRef = inject(DestroyRef);
 
-  readonly strip = viewChild.required<ElementRef<HTMLElement>>('strip');
+  readonly strip = viewChild<ElementRef<HTMLElement>>('strip');
   readonly overflowing = signal(false);
   readonly atEnd = signal(true);
 
@@ -245,7 +245,7 @@ export class MainPanel {
 
     afterNextRender(() => {
       const observer = new ResizeObserver(() => this.measure());
-      observer.observe(this.strip().nativeElement);
+      observer.observe(this.strip()!.nativeElement);
       this.destroyRef.onDestroy(() => observer.disconnect());
     });
 
@@ -257,7 +257,7 @@ export class MainPanel {
   }
 
   measure() {
-    const el = this.strip().nativeElement;
+    const el = this.strip()!.nativeElement;
     this.overflowing.set(el.scrollWidth > el.clientWidth + 1);
     this.atEnd.set(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1);
   }

@@ -1,7 +1,7 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import type * as Monaco from 'monaco-editor';
 import { GitService } from './git.service';
-import { FileBlame } from '../parser/git-parsers';
+import { FileBlame } from '../parser/blame.parser';
 
 const STORAGE_KEY = 'cairn.git.blame';
 /** Beyond this, blame costs more than it is worth and is skipped for the file. */

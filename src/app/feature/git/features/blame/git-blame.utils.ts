@@ -1,4 +1,4 @@
-import type { BlameCommit, BlameLine } from '../../parser/git-parsers';
+import { BlameLine, BlameCommit } from '../../parser/blame.parser';
 
 export function relativeTime(epochSeconds: number, now = Date.now()): string {
   const seconds = (epochSeconds * 1000 - now) / 1000; // negative = in the past

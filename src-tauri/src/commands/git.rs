@@ -49,6 +49,7 @@ const ALLOWED_SUBCOMMANDS: &[&str] = &[
     "clean",  // only in the exact form `clean -f -- <paths>`, see `validate`
     "config", // only reading/setting user.name and user.email, see `validate`
     "blame",  // only `blame --porcelain [--contents -] -- <path>`, see `validate`
+    "rebase", // only `rebase <branch>` / --abort / --continue / --skip, see `validate`
 ];
 
 /// Options that make git write arbitrary files, run programs, or inject config. Checked before any `--`.
@@ -74,7 +75,14 @@ const LITERAL_PATHSPEC_COMMANDS: &[&str] = &[
 /// Largest text the frontend may send to a command on standard input (an editor buffer for blame).
 const MAX_STDIN_BYTES: usize = 16 * 1024 * 1024;
 
-fn validate(args: &[String], has_stdin: bool) -> Result<(), String> {
+/// A URL given to `clone` / `remote add`. `ext::<command>` and `fd::` are git's "transport helpers":
+/// they run a program instead of talking to a server.
+fn url_ok(url: &str) -> bool {
+    !url.is_empty() && !url.starts_with('-') && !url.contains("::")
+}
+
+fn validate(args: &[String], stdin: Option<&str>) -> Result<(), String> {
+    let has_stdin = stdin.is_some();
     let subcommand = args.first().map(String::as_str).unwrap_or("");
     if !ALLOWED_SUBCOMMANDS.contains(&subcommand) {
         return Err(format!("Git subcommand not allowed: \"{subcommand}\""));
@@ -138,6 +146,43 @@ fn validate(args: &[String], has_stdin: bool) -> Result<(), String> {
         "clone" => {
             if args.iter().any(|a| a == "-u" || a == "-c") {
                 return Err("This git clone option is not allowed.".into());
+            }
+            if let Some(url) = args.iter().skip_while(|a| a.as_str() != "--").nth(1) {
+                if !url_ok(url) {
+                    return Err("That repository URL is not allowed.".into());
+                }
+            }
+        }
+        // `-x/--exec` would run a command after every commit; only the plain forms are accepted.
+        "rebase" => {
+            let ok = args.len() == 2
+                && (matches!(args[1].as_str(), "--abort" | "--continue" | "--skip")
+                    || !args[1].starts_with('-'));
+            if !ok {
+                return Err(
+                    "Only `git rebase <branch>`, `--abort`, `--continue` and `--skip` are allowed."
+                        .into(),
+                );
+            }
+        }
+        // `remote add` takes a URL, so the transport-helper check applies; set-url / update are not needed.
+        "remote" => {
+            let name_ok = |i: usize| {
+                args.get(i)
+                    .map_or(false, |a| !a.is_empty() && !a.starts_with('-'))
+            };
+            let ok = match args.get(1).map(String::as_str) {
+                None => true,
+                Some("-v") => args.len() == 2,
+                Some("get-url") | Some("remove") => args.len() == 3 && name_ok(2),
+                Some("add") => args.len() == 4 && name_ok(2) && url_ok(&args[3]),
+                _ => false,
+            };
+            if !ok {
+                return Err(
+                    "Only `git remote [-v]`, `get-url <name>`, `add <name> <url>` and `remove <name>` are allowed."
+                        .into(),
+                );
             }
         }
         _ => {}
@@ -223,12 +268,14 @@ pub async fn git_run(
     args: Vec<String>,
     timeout_secs: Option<u64>,
     stdin: Option<String>,
+    askpass: tauri::State<'_, super::askpass::Askpass>,
 ) -> Result<GitCommandOutput, String> {
-    validate(&args, stdin.is_some())?;
+    validate(&args, stdin.as_deref())?;
     if stdin.as_ref().map_or(false, |s| s.len() > MAX_STDIN_BYTES) {
         return Err("That text is too large to send to git.".into());
     }
     let timeout = Duration::from_secs(timeout_secs.unwrap_or(60).clamp(1, 1800));
+    let askpass_env = askpass.env(); // owned copy: `State` can't move into the blocking thread
 
     tauri::async_runtime::spawn_blocking(move || {
         let cwd_path = Path::new(&cwd);
@@ -272,7 +319,15 @@ pub async fn git_run(
             .env("GIT_EDITOR", ":")
             .env("GIT_MERGE_AUTOEDIT", "no")
             .env("GIT_PAGER", "cat")
-            .env("PAGER", "cat");
+            .env("PAGER", "cat")
+            // `ssh` plain: overrides a repository's own core.sshCommand (a program name taken from
+            // config). NOT `-o BatchMode=yes`: batch mode would stop ssh from asking for a passphrase.
+            .env("GIT_SSH_COMMAND", "ssh");
+        // Passwords, passphrases and host-key questions from git and ssh reach the app's own dialog:
+        // this app's executable doubles as GIT_ASKPASS / SSH_ASKPASS (see askpass.rs).
+        for (key, value) in askpass_env {
+            command.env(key, value);
+        }
 
         // Without this, every call flashes a console window on Windows (this is a GUI process).
         #[cfg(windows)]

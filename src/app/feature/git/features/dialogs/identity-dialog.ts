@@ -1,8 +1,8 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { FormsModule } from '@angular/forms';
+import { GitService } from '../../services/git.service';
 // Adjust to your folders.
-import { GitService } from './services/git.service';
 
 export interface GitIdentity {
   name: string;
