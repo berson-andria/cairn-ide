@@ -33,15 +33,14 @@
     </div>
     <div class="unsaved-control">
       @if (dirtyFileCount()) {
-        <button class="notif" title="Highlight Unsaved Files">
+        <button class="icon-btn notif-action" title="Highlight Unsaved Files">
           <span>{{ dirtyFileCount() }} </span><ng-icon name="lucideFileWarning "></ng-icon>
         </button>
       }
 
       @if (gitChangesCount() > 0) {
         <button
-          class="notif"
-          [class.notif]="gitChangesCount() > 0"
+          class="icon-btn notif-action"
           type="button"
           aria-label="Open Git"
           (click)="toggleToolkit('Git')"

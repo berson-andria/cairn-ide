@@ -226,9 +226,17 @@ button:disabled {
 
 .notif {
   color: var(--color-attention);
-  background-color: var(--color-surface-raised-hover);
+  background-color: var(--color-surface-raised);
   &:hover {
-    background-color: var(--color-surface-raised);
+    background-color: var(--color-surface-raised-hover);
+    color: var(--color-attention) !important;
+  }
+}
+.notif-action {
+  color: var(--color-attention);
+  background-color: transparent;
+  &:hover {
+    background-color: var(--color-surface-raised-hover);
     color: var(--color-attention) !important;
   }
 }
@@ -243,6 +251,7 @@ ng-icon {
   border-radius: var(--space-6);
   border: 1px solid var(--color-border-strong);
   min-width: 300px;
+  max-width: 350px;
   .menu-item-group {
     display: flex;
     flex-direction: column;

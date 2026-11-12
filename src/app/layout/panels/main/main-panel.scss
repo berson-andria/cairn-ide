@@ -56,14 +56,6 @@
   align-items: center;
   gap: var(--space-8);
   padding: 0 var(--space-8);
-  button {
-    background: transparent;
-    border-radius: var(--space-4);
-    padding: var(--space-4);
-    &:hover {
-      background: var(--color-surface-raised-hover);
-    }
-  }
 }
 
 .cdk-drag-preview {

@@ -109,6 +109,7 @@
                 display: inline-block;
                 color: var(--color-text-muted);
                 margin-top: 10px !important;
+                text-wrap: wrap;
               }
               .date {
                 color: var(--color-text-muted);
@@ -171,12 +172,6 @@
                 <div class="hint menu-item-group">No branches match “{{ branchNameQuery() }}”</div>
               }
               <div class="menu-item-group">
-                <style>
-                  .menu-item {
-                    margin-bottom: 0;
-                    padding-left: 0 !important;
-                  }
-                </style>
                 <button class="menu-item" role="menuitem" (click)="createBranch()">
                   <ng-icon name="lucidePlus" />
                   <span style="margin-left: var(--space-6)">Create Branch...</span>
