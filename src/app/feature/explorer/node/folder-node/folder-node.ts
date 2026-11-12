@@ -9,6 +9,8 @@ import { RenameNode } from '../rename-node/rename-node';
 import { InlineCreationMode } from '../../../../core/store/node.state';
 import { NodeStore } from '../../../../core/store/node.store';
 import { FileIcon } from '../../../../shared/components/file-icon';
+import { GitService } from '../../../git/services/git.service';
+import { statusStyle } from '../../../git/ui/git-ui';
 
 @Component({
   selector: 'folder-node',
@@ -19,7 +21,7 @@ import { FileIcon } from '../../../../shared/components/file-icon';
 })
 export class FolderNode {
   nodeStore = inject(NodeStore);
-
+  protected readonly git = inject(GitService);
   nodeId: InputSignal<string> = input.required();
 
   level: InputSignal<number> = input.required();
@@ -54,6 +56,8 @@ export class FolderNode {
   isCut = computed(() => this.nodeStore.isCutNode(this.nodeId()));
   isRenaming = computed(() => this.nodeStore.renamingNodeId() === this.nodeId());
 
+  folderBadge = computed(() => this.git.folderBadge(this.nodeStore.nodes()[this.nodeId()].path));
+
   onClick(event: MouseEvent) {
     if (this.isRenaming()) return;
     // Ctrl/Shift only change the selection; a plain click selects AND expands/collapses.
@@ -78,6 +82,13 @@ export class FolderNode {
 
   saveNewNode(nodeName: string, mode: InlineCreationMode) {
     this.nodeStore.submitInlineCreation(nodeName, mode, this.nodeStore.nodes()[this.nodeId()].id);
+  }
+
+  statusColor() {
+    return this.folderBadge() ? statusStyle(<any>this.folderBadge()!.letter).color : 'inherit';
+  }
+  statusBg() {
+    return this.folderBadge() ? statusStyle(<any>this.folderBadge()!.letter).background : 'inherit';
   }
 
   get indentStyle() {

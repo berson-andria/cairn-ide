@@ -265,12 +265,38 @@ export class GitService {
   }
 
   // ───────────── explorer helpers ─────────────
+  private readonly sortedKeys = computed(() => [...this.byPath().keys()].sort());
+
+  private firstKeyInside(absoluteFolderPath: string): string | null {
+    let prefix = keyOf(absoluteFolderPath);
+    if (!prefix.endsWith('\\')) prefix += '\\';
+
+    const keys = this.sortedKeys();
+    let lo = 0;
+    let hi = keys.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (keys[mid] < prefix) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo < keys.length && keys[lo].startsWith(prefix) ? keys[lo] : null;
+  }
+
+  private toBadge(file: GitFileStatus): GitBadge {
+    // GitFile: whatever type byPath() holds
+    return { letter: LETTERS[file.kind], kind: file.kind, staged: file.staged && !file.unstaged };
+  }
 
   badgeFor(absolutePath: string): GitBadge | null {
     const file = this.byPath().get(keyOf(absolutePath));
-    return file
-      ? { letter: LETTERS[file.kind], kind: file.kind, staged: file.staged && !file.unstaged }
-      : null;
+    return file ? this.toBadge(file) : null;
+  }
+
+  /** Badge of the first changed file inside the folder, or null when nothing in it changed. */
+  folderBadge(absoluteFolderPath: string): GitBadge | null {
+    const key = this.firstKeyInside(absoluteFolderPath);
+    const file = key ? this.byPath().get(key) : undefined;
+    return file ? this.toBadge(file) : null;
   }
 
   hasChangesInside(absoluteFolderPath: string): boolean {

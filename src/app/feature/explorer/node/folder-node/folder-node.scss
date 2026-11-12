@@ -26,3 +26,11 @@
     }
   }
 }
+.git-badge {
+  display: inline-block;
+  margin-left: auto;
+  margin-right: var(--space-6);
+  height: var(--space-10);
+  width: var(--space-10);
+  border-radius: var(--space-10);
+}

@@ -27,7 +27,10 @@
     @if (isRenaming()) {
       <rename-node [nodeId]="nodeId()" />
     } @else {
-      <span class="node-name">{{ nodeStore.nodes()[this.nodeId()].name }}</span>
+      <span class="node-name" [style.color]="statusColor()">{{
+        nodeStore.nodes()[this.nodeId()].name
+      }}</span>
+      <span class="git-badge" [style.background]="statusBg()"></span>
     }
   </div>
   @if (uiState().isExpanded) {
