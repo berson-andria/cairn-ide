@@ -17,6 +17,12 @@ export type MenuX = 'left' | 'right';
 export type MenuY = 'top' | 'bottom' | 'center';
 export type MenuPosition = readonly [x: MenuX, y: MenuY];
 
+const PANEL_CLASS = 'app-menu-panel';
+/** Open panel → its directive, so a child menu can be found from its panel. */
+const openMenus = new Map<HTMLElement, MenuDirective>();
+/** Child panel → the panel of the menu it was opened from. */
+const parentPanels = new WeakMap<HTMLElement, HTMLElement>();
+
 /** Space kept between the menu and the viewport edge (px). */
 const VIEWPORT_MARGIN = 8;
 
@@ -72,8 +78,13 @@ export class MenuDirective {
   private panel: HTMLElement | null = null;
   private teardown: Array<() => void> = [];
 
+  private destroyed = false;
+
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.close());
+    inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true; // Angular has already destroyed our outputs by now
+      this.close();
+    });
   }
 
   toggle(): void {
@@ -89,7 +100,7 @@ export class MenuDirective {
     this.view.detectChanges();
 
     const panel = this.renderer.createElement('div') as HTMLElement;
-    this.renderer.addClass(panel, 'app-menu-panel');
+    this.renderer.addClass(panel, PANEL_CLASS);
     this.renderer.setAttribute(panel, 'role', 'menu');
     this.renderer.setStyle(panel, 'position', 'fixed');
     this.renderer.setStyle(panel, 'top', '0');
@@ -99,6 +110,9 @@ export class MenuDirective {
     this.view.rootNodes.forEach((node) => this.renderer.appendChild(panel, node));
     this.renderer.appendChild(this.document.body, panel);
     this.panel = panel;
+    openMenus.set(panel, this);
+    const parent = this.host.nativeElement.closest<HTMLElement>(`.${PANEL_CLASS}`);
+    if (parent) parentPanels.set(panel, parent);
 
     this.updatePosition();
     this.renderer.setStyle(panel, 'visibility', 'visible');
@@ -110,6 +124,12 @@ export class MenuDirective {
 
   close(): void {
     if (!this.isOpen()) return;
+    const panel = this.panel;
+
+    // Children first, so none outlives its parent.
+    for (const [childPanel, menu] of openMenus) {
+      if (parentPanels.get(childPanel) === panel) menu.close();
+    }
 
     this.teardown.forEach((fn) => fn());
     this.teardown = [];
@@ -117,10 +137,29 @@ export class MenuDirective {
     this.view?.destroy();
     this.view = null;
     this.panel?.remove();
+    if (panel) openMenus.delete(panel);
     this.panel = null;
 
     this.isOpen.set(false);
-    this.closed.emit();
+    if (!this.destroyed) this.closed.emit(); // emitting on a destroyed output is NG0953
+  }
+
+  /** Closes this menu and every menu it was opened from (after picking an item). */
+  private closeAll(): void {
+    const parentPanel = this.panel && parentPanels.get(this.panel);
+    const parentMenu = parentPanel && openMenus.get(parentPanel);
+    this.close();
+    parentMenu?.closeAll();
+  }
+
+  /** True when the node is in our panel or in a menu opened from it. */
+  private owns(node: Node): boolean {
+    let panel = (node as Element).closest?.(`.${PANEL_CLASS}`) as HTMLElement | null;
+    while (panel) {
+      if (panel === this.panel) return true;
+      panel = parentPanels.get(panel) ?? null;
+    }
+    return false;
   }
 
   // ---------------------------------------------------------------------------
@@ -133,9 +172,7 @@ export class MenuDirective {
       // Click outside closes the menu.
       this.renderer.listen(this.document, 'pointerdown', (e: Event) => {
         const target = e.target as Node;
-        if (!this.host.nativeElement.contains(target) && !this.panel?.contains(target)) {
-          this.close();
-        }
+        if (!this.host.nativeElement.contains(target) && !this.owns(target)) this.close();
       }),
       this.renderer.listen(this.document, 'keydown', (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
@@ -145,7 +182,7 @@ export class MenuDirective {
       }),
       // Clicking an item closes the menu (mark items with role="menuitem").
       this.renderer.listen(this.panel!, 'click', (e: Event) => {
-        if ((e.target as HTMLElement).closest('[role="menuitem"]')) this.close();
+        if ((e.target as HTMLElement).closest('[role="menuitem"]')) this.closeAll();
       }),
       this.renderer.listen(win, 'resize', reposition),
     );
