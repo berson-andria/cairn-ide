@@ -19,6 +19,7 @@ import { NodeStore } from '../../../core/store/node.store';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideChevronRight,
+  lucideCloudUpload,
   lucideEllipsis,
   lucideGitBranch,
   lucideMinus,
@@ -63,6 +64,7 @@ import { plural } from '../../../feature/git/features/dialogs/dialog-shared';
       lucideEllipsis,
       lucideChevronRight,
       lucideUnlink,
+      lucideCloudUpload,
     }),
   ],
 })
@@ -314,6 +316,10 @@ export class BottomPanel {
   }
 
   // ── Branch ──────────────────────────────────────────────────────────────────
+  readonly needsPublish = computed(() => {
+    const s = this.git.status();
+    return !!s?.branch && !s.upstream;
+  });
   async checkoutTo() {
     await this.git.loadBranches();
     const name = await this.dialogs.pickBranch(

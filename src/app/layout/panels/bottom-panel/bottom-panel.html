@@ -203,9 +203,19 @@
               </div>
             </div>
           </ng-template>
+          @if (needsPublish()) {
+            <button
+              class="icon-btn notif"
+              title="Publish branch"
+              aria-label="Publish branch"
+              (click)="publishBranch()"
+            >
+              <ng-icon name="lucideCloudUpload" />
+            </button>
+          }
           @if (git.status() && (git.status()!.ahead || git.status()!.behind)) {
             <button
-              class="icon-btn"
+              class="icon-btn notif"
               title="Sync changes"
               aria-label="Sync changes"
               [disabled]="!git.status()?.upstream"
