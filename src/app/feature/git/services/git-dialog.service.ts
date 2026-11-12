@@ -11,7 +11,7 @@ import { ChoiceDialog, ChoiceDialogData } from '../features/dialogs/choice-dialo
 import { GitIdentityDialog } from '../features/dialogs/identity-dialog';
 
 export type SwitchStrategy = 'stash' | 'carry' | 'discard';
-
+export type OverwriteStrategy = 'stash' | 'migrate' | 'force';
 /**
  * Single entry point for every Git dialog. It is a service (not a helper function) because
  * inject() only works while Angular is constructing something: calling it from a click handler
@@ -145,6 +145,24 @@ export class GitDialogService {
       submitLabel,
     });
     return r?.['name'];
+  }
+
+  async overwriteStrategy(target: string): Promise<OverwriteStrategy | undefined> {
+    return (await this.choose(`Switch to ${target}`, {
+      message: 'Your local changes would be overwritten by checkout.',
+      legend: 'What to do with your changes',
+      submitLabel: 'Checkout',
+      initial: 'stash',
+      options: [
+        { value: 'stash', label: 'Stash & Checkout', hint: 'restore later from the stash list' },
+        {
+          value: 'migrate',
+          label: 'Migrate Changes',
+          hint: 'apply them on the new branch, may conflict',
+        },
+        { value: 'force', label: 'Force Checkout', hint: 'discards your changes', danger: true },
+      ],
+    })) as OverwriteStrategy | undefined;
   }
 
   /** Optional stash message. Resolves to '' for "no message", undefined for cancel. */

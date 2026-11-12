@@ -39,7 +39,10 @@ import { convertToDaysAndHours } from '../../../shared/utils/utils';
 import { GitBranch } from '../../../feature/git/parser/branch.parser';
 import { GitNoticeManager } from '../../../feature/git/ui/git-notice';
 import { firstLine, GitUiFile } from '../../../feature/git/ui/git-ui';
-import { GitDialogService } from '../../../feature/git/services/git-dialog.service';
+import {
+  GitDialogService,
+  OverwriteStrategy,
+} from '../../../feature/git/services/git-dialog.service';
 import { confirmAction } from '../../../feature/git/ui/git-dialogs';
 import { plural } from '../../../feature/git/features/dialogs/dialog-shared';
 
@@ -196,9 +199,118 @@ export class BottomPanel {
     this.branchNameQuery.set((event.target as HTMLInputElement).value);
   }
 
+  readonly needsPublish = computed(() => {
+    const s = this.git.status();
+    return !!s?.branch && !s.upstream;
+  });
+  async checkoutTo() {
+    await this.git.loadBranches();
+    const name = await this.dialogs.pickBranch(
+      'Checkout to',
+      this.git.branchList().filter((b) => !b.current),
+      {
+        submitLabel: 'Checkout',
+      },
+    );
+    const branch = this.git.branchList().find((b) => b.name === name);
+    if (!branch) return;
+    this.switchTo(branch);
+  }
+
+  async createBranch(fromPicker = false) {
+    let from: string | undefined;
+    if (fromPicker) {
+      await this.git.loadBranches();
+      from = await this.dialogs.pickBranch('Create branch from', this.git.branchList(), {
+        submitLabel: 'Next',
+        message: 'Pick the starting point.',
+      });
+      if (!from) return;
+    }
+    const name = await this.dialogs.branchName('Create branch', 'Create', {
+      message: from ? `Starting from ${from}.` : undefined,
+    });
+    if (name)
+      await this.runAction(() => this.git.createBranch(name, { from }), `Switched to ${name}.`);
+  }
+
+  async mergeBranch() {
+    await this.git.loadBranches();
+    const current = this.git.status()?.branch;
+    const name = await this.dialogs.pickBranch(
+      'Merge branch',
+      this.git.branchList().filter((b) => !b.current),
+      {
+        submitLabel: 'Merge',
+        message: `Merge into ${current}.`,
+      },
+    );
+    if (name) await this.runAction(() => this.git.merge(name), `Merged ${name}.`);
+  }
+
+  async deleteBranch() {
+    await this.git.loadBranches();
+    const local = this.git.branchList().filter((b) => !b.current && !b.remote);
+    const name = await this.dialogs.pickBranch('Delete branch', local, {
+      submitLabel: 'Delete',
+      danger: true,
+    });
+    if (!name) return;
+    await this.runAction(async () => {
+      const r = await this.git.deleteBranch(name);
+      if (r.ok || !/not fully merged/i.test(r.error)) return r;
+      const force = await confirmAction(
+        `"${name}" has commits that are not merged. Delete anyway?`,
+        'Delete',
+      );
+      return force ? this.git.deleteBranch(name, true) : r;
+    }, `Deleted ${name}.`);
+  }
+
   async switchTo(branch: GitBranch) {
-    // Git refuses when local changes would be overwritten; its message says which files.
-    this.noticeManager.report(await this.git.switchTo(branch), `Switched to ${branch.name}.`);
+    const twin = branch.remote
+      ? this.git
+          .branchList()
+          .find((b) => !b.remote && b.name === branch.name.slice(branch.name.indexOf('/') + 1))
+      : undefined;
+    const target = twin ?? branch;
+    const result = await this.git.switchTo(target);
+    if (result.ok || result.code !== 'overwrite') {
+      this.noticeManager.report(result, `Switched to ${target.name}.`);
+      return;
+    }
+
+    const strategy = await this.dialogs.overwriteStrategy(target.name);
+    if (!strategy) return; // cancelled: nothing was changed
+    if (
+      strategy === 'force' &&
+      !(await confirmAction(
+        'Discard your local changes and switch? This cannot be undone.',
+        'Force Checkout',
+      ))
+    )
+      return;
+
+    await this.runAction(() => this.switchWith(target, strategy), `Switched to ${target.name}.`);
+
+    // this.noticeManager.report(await this.git.switchTo(target), `Switched to ${target.name}.`);
+  }
+
+  private async switchWith(branch: GitBranch, strategy: OverwriteStrategy): Promise<GitResult> {
+    if (strategy === 'force') return this.git.switchTo(branch, { force: true });
+
+    const before = (await this.git.stashes()).length;
+    const stashed = await this.git.stash(`Auto-stash before switching to ${branch.name}`, true);
+    if (!stashed.ok) return stashed;
+    // "No local changes to save" also succeeds: only pop a stash we actually created
+    const created = (await this.git.stashes()).length > before;
+
+    const switched = await this.git.switchTo(branch);
+    if (!switched.ok) {
+      if (created) await this.git.stashPop(0); // put everything back
+      return switched;
+    }
+    return strategy === 'migrate' && created ? this.git.stashPop(0) : switched;
   }
 
   runAction = async (action: () => Promise<GitResult>, success: string) => {
@@ -313,100 +425,6 @@ export class BottomPanel {
     if (await confirmAction(`Remove remote "${remote}"?`, 'Remove')) {
       await this.runAction(() => this.git.removeRemote(remote), `Remote ${remote} removed.`);
     }
-  }
-
-  // ── Branch ──────────────────────────────────────────────────────────────────
-  readonly needsPublish = computed(() => {
-    const s = this.git.status();
-    return !!s?.branch && !s.upstream;
-  });
-  async checkoutTo() {
-    await this.git.loadBranches();
-    const name = await this.dialogs.pickBranch(
-      'Checkout to',
-      this.git.branchList().filter((b) => !b.current),
-      {
-        submitLabel: 'Checkout',
-      },
-    );
-    const branch = this.git.branchList().find((b) => b.name === name);
-    if (!branch) return;
-
-    const changes = this.git.status()?.files.length ?? 0;
-    if (!changes)
-      return void this.runAction(() => this.git.switchTo(branch), `Switched to ${branch.name}.`);
-
-    const strategy = await this.dialogs.switchStrategy(branch.name, changes);
-    if (!strategy) return;
-    if (strategy === 'discard') {
-      const ok = await confirmAction(
-        `Discard ${changes} change(s) and switch?`,
-        'Discard and Switch',
-      );
-      if (!ok) return;
-    }
-
-    await this.runAction(async () => {
-      if (strategy === 'stash') {
-        const stashed = await this.git.stash();
-        if (!stashed.ok) return stashed;
-      } else if (strategy === 'discard') {
-        await this.git.unstageAll(); // discard() only touches unstaged changes
-        const discarded = await this.git.discard(this.git.unstaged());
-        if (!discarded.ok) return discarded;
-      }
-      return this.git.switchTo(branch);
-    }, `Switched to ${branch.name}.`);
-  }
-
-  async createBranch(fromPicker = false) {
-    let from: string | undefined;
-    if (fromPicker) {
-      await this.git.loadBranches();
-      from = await this.dialogs.pickBranch('Create branch from', this.git.branchList(), {
-        submitLabel: 'Next',
-        message: 'Pick the starting point.',
-      });
-      if (!from) return;
-    }
-    const name = await this.dialogs.branchName('Create branch', 'Create', {
-      message: from ? `Starting from ${from}.` : undefined,
-    });
-    if (name)
-      await this.runAction(() => this.git.createBranch(name, { from }), `Switched to ${name}.`);
-  }
-
-  async mergeBranch() {
-    await this.git.loadBranches();
-    const current = this.git.status()?.branch;
-    const name = await this.dialogs.pickBranch(
-      'Merge branch',
-      this.git.branchList().filter((b) => !b.current),
-      {
-        submitLabel: 'Merge',
-        message: `Merge into ${current}.`,
-      },
-    );
-    if (name) await this.runAction(() => this.git.merge(name), `Merged ${name}.`);
-  }
-
-  async deleteBranch() {
-    await this.git.loadBranches();
-    const local = this.git.branchList().filter((b) => !b.current && !b.remote);
-    const name = await this.dialogs.pickBranch('Delete branch', local, {
-      submitLabel: 'Delete',
-      danger: true,
-    });
-    if (!name) return;
-    await this.runAction(async () => {
-      const r = await this.git.deleteBranch(name);
-      if (r.ok || !/not fully merged/i.test(r.error)) return r;
-      const force = await confirmAction(
-        `"${name}" has commits that are not merged. Delete anyway?`,
-        'Delete',
-      );
-      return force ? this.git.deleteBranch(name, true) : r;
-    }, `Deleted ${name}.`);
   }
 
   // ── Stash ───────────────────────────────────────────────────────────────────

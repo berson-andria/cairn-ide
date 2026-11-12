@@ -40,7 +40,7 @@ export interface GitResult {
   /** True when git could not be run at all (not installed, refused by the allowlist, timed out). */
   unavailable?: boolean;
   /** Set when the failure has a known remedy: 'identity' = git doesn't know the user's name/email yet. */
-  code?: 'identity' | 'auth' | 'ssh';
+  code?: 'identity' | 'auth' | 'ssh' | 'overwrite';
 }
 
 /** The name and email git puts on a commit. */
@@ -58,6 +58,8 @@ const IDENTITY_ERROR =
 const AUTH_ERROR =
   /Authentication failed|could not read (Username|Password)|terminal prompts disabled|Invalid username or password|HTTP Basic: Access denied|returned error: 40[13]|password authentication was removed/i;
 const SSH_ERROR = /Permission denied \(publickey|Host key verification failed/i;
+const OVERWRITE_ERROR =
+  /would be overwritten by (checkout|switch)|commit your changes or stash them before you switch/i;
 
 /** What the explorer shows next to a file. */
 export interface GitBadge {
@@ -472,22 +474,37 @@ export class GitService {
     const result = await this.exec(['check-ref-format', '--branch', name]);
     return result.ok ? null : `"${name}" is not a valid branch name.`;
   }
-
-  /** Switch to an existing LOCAL branch. For a branch from `branches()` use `switchTo`, which also handles remote ones. */
-  switchBranch(name: string): Promise<GitResult> {
+  /**
+   * Switch to a local branch by name.
+   * `force` throws away local changes that stand in the way (`--discard-changes`).
+   * A refusal because local changes would be overwritten comes back with code 'overwrite'.
+   */
+  switchBranch(name: string, options: { force?: boolean } = {}): Promise<GitResult> {
     if (!name || name.startsWith('-')) return Promise.resolve(fail('Invalid branch name.'));
-    return this.mutate(['switch', name]);
+    return this.runSwitch(['switch', ...(options.force ? ['--discard-changes'] : []), name]);
   }
 
   /**
    * Switch to a branch as listed by `branches()`. A remote-only branch ("origin/feature") needs
    * `--track`: a plain `git switch origin/feature` fails with "a branch is expected, got remote branch".
    */
-  switchTo(branch: GitBranch): Promise<GitResult> {
+  switchTo(branch: GitBranch, options: { force?: boolean } = {}): Promise<GitResult> {
     if (branch.current) return Promise.resolve(ok());
-    return branch.remote
-      ? this.mutate(['switch', '--track', branch.name])
-      : this.switchBranch(branch.name);
+    if (!branch.remote) return this.switchBranch(branch.name, options);
+    if (branch.name.startsWith('-')) return Promise.resolve(fail('Invalid branch name.'));
+    return this.runSwitch([
+      'switch',
+      ...(options.force ? ['--discard-changes'] : []),
+      '--track',
+      branch.name,
+    ]);
+  }
+
+  private async runSwitch(args: string[]): Promise<GitResult> {
+    const result = await this.mutate(args);
+    return !result.ok && OVERWRITE_ERROR.test(result.error)
+      ? { ...result, code: 'overwrite' }
+      : result;
   }
 
   createBranch(
