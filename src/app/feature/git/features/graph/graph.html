@@ -1,11 +1,7 @@
 <div style="height: 100%">
   @if (nodeStore.rootPath()) {
     @if (git.isRepo()) {
-      @if (activeView() === 'Changes') {
-        <git-changes />
-      } @else {
-        <git-graph />
-      }
+      //content
     } @else {
       <git-no-repository />
     }

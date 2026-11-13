@@ -26,10 +26,7 @@
     [class.tab--active]="layoutService.isToolkitActive('Git')"
     (click)="layoutService.toggleToolkit('Git')"
   >
-    Git
-    @if (gitChangesCount()) {
-      <span class="rail-section__meta--attention">{{ gitChangesCount() }}</span>
-    }
+    Git Graph
   </button>
   <button
     class="tab"
@@ -56,31 +53,7 @@
           <span style="margin-left: 0.25em">New Session</span>
         </button>
       }
-      @if (layoutService.isToolkitActive('Git')) {
-        <div
-          style="
-            display: flex;
-            background: #1c1a17;
-            border-radius: 6px;
-            padding: 2px;
-            margin-left: 1em;
-          "
-        >
-          <button
-            class="git_section_btn"
-            [class.git_section_btn--active]="activeGitView == 'Changes'"
-            (click)="activeGitView = 'Changes'"
-          >
-            Changes
-          </button>
-          <button
-            class="git_section_btn"
-            [class.git_section_btn--active]="activeGitView == 'Graph'"
-            (click)="activeGitView = 'Graph'"
-          >
-            Graph
-          </button>
-        </div>
+      <!-- @if (layoutService.isToolkitActive('Git')) {
         <div class="git-actions">
           <button
             class="icon-btn"
@@ -90,114 +63,6 @@
           >
             <ng-icon name="lucideRotateCcw " />
           </button>
-          <button
-            class="icon-btn"
-            (click)="toggleBranchPicker()"
-            [appMenu]="branch_picker"
-            [menuPosition]="['right', 'top']"
-          >
-            <ng-icon name="lucideGitBranch" />
-            <span>{{ gitBranchName() }}</span>
-          </button>
-          <ng-template #branch_picker>
-            <style>
-              .menu-item {
-                margin-bottom: var(--space-8);
-                padding-left: var(--space-8) !important;
-              }
-              .detail {
-                display: inline-block;
-                color: var(--color-text-muted);
-                margin-top: 10px !important;
-                text-wrap: wrap;
-              }
-              .date {
-                color: var(--color-text-muted);
-                margin-left: var(--space-4);
-              }
-            </style>
-            <div class="menu" style="padding: var(--space-4) var(--space-8)">
-              @if (local().length) {
-                <div class="menu-item-group padded">
-                  <div class="menu-item-label">
-                    <span>Local</span>
-                  </div>
-                  @for (b of local(); track $index; let idx = $index) {
-                    @if (localCommitDetails()[idx]; as details) {
-                      <button class="menu-item" role="menuitem" (click)="switchTo(b)">
-                        <ng-icon name="lucideGitBranch" /> <span> {{ b.name }}</span>
-                        <span class="date"> {{ convertToDaysAndHours(details.date) }} ago </span>
-                        @if (b.gone) {
-                          <span class="hint">upstream gone</span>
-                        } @else if (b.ahead || b.behind) {
-                          <!-- <span class="hint">
-                            @if (b.ahead) {
-                              ↑{{ b.ahead }}
-                            }
-                            @if (b.behind) {
-                              ↓{{ b.behind }}
-                            }
-                          </span> -->
-                        }
-
-                        <br />
-                        <span class="detail">
-                          {{ details.author }} • {{ b.hash }} • {{ b.subject }}</span
-                        >
-                      </button>
-                    }
-                  }
-                </div>
-              }
-              @if (remote().length) {
-                <div class="menu-item-group padded">
-                  <div class="menu-item-label">
-                    <span>Remote</span>
-                  </div>
-                  @for (b of remote(); track $index; let idx = $index) {
-                    @if (remoteCommitDetails()[idx]; as details) {
-                      <button class="menu-item" role="menuitem" (click)="switchTo(b)">
-                        <ng-icon name="lucideGitBranch" /> <span> {{ b.name }}</span>
-                        <span class="date"> {{ convertToDaysAndHours(details.date) }} ago</span>
-                        <br />
-                        <span class="detail">
-                          {{ details.author }} • {{ b.hash }} • {{ b.subject }}</span
-                        >
-                      </button>
-                    }
-                  }
-                </div>
-              }
-              @if (isEmpty()) {
-                <div class="hint menu-item-group">No branches match “{{ branchNameQuery() }}”</div>
-              }
-              <div class="menu-item-group">
-                <button class="menu-item" role="menuitem" (click)="createBranch()">
-                  <ng-icon name="lucidePlus" />
-                  <span style="margin-left: var(--space-6)">Create Branch...</span>
-                </button>
-                <button class="menu-item" role="menuitem" (click)="createBranch(true)">
-                  <ng-icon name="lucidePlus" />
-                  <span style="margin-left: var(--space-6)">Create Branch From...</span>
-                </button>
-                <button class="menu-item" role="menuitem" (click)="checkoutDetached()">
-                  <ng-icon name="lucideUnlink" />
-                  <span style="margin-left: var(--space-6)">Checkout Detached</span>
-                </button>
-              </div>
-              <div class="problem__filter input-form" style="margin-top: var(--space-8)">
-                <input
-                  class="filter"
-                  type="search"
-                  placeholder="Search Branch ..."
-                  aria-label="Filter problems"
-                  spellcheck="false"
-                  [value]="branchNameQuery()"
-                  (input)="onSearchBranch($event)"
-                />
-              </div>
-            </div>
-          </ng-template>
           @if (needsPublish()) {
             <button
               class="icon-btn notif"
@@ -472,7 +337,7 @@
             </div>
           </ng-template>
         </div>
-      }
+      } -->
       @if (layoutService.isToolkitActive('Problems')) {
         <div class="problem__filter input-form">
           <input
@@ -506,7 +371,7 @@
     } -->
   }
   @case ('Git') {
-    <app-git [activeView]="activeGitView"></app-git>
+    <git-graph></git-graph>
   }
   @case ('Problems') {
     <app-problems [filter]="filterProblems()"></app-problems>

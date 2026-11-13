@@ -1,252 +1,539 @@
 <div class="git-change-container">
-  <div class="scrolling-el changes-list">
-    <!-- Staged Files Group -->
-    <div class="staged" style="margin-bottom: var(--space-10)">
-      <div class="header" (click)="stagedOpen = !stagedOpen">
-        @if (stagedOpen) {
-          <ng-icon name="lucideChevronDown" />
-        } @else {
-          <ng-icon name="lucideChevronRight" />
-        }
-        <span> Staged </span>
-        <span class="count">{{ stagedFiles().length }}</span>
-        <div class="btn-action-group">
-          <button
-            type="button"
-            class="icon-btn"
-            (click)="git.unstageAll(); $event.stopPropagation()"
-            title="Unstage All"
-          >
-            <ng-icon name="lucideMinus "></ng-icon>
-          </button>
-          <button class="icon-btn" (click)="commits.stash('staged')">
-            <ng-icon name="lucideHardDriveDownload " />
-          </button>
+  <div class="header">
+    <div class="title">
+      <span>Git Changes</span>
+      <span class="notif-action">{{ gitChangesCount() }}</span>
+    </div>
+    <div class="btn-group">
+      <button
+        class="icon-btn"
+        title="Open Git Graph"
+        aria-label="Open Git Graph"
+        (click)="toggleToolkit('Git')"
+      >
+        <ng-icon name="lucideGitGraph" />
+      </button>
+      <button
+        class="icon-btn"
+        title="Refresh"
+        aria-label="Refresh source control"
+        (click)="git.refresh()"
+      >
+        <ng-icon name="lucideRotateCcw " />
+      </button>
+      <button
+        class="icon-btn"
+        title="More actions"
+        aria-label="More source control actions"
+        [appMenu]="action"
+        [menuPosition]="['left', 'bottom']"
+      >
+        <ng-icon name="lucideEllipsis" />
+      </button>
+      <ng-template #action>
+        <div class="menu actions-menu" role="menu">
+          @if (conflictFiles().length) {
+            <div class="menu-item-group">
+              <button class="menu-item menu-btn-danger" role="menuitem" (click)="gitClient.abort()">
+                Abort merge
+              </button>
+            </div>
+          }
+          <div class="menu-item-group">
+            <button class="menu-item" role="menuitem" (click)="pull()">Pull</button>
+            <button class="menu-item" role="menuitem" (click)="gitClient.push()">Push</button>
+            <button class="menu-item" role="menuitem" (click)="gitClient.cloneRepo('')">
+              Clone
+            </button>
+            <button class="menu-item" role="menuitem" (click)="gitClient.checkoutTo()">
+              Checkout to ...
+            </button>
+            <button class="menu-item" role="menuitem" (click)="gitClient.fetch()">Fetch</button>
+          </div>
+          <div class="menu-item-group">
+            <button
+              class="menu-item menu-accordion-btn"
+              [appMenu]="commitMenu"
+              [menuPosition]="['left', 'center']"
+            >
+              <span>Commit</span> <ng-icon name="lucideChevronRight" />
+            </button>
+            <ng-template #commitMenu>
+              <div class="menu">
+                <div class="menu-item-group">
+                  <button class="menu-item" role="menuitem" (click)="gitClient.commit('staged')">
+                    Commit
+                  </button>
+                  <button class="menu-item" role="menuitem" (click)="gitClient.commit('staged')">
+                    Commit Staged
+                  </button>
+                  <button class="menu-item" role="menuitem" (click)="gitClient.commit('all')">
+                    Commit All
+                  </button>
+                </div>
+                <div class="menu-item-group">
+                  <button class="menu-item" role="menuitem" (click)="gitClient.commit('amend')">
+                    Amend Commit
+                  </button>
+                  <button class="menu-item" role="menuitem" (click)="gitClient.undoLastCommit()">
+                    Undo Last Commit
+                  </button>
+                </div>
+              </div>
+            </ng-template>
+
+            <button
+              class="menu-item menu-accordion-btn"
+              [appMenu]="changes"
+              [menuPosition]="['left', 'center']"
+            >
+              <span>Changes</span> <ng-icon name="lucideChevronRight" />
+            </button>
+            <ng-template #changes>
+              <div class="menu">
+                <div class="menu-item-group">
+                  <button class="menu-item" role="menuitem" (click)="gitClient.stageAll()">
+                    Stage All
+                  </button>
+                  <button class="menu-item" role="menuitem" (click)="gitClient.unstageAll()">
+                    Unstage All
+                  </button>
+                </div>
+                <div class="menu-item-group">
+                  <button class="menu-item menu-btn-danger" role="menuitem" (click)="discardAll()">
+                    Discard All changes ...
+                  </button>
+                </div>
+              </div>
+            </ng-template>
+            <button
+              class="menu-item menu-accordion-btn"
+              [appMenu]="pull_push"
+              [menuPosition]="['left', 'center']"
+            >
+              <span>Pull, Push</span> <ng-icon name="lucideChevronRight" />
+            </button>
+            <ng-template #pull_push>
+              <div class="menu">
+                <div class="menu-item-group">
+                  <button class="menu-item" role="menuitem" (click)="gitClient.sync()">Sync</button>
+                </div>
+                <div class="menu-item-group">
+                  <button class="menu-item" role="menuitem" (click)="gitClient.pullFrom()">
+                    Pull From
+                  </button>
+                  <button class="menu-item" role="menuitem" (click)="gitClient.pullRebase()">
+                    Pull (Rebase)
+                  </button>
+                  <button class="menu-item" role="menuitem" (click)="gitClient.pushTo()">
+                    Push to
+                  </button>
+                  <button
+                    class="menu-item"
+                    role="menuitem"
+                    (click)="gitClient.push({ force: true })"
+                  >
+                    Push Force
+                  </button>
+                </div>
+              </div>
+            </ng-template>
+            <button
+              class="menu-item menu-accordion-btn"
+              [appMenu]="branch"
+              [menuPosition]="['left', 'center']"
+            >
+              <span>Branch</span> <ng-icon name="lucideChevronRight" />
+            </button>
+            <ng-template #branch>
+              <div class="menu">
+                <div class="menu-item-group">
+                  <button class="menu-item" role="menuitem" (click)="gitClient.mergeBranch()">
+                    Merge Branch
+                  </button>
+                  <button class="menu-item" role="menuitem" (click)="gitClient.rebaseBranch()">
+                    Rebase Branch
+                  </button>
+                </div>
+                <div class="menu-item-group">
+                  <button class="menu-item" role="menuitem" (click)="gitClient.createBranch()">
+                    Create Branch...
+                  </button>
+                  <button class="menu-item" role="menuitem" (click)="gitClient.createBranch(true)">
+                    Create Branch From...
+                  </button>
+                  <button class="menu-item" role="menuitem" (click)="gitClient.checkoutDetached()">
+                    Checkout Detached
+                  </button>
+                </div>
+                <div class="menu-item-group">
+                  <button class="menu-item" role="menuitem" (click)="gitClient.renameBranch()">
+                    Rename Branch...
+                  </button>
+                  <button
+                    class="menu-item menu-btn-danger"
+                    role="menuitem"
+                    (click)="gitClient.deleteBranch()"
+                  >
+                    Delete Branch...
+                  </button>
+                  <button
+                    class="menu-item menu-btn-danger"
+                    role="menuitem"
+                    (click)="gitClient.deleteRemoteBranch()"
+                  >
+                    Delete Remote Branch...
+                  </button>
+                </div>
+                <div class="menu-item-group">
+                  <button class="menu-item" role="menuitem" (click)="gitClient.publishBranch()">
+                    Publish Branch...
+                  </button>
+                </div>
+              </div>
+            </ng-template>
+            <button
+              class="menu-item menu-accordion-btn"
+              [appMenu]="stash"
+              [menuPosition]="['left', 'center']"
+            >
+              <span>Stash</span> <ng-icon name="lucideChevronRight" />
+            </button>
+            <ng-template #stash>
+              <div class="menu">
+                <div class="menu-item-group">
+                  <button class="menu-item" role="menuitem" (click)="gitClient.stash()">
+                    Stash Changes
+                  </button>
+                  <button class="menu-item" role="menuitem" (click)="gitClient.stash('all', true)">
+                    Stash Including Untracked
+                  </button>
+                </div>
+                <div class="menu-item-group">
+                  <button
+                    class="menu-item"
+                    role="menuitem"
+                    (click)="gitClient.stashLatest('apply')"
+                  >
+                    Apply Latest Stash
+                  </button>
+                  <button class="menu-item" role="menuitem" (click)="gitClient.stashLatest('pop')">
+                    Pop Latest Stash
+                  </button>
+                  <button class="menu-item" role="menuitem" (click)="gitClient.stashPick('apply')">
+                    Apply Stash...
+                  </button>
+                  <button class="menu-item" role="menuitem" (click)="gitClient.stashPick('pop')">
+                    Pop Stash...
+                  </button>
+                </div>
+                <div class="menu-item-group">
+                  <button
+                    class="menu-item menu-btn-danger"
+                    role="menuitem"
+                    (click)="gitClient.stashPick('drop')"
+                  >
+                    Drop Stash...
+                  </button>
+                  <button
+                    class="menu-item menu-btn-danger"
+                    role="menuitem"
+                    (click)="gitClient.dropAllStashes()"
+                  >
+                    Drop All Stashes
+                  </button>
+                </div>
+              </div>
+            </ng-template>
+          </div>
+          <div class="menu-item-group">
+            <button class="menu-item" role="menuitem" (click)="gitClient.addRemote()">
+              Add Remote
+            </button>
+            <button class="menu-item" role="menuitem" (click)="gitClient.removeRemote()">
+              Remove Remote
+            </button>
+          </div>
         </div>
-      </div>
-      @if (stagedOpen) {
-        @for (file of stagedFiles(); track file.path) {
-          <div class="file" (click)="openDiff(file)">
-            <file-icon [name]="getFileNameFromPath(file.path)" [type]="'file'" />
-            <span>{{ getFileNameFromPath(file.path) }}</span>
-            <span class="path">{{ file.path }}</span>
-            <div class="actions">
+      </ng-template>
+      <button
+        class="icon-btn"
+        title="Close Git Change"
+        aria-label="Close Git Change"
+        style="margin-left: var(--space-8)"
+        (click)="layout.toggleGitChange()"
+      >
+        <ng-icon name="lucideX"></ng-icon>
+      </button>
+    </div>
+  </div>
+  @if (nodeStore.rootPath()) {
+    @if (git.isRepo()) {
+      <div class="input-container">
+        <div class="input-form">
+          <input
+            type="text"
+            [ngModel]="commitMessage()"
+            (ngModelChange)="commitMessage.set($event)"
+            placeholder="Message (Ctrl+Enter to commit on '{{ branchName() }}')"
+            (keydown.control.enter)="commit()"
+            (keydown.meta.enter)="commit()"
+          />
+        </div>
+        <div
+          class="btn-group"
+          style="display: flex; gap: var(--space-6); margin-top: var(--space-10)"
+        >
+          @if (ahead() > 0 && stagedFiles().length == 0 && changedFiles().length == 0) {
+            <button
+              class="btn-action full_width"
+              [disabled]="git.busy()"
+              (click)="gitClient.sync()"
+            >
+              <ng-icon name="lucideRefreshCcw" />
+              <span style="margin: 0 var(--space-6)">Sync Changes {{ ahead() }}</span>
+              <ng-icon name="lucideArrowUp" />
+            </button>
+          } @else {
+            <div class="linked-btn full_width">
               <button
-                class="icon-btn"
-                type="button"
-                title="Stage file"
-                (click)="editorCommands.openPath(file.path); $event.stopPropagation()"
+                class="btn-action main-btn"
+                style="flex: 1"
+                [disabled]="!hasChanges() || git.busy()"
+                (click)="commit()"
               >
-                <ng-icon name="lucideFileSymlink " />
+                Commit
               </button>
               <button
+                class="btn-action"
+                [appMenu]="action"
+                [menuPosition]="['left', 'bottom']"
+                [disabled]="!hasChanges() || git.busy()"
+              >
+                <ng-icon name="lucideEllipsis" />
+              </button>
+            </div>
+            <ng-template #action>
+              <div class="menu actions-menu" role="menu">
+                <div class="menu-item-group">
+                  <button
+                    class="menu-item"
+                    role="menuitem"
+                    [disabled]="git.busy()"
+                    (click)="commitAmend()"
+                  >
+                    Commit (Amend)
+                  </button>
+                </div>
+                <div class="menu-item-group">
+                  <button
+                    class="menu-item"
+                    role="menuitem"
+                    [disabled]="!hasChanges() || git.busy()"
+                    (click)="commitAndPush()"
+                  >
+                    Commit &amp; Push
+                  </button>
+                  <button
+                    class="menu-item"
+                    role="menuitem"
+                    [disabled]="!hasChanges() || git.busy()"
+                    (click)="commitAndSync()"
+                  >
+                    Commit &amp; Sync
+                  </button>
+                </div>
+              </div>
+            </ng-template>
+          }
+        </div>
+        @if (conflictFiles().length) {
+          <section class="file-group expanded">
+            <header class="group-header">
+              <span class="group-toggle">
+                <span>Merge Conflicts</span>
+                <span class="count">{{ conflictFiles().length }}</span>
+              </span>
+            </header>
+            @for (file of conflictFiles(); track file.path) {
+              <div class="file-row">
+                <ng-icon class="file-icon" name="lucideFile" />
+                <span class="file-path" [title]="file.path" (click)="openDiff(file)">{{
+                  file.path
+                }}</span>
+                <span [class]="statusClass(file.status)" [title]="statusLabel(file.status)">{{
+                  file.status
+                }}</span>
+                <button
+                  class="row-action"
+                  type="button"
+                  title="Mark as resolved (stage)"
+                  [attr.aria-label]="'Mark ' + file.path + ' as resolved'"
+                  [disabled]="git.busy()"
+                  (click)="stageFile(file)"
+                >
+                  +
+                </button>
+              </div>
+            }
+          </section>
+        }
+      </div>
+      <div class="scrolling-el changes-list">
+        <!-- Staged Files Group -->
+        <div class="staged" style="margin-bottom: var(--space-10)">
+          <div class="section-header" (click)="stagedOpen = !stagedOpen">
+            @if (stagedOpen) {
+              <ng-icon name="lucideChevronDown" />
+            } @else {
+              <ng-icon name="lucideChevronRight" />
+            }
+            <span> Staged </span>
+            <span class="count">{{ stagedFiles().length }}</span>
+            <div class="btn-action-group">
+              <button
                 type="button"
-                (click)="unstageFile(file); $event.stopPropagation()"
                 class="icon-btn"
-                title="Unstage file"
+                (click)="unstageAll(); $event.stopPropagation()"
+                title="Unstage All"
               >
                 <ng-icon name="lucideMinus "></ng-icon>
               </button>
+              <button class="icon-btn" (click)="gitClient.stash('staged')">
+                <ng-icon name="lucideHardDriveDownload " />
+              </button>
             </div>
-            <span class="status" [style.background]="statusClass(file.status).background">
-              {{ file.status }}
-            </span>
           </div>
-        } @empty {
-          <div style="padding: 6px 16px; font-size: 13px; color: #a39b8b; font-style: italic">
-            No staged changes
-          </div>
-        }
-      }
-    </div>
-
-    <!-- Changes Group -->
-    <div class="changes">
-      <div class="header" (click)="ChangesOpen = !ChangesOpen">
-        @if (ChangesOpen) {
-          <ng-icon name="lucideChevronDown" />
-        } @else {
-          <ng-icon name="lucideChevronRight" />
-        }
-        <span> Changes </span>
-        <span class="count">{{ changedFiles().length }}</span>
-        <div class="btn-action-group">
-          <button class="icon-btn" (click)="commits.stash('unstaged')">
-            <ng-icon name="lucideHardDriveDownload " />
-          </button>
-          <button
-            class="icon-btn"
-            type="button"
-            title="Discard changes"
-            [disabled]="git.busy()"
-            (click)="discardAll(); $event.stopPropagation()"
-          >
-            <ng-icon name="lucideUndo " />
-          </button>
-          <button class="icon-btn" type="button" title="Stage file" (click)="discardAll()">
-            <ng-icon name="lucideFileSymlink " />
-          </button>
-          <button
-            class="icon-btn"
-            type="button"
-            (click)="stageAll(); $event.stopPropagation()"
-            title="Stage All Changes"
-          >
-            <ng-icon name="lucidePlus" />
-          </button>
+          @if (stagedOpen) {
+            @for (file of stagedFiles(); track file.path) {
+              <div class="file" (click)="openDiff(file)">
+                <file-icon [name]="getFileNameFromPath(file.path)" [type]="'file'" />
+                <div class="label">
+                  <span class="file-name">{{ getFileNameFromPath(file.path) }}</span>
+                  <span class="file-path" style="margin-left: var(--space-8)">{{
+                    path(file)
+                  }}</span>
+                </div>
+                <div class="actions">
+                  <button
+                    class="icon-btn"
+                    type="button"
+                    title="Stage file"
+                    (click)="editorCommand.openPath(file.path); $event.stopPropagation()"
+                  >
+                    <ng-icon name="lucideFileSymlink " />
+                  </button>
+                  <button
+                    type="button"
+                    (click)="unstageFile(file); $event.stopPropagation()"
+                    class="icon-btn"
+                    title="Unstage file"
+                  >
+                    <ng-icon name="lucideMinus "></ng-icon>
+                  </button>
+                  <span class="status" [style.background]="statusClass(file.status).background">
+                    {{ file.status }}
+                  </span>
+                </div>
+              </div>
+            } @empty {
+              <div style="padding: 6px 16px; font-size: 13px; color: #a39b8b; font-style: italic">
+                No staged changes
+              </div>
+            }
+          }
         </div>
-      </div>
-      @if (ChangesOpen) {
-        @for (file of changedFiles(); track file.path) {
-          <div class="file" (click)="openDiff(file)">
-            <file-icon [name]="getFileNameFromPath(file.path)" [type]="'file'" />
 
-            <span>{{ getFileNameFromPath(file.path) }}</span>
-            <span class="path">{{ file.path }}</span>
-            <div class="actions">
+        <!-- Changes Group -->
+        <div class="changes">
+          <div class="section-header" (click)="ChangesOpen = !ChangesOpen">
+            @if (ChangesOpen) {
+              <ng-icon name="lucideChevronDown" />
+            } @else {
+              <ng-icon name="lucideChevronRight" />
+            }
+            <span> Changes </span>
+            <span class="count">{{ changedFiles().length }}</span>
+            <div class="btn-action-group">
+              <button class="icon-btn" (click)="gitClient.stash('unstaged')">
+                <ng-icon name="lucideHardDriveDownload " />
+              </button>
               <button
                 class="icon-btn"
                 type="button"
-                [title]="file.status === 'U' ? 'Delete untracked file' : 'Discard changes'"
-                [attr.aria-label]="'Discard ' + file.path"
+                title="Discard changes"
                 [disabled]="git.busy()"
-                (click)="discardFile(file)"
+                (click)="discardAll(); $event.stopPropagation()"
               >
                 <ng-icon name="lucideUndo " />
               </button>
-              <button class="icon-btn" type="button" title="Stage file">
+              <button class="icon-btn" type="button" title="Stage file" (click)="discardAll()">
                 <ng-icon name="lucideFileSymlink " />
               </button>
               <button
                 class="icon-btn"
                 type="button"
-                (click)="stageFile(file); $event.stopPropagation()"
-                title="Stage file"
+                (click)="stageAll(); $event.stopPropagation()"
+                title="Stage All Changes"
               >
                 <ng-icon name="lucidePlus" />
               </button>
             </div>
-            <span class="status" [style.background]="statusClass(file.status).background">
-              {{ file.status }}
-            </span>
           </div>
-        } @empty {
-          <div style="padding: 6px 16px; font-size: 13px; color: #a39b8b; font-style: italic">
-            No changes detected
-          </div>
-        }
-      }
-    </div>
-  </div>
-  <div style="width: 320px; border-left: 1px solid #2e2a24; padding: 14px; box-sizing: border-box">
-    <div class="input-form">
-      <input
-        type="text"
-        [ngModel]="commitMessage()"
-        (ngModelChange)="commitMessage.set($event)"
-        placeholder="Message (Ctrl+Enter to commit on '{{ branchName() }}')"
-        (keydown.control.enter)="commit()"
-        (keydown.meta.enter)="commit()"
-      />
-    </div>
-    <div class="btn-group" style="display: flex; gap: var(--space-6); margin-top: var(--space-10)">
-      @if (ahead() > 0 && stagedFiles().length == 0 && changedFiles().length == 0) {
-        <button class="btn-action full_width" [disabled]="git.busy()" (click)="sync()">
-          <ng-icon name="lucideRefreshCcw" />
-          <span style="margin: 0 var(--space-6)">Sync Changes {{ ahead() }}</span>
-          <ng-icon name="lucideArrowUp" />
-        </button>
-      } @else {
-        <div class="linked-btn full_width">
-          <button
-            class="btn-action main-btn"
-            style="flex: 1"
-            [disabled]="!hasChanges() || git.busy()"
-            (click)="commit()"
-          >
-            Commit
-          </button>
-          <button
-            class="btn-action"
-            [appMenu]="action"
-            [menuPosition]="['left', 'bottom']"
-            [disabled]="!hasChanges() || git.busy()"
-          >
-            <ng-icon name="lucideEllipsis" />
-          </button>
+          @if (ChangesOpen) {
+            @for (file of changedFiles(); track file.path) {
+              <div class="file" (click)="openDiff(file)">
+                <file-icon
+                  [name]="getFileNameFromPath(file.path)"
+                  [type]="'file'"
+                  class="file-icon"
+                />
+
+                <div class="label">
+                  <span class="file-name">
+                    {{ getFileNameFromPath(file.path) }}
+                  </span>
+                  <span class="file-path">{{ file.path }}</span>
+                </div>
+                <div class="actions">
+                  <button
+                    class="icon-btn"
+                    type="button"
+                    [title]="file.status === 'U' ? 'Delete untracked file' : 'Discard changes'"
+                    [attr.aria-label]="'Discard ' + file.path"
+                    [disabled]="git.busy()"
+                    (click)="discardFile(file)"
+                  >
+                    <ng-icon name="lucideUndo " />
+                  </button>
+                  <button class="icon-btn" type="button" title="Stage file">
+                    <ng-icon name="lucideFileSymlink " />
+                  </button>
+                  <button
+                    class="icon-btn"
+                    type="button"
+                    (click)="stageFile(file); $event.stopPropagation()"
+                    title="Stage file"
+                  >
+                    <ng-icon name="lucidePlus" />
+                  </button>
+                  <span class="status" [style.background]="statusClass(file.status).background">
+                    {{ file.status }}
+                  </span>
+                </div>
+              </div>
+            } @empty {
+              <div style="padding: 6px 16px; font-size: 13px; color: #a39b8b; font-style: italic">
+                No changes detected
+              </div>
+            }
+          }
         </div>
-        <ng-template #action>
-          <div class="menu actions-menu" role="menu">
-            <div class="menu-item-group">
-              <button
-                class="menu-item"
-                role="menuitem"
-                [disabled]="git.busy()"
-                (click)="commitAmend()"
-              >
-                Commit (Amend)
-              </button>
-            </div>
-            <div class="menu-item-group">
-              <button
-                class="menu-item"
-                role="menuitem"
-                [disabled]="!hasChanges() || git.busy()"
-                (click)="commitAndPush()"
-              >
-                Commit &amp; Push
-              </button>
-              <button
-                class="menu-item"
-                role="menuitem"
-                [disabled]="!hasChanges() || git.busy()"
-                (click)="commitAndSync()"
-              >
-                Commit &amp; Sync
-              </button>
-            </div>
-          </div>
-        </ng-template>
-      }
-    </div>
-    @if (notice(); as n) {
-      <div class="notice" [class.notice--error]="n.kind === 'error'" role="alert">
-        <span class="notice-text">{{ n.text }}</span>
-        <button type="button" class="notice-close" aria-label="Dismiss" (click)="notice.set(null)">
-          ×
-        </button>
       </div>
+    } @else {
+      <git-no-repository />
     }
-    @if (conflictFiles().length) {
-      <section class="file-group expanded">
-        <header class="group-header">
-          <span class="group-toggle">
-            <span>Merge Conflicts</span>
-            <span class="count">{{ conflictFiles().length }}</span>
-          </span>
-        </header>
-        @for (file of conflictFiles(); track file.path) {
-          <div class="file-row">
-            <ng-icon class="file-icon" name="lucideFile" />
-            <span class="file-path" [title]="file.path" (click)="openDiff(file)">{{
-              file.path
-            }}</span>
-            <span [class]="statusClass(file.status)" [title]="statusLabel(file.status)">{{
-              file.status
-            }}</span>
-            <button
-              class="row-action"
-              type="button"
-              title="Mark as resolved (stage)"
-              [attr.aria-label]="'Mark ' + file.path + ' as resolved'"
-              [disabled]="git.busy()"
-              (click)="stageFile(file)"
-            >
-              +
-            </button>
-          </div>
-        }
-      </section>
-    }
-  </div>
+  } @else {
+    <git-no-folder />
+  }
 </div>

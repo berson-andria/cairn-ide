@@ -11,6 +11,7 @@ import { NodeStore } from '../../../../core/store/node.store';
 import { FileIcon } from '../../../../shared/components/file-icon';
 import { GitService } from '../../../git/services/git.service';
 import { statusStyle } from '../../../git/ui/git-ui';
+import { LayoutService } from '../../../../core/services/layout.service';
 
 @Component({
   selector: 'folder-node',
@@ -22,6 +23,7 @@ import { statusStyle } from '../../../git/ui/git-ui';
 export class FolderNode {
   nodeStore = inject(NodeStore);
   protected readonly git = inject(GitService);
+  readonly layout = inject(LayoutService);
   nodeId: InputSignal<string> = input.required();
 
   level: InputSignal<number> = input.required();
@@ -100,13 +102,13 @@ export class FolderNode {
   get lineIndentStyle() {
     return {
       left: `${this.level() * this.indentMultiplier + 10}px`,
-      'z-index': `${this.maxZIndex() - this.level() - 1}`,
+      'z-index': `${this.layout.isGitChangeDisplayed() ? 0 : this.maxZIndex() - this.level() - 1}`,
     };
   }
   get stickyStyles() {
     return {
       top: `${this.level() * this.rowHeight()}px`,
-      'z-index': `${this.maxZIndex() - this.level()}`,
+      'z-index': `${this.layout.isGitChangeDisplayed() ? 0 : this.maxZIndex() - this.level()}`,
     };
   }
 }

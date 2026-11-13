@@ -23,9 +23,13 @@ import {
   lucideBraces,
   lucideChevronDown,
   lucideChevronRight,
+  lucideCloudUpload,
   lucideFolderRoot,
   lucideGitBranch,
+  lucideGitCommitHorizontal,
+  lucideGitGraph,
   lucideOctagonX,
+  lucideRefreshCcw,
   lucideTerminalSquare,
 } from '@ng-icons/lucide';
 import { DiagnosticsService } from '../../core/services/diagnostics.service';
@@ -36,6 +40,7 @@ import { CommonModule } from '@angular/common';
 import { loadIconSprite } from '../../shared/utils/icon-sprite';
 import { MenuDirective } from '../../shared/directives/menu.directive';
 import { Tab, TabStore } from '../../core/store/tab.store';
+import { GitClient } from '../../feature/git/services/git-client.service';
 
 @Component({
   selector: 'app-shell',
@@ -50,6 +55,10 @@ import { Tab, TabStore } from '../../core/store/tab.store';
       lucideChevronRight,
       lucideFolderRoot,
       lucideGitBranch,
+      lucideGitCommitHorizontal,
+      lucideCloudUpload,
+      lucideRefreshCcw,
+      lucideGitGraph,
       lucideOctagonX,
       lucideAlertTriangle,
       lucideBraces,
@@ -63,6 +72,7 @@ export class AppShell {
   readonly commands = inject(EditorCommands);
   readonly editorService = inject(EditorService);
   readonly git = inject(GitService);
+  readonly gitClient = inject(GitClient);
   readonly ngZone = inject(NgZone);
   readonly lsp = inject(LspBridgeService);
   protected tabStore = inject(TabStore);
@@ -80,10 +90,18 @@ export class AppShell {
 
   isMonacoLoading = signal(true);
   isMaximized = signal(false);
+  currentBranch = computed(() => {
+    const status = this.git.status();
+    return status?.branch ?? (status?.detached ? 'detached HEAD' : 'no branch');
+  });
   gitChangesCount = computed(() => {
     const staged = this.git.staged();
     const unstaged = this.git.unstaged();
     return staged.length + unstaged.length;
+  });
+  readonly needsPublish = computed(() => {
+    const s = this.git.status();
+    return !!s?.branch && !s.upstream;
   });
   cursorPosition = computed(() => {
     return {
@@ -160,5 +178,8 @@ export class AppShell {
     } catch {
       /* not running inside Tauri */
     }
+  }
+  async publishBranch() {
+    this.gitClient.publishBranch();
   }
 }

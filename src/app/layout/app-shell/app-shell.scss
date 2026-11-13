@@ -151,8 +151,17 @@
 .status-bar__group {
   display: flex;
   align-items: center;
-  gap: var(--space-16);
+  gap: var(--space-24);
   min-width: 0;
+  .git-btn-group {
+    display: flex;
+    flex-direction: row;
+    gap: var(--space-6);
+    button:hover,
+    button.is-active {
+      background: var(--color-surface-raised-hover);
+    }
+  }
 }
 button.status-bar__item {
   border-radius: var(--space-4);

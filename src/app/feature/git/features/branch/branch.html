@@ -1,0 +1,80 @@
+<div class="branch_container">
+  <div class="barch__filter input-form" style="margin-top: var(--space-8)">
+    <input
+      class="filter"
+      type="search"
+      placeholder="Search Branch ..."
+      aria-label="Filter problems"
+      spellcheck="false"
+      [value]="branchNameQuery()"
+      (input)="onSearchBranch($event)"
+    />
+  </div>
+  <div class="btn-group section">
+    <button class="lg-btn" (click)="gitClient.createBranch()">
+      <ng-icon name="lucidePlus" />
+      <span style="margin-left: var(--space-6)">Create Branch...</span>
+    </button>
+    <button class="lg-btn" (click)="gitClient.createBranch(true)">
+      <ng-icon name="lucidePlus" />
+      <span style="margin-left: var(--space-6)">Create Branch From...</span>
+    </button>
+    <button class="lg-btn" (click)="gitClient.checkoutDetached()">
+      <ng-icon name="lucideUnlink" />
+      <span style="margin-left: var(--space-6)">Checkout Detached</span>
+    </button>
+  </div>
+  @if (local().length) {
+    <div class="section padded">
+      <div class="section-label">
+        <span>Local</span>
+      </div>
+      @for (b of local(); track $index; let idx = $index) {
+        @if (localCommitDetails()[idx]; as details) {
+          <button class="lg-btn" (click)="switchTo(b)">
+            <ng-icon name="lucideGitBranch" /> <span> {{ b.name }}</span>
+            <span class="date"> {{ convertToDaysAndHours(details.date) }} ago </span>
+
+            @if (b.gone) {
+              <span style="color: var(--color-error-fg)">upstream gone</span>
+            } @else if (b.upstream) {
+              <span class="cloud">
+                <ng-icon name="lucideCloudCheck" />
+              </span>
+            }
+            @if (b.gone) {
+              <button
+                class="delete-branch"
+                (click)="git.deleteBranch(b.name); $event.stopPropagation()"
+              >
+                <ng-icon name="lucideTrash" />
+              </button>
+            }
+            <br />
+            <span class="detail"> {{ details.author }} • {{ b.hash }} • {{ b.subject }}</span>
+          </button>
+        }
+      }
+    </div>
+  }
+  @if (remote().length) {
+    <div class="section padded">
+      <div class="section-label">
+        <span>Remote</span>
+      </div>
+      @for (b of remote(); track $index; let idx = $index) {
+        @if (remoteCommitDetails()[idx]; as details) {
+          <button class="lg-btn" (click)="switchTo(b)">
+            <ng-icon name="lucideGitBranch" /> <span> {{ b.name }}</span>
+            <span class="date"> {{ convertToDaysAndHours(details.date) }} ago</span>
+            <br />
+            <span class="detail"> {{ details.author }} • {{ b.hash }} • {{ b.subject }}</span>
+          </button>
+        }
+      }
+    </div>
+  }
+  @if (isEmpty()) {
+    <div class="hint section">No branches match “{{ branchNameQuery() }}”</div>
+  }
+</div>

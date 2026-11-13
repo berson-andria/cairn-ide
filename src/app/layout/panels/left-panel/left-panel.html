@@ -10,5 +10,8 @@
   <task-list />
   <note-list />
   <review-list />
+  @if (layout.isGitChangeDisplayed()) {
+    <git-changes></git-changes>
+  }
 </div>
 <div class="rail__hint">Ctrl+1 Work · 2 Files · 3 Notes · 4 Review</div>

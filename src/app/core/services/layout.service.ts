@@ -1,6 +1,7 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { Search } from '../../feature/search/search';
 import { DialogService } from './dialog/dialog.service';
+import { GitBranchComponent } from '../../feature/git/features/branch/branch';
 
 export type RailSection = 'Work' | 'Files' | 'Notes' | 'Review';
 export type Toolkit = 'Terminal' | 'Git' | 'Log' | 'Problems';
@@ -14,10 +15,20 @@ export class LayoutService {
   readonly dialogService = inject(DialogService);
 
   readonly isBottomPanelCollapsed = signal(false);
+  readonly isGitChangeDisplayed = signal(false);
 
   toggleRailSection(section: RailSection) {
     this.activeRail.update((v) => (v === section ? null : section));
   }
+
+  toggleGitChange() {
+    this.isGitChangeDisplayed.update((v) => !v);
+  }
+
+  openGitBranch() {
+    this.dialogService.open(GitBranchComponent);
+  }
+
   isRailSectionActive(section: RailSection) {
     return this.activeRail() === section;
   }

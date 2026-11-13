@@ -87,7 +87,6 @@ const SLOW_TIMEOUT = 120; // commit hooks can take a while
 const keyOf = (path: string) => normalizePath(path).toLowerCase();
 
 /** Without this, git reads "a*.ts" or "[id].ts" as a pattern and touches the wrong files. */
-const literal = (path: string) => `:(literal)${path}`;
 
 @Injectable({ providedIn: 'root' })
 export class GitService {

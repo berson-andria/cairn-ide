@@ -214,19 +214,68 @@
 
 <footer class="status-bar">
   <div class="status-bar__group">
-    <button
-      class="status-bar__item status-bar__item--strong"
-      [class.notif]="gitChangesCount() > 0"
-      type="button"
-      aria-label="Open Git"
-      (click)="toggleToolkit('Git')"
-    >
-      <ng-icon name="lucideGitBranch " />
-      <span>Git</span>
-      @if (gitChangesCount() > 0) {
-        <span>{{ gitChangesCount() }}</span>
+    <div class="git-btn-group">
+      <button
+        class="status-bar__item status-bar__item--strong"
+        [class.is-active]="layoutService.isGitChangeDisplayed()"
+        type="button"
+        aria-label="Toggle Git Changes"
+        title="Toggle Git Changes"
+        [class.notif]="gitChangesCount() > 0"
+        (click)="layoutService.toggleGitChange()"
+      >
+        <ng-icon name="lucideGitCommitHorizontal" />
+        @if (gitChangesCount() > 0) {
+          <span>{{ gitChangesCount() }}</span>
+        }
+        <span>Changes</span>
+      </button>
+      <button
+        class="status-bar__item status-bar__item--strong"
+        type="button"
+        aria-label="Switch Branch"
+        title="Switch Branch"
+        (click)="layoutService.openGitBranch()"
+      >
+        <ng-icon name="lucideGitBranch " />
+        <span>{{ currentBranch() }}</span>
+      </button>
+      @if (needsPublish()) {
+        <button
+          class="icon-btn notif"
+          title="Publish branch"
+          aria-label="Publish branch"
+          (click)="publishBranch()"
+        >
+          <ng-icon name="lucideCloudUpload" />
+        </button>
       }
-    </button>
+      @if (git.status() && (git.status()!.ahead || git.status()!.behind)) {
+        <button
+          class="icon-btn notif"
+          title="Sync changes"
+          aria-label="Sync changes"
+          [disabled]="!git.status()?.upstream"
+          (click)="gitClient.sync()"
+        >
+          <ng-icon name="lucideRefreshCcw" />
+          <span class="hint" style="margin-left: var(--space-6)">
+            {{ git.status()!.behind }}↓ {{ git.status()!.ahead }}↑
+          </span>
+        </button>
+      }
+      <button
+        class="status-bar__item status-bar__item--strong"
+        type="button"
+        aria-label="Open Git Graph"
+        title="Open Git Graph"
+        (click)="toggleToolkit('Git')"
+      >
+        <ng-icon name="lucideGitGraph" />
+        <span>Graph</span>
+      </button>
+    </div>
+
     <button
       class="status-bar_item status-bar__item--strong"
       style="display: flex; align-items: center; gap: var(--space-6)"
