@@ -110,7 +110,12 @@ export const TabStore = signalStore(
       const id = diffTabId(request);
       const resolvedTitle = title ?? diffTitle(request);
       const diffTab: DiffTab = { id, title: resolvedTitle, request };
-      const tab: Tab = { id, type: 'DiffEditor', title: resolvedTitle };
+      const tab: Tab = {
+        id,
+        type: 'DiffEditor',
+        title: resolvedTitle,
+        data: request.original.path,
+      };
 
       patchState(store, (s) => {
         const existingIndex = s.openedTabs.findIndex((t) => t.id === id);

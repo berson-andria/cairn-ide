@@ -23,8 +23,13 @@
           [title]="tab.tooltip"
           (click)="openTab(tab.id)"
         >
-          <file-icon [name]="tab.label" [type]="'file'" />
-          <span>{{ tab.label }}</span>
+          <file-icon [name]="tab.kind === 'diff' ? tab.iconFileName! : tab.label" [type]="'file'" />
+          <span [style.color]="statusStyle(tab)">
+            <span>{{ tab.label }}</span>
+            <span class="git-letter" style="margin-left: var(--space-6)">{{
+              fileBadge(tab)?.letter
+            }}</span>
+          </span>
           <button class="icon-btn" (click)="$event.stopPropagation(); closeTab(tab.id)">
             <ng-icon name="lucideX"></ng-icon>
           </button>

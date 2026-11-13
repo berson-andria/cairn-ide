@@ -28,6 +28,8 @@ import { lucideFileWarning, lucideX } from '@ng-icons/lucide';
 import { MenuDirective } from '../../../shared/directives/menu.directive';
 import { LayoutService, Toolkit } from '../../../core/services/layout.service';
 import { GitService } from '../../../feature/git/services/git.service';
+import { statusStyle } from '../../../feature/git/ui/git-ui';
+import { getFileNameFromPath } from '../../../shared/utils/node.utils';
 
 /** What the tab strip draws: a file, diff, task, review, note, or chat tab. */
 interface TabView {
@@ -37,6 +39,7 @@ interface TabView {
   label: string;
   dirty: boolean;
   active: boolean;
+  iconFileName?: string;
   tooltip: string;
 }
 
@@ -92,6 +95,7 @@ export class MainPanel {
                 label: diff.title ?? tab.title ?? 'Diff',
                 dirty: !!fileId && this.tabStore.isDirty(fileId),
                 active: id === active,
+                iconFileName: getFileNameFromPath(<any>tab.data),
                 tooltip:
                   original.path !== modified.path
                     ? `${original.path} → ${modified.path}`
@@ -211,6 +215,12 @@ export class MainPanel {
   activeTab = computed(() => this.tabs().find((t) => t.active) ?? null);
   dirtyFileCount = computed(() => this.tabStore.dirtyIds().length);
 
+  fileBadge(tab: TabView) {
+    if (tab.kind !== 'diff' && tab.kind !== 'file') return null;
+    const path = tab.kind === 'diff' ? tab.tooltip : this.nodeStore.nodes()[tab.id]!.path;
+    return this.git.badgeFor(path);
+  }
+
   gitChangesCount = computed(() => {
     const staged = this.git.staged();
     const unstaged = this.git.unstaged();
@@ -254,6 +264,13 @@ export class MainPanel {
       this.tabs();
       afterNextRender(() => this.measure(), { injector: this.injector });
     });
+  }
+  statusStyle(tab) {
+    console.log(tab);
+
+    return this.fileBadge(tab.id)
+      ? statusStyle(<any>this.fileBadge(tab.id)?.letter).color
+      : 'inherit';
   }
 
   measure() {

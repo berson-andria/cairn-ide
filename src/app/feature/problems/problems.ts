@@ -145,33 +145,6 @@ function matches(p: Problem, query: string): boolean {
         min-height: 0;
         overflow: hidden;
       }
-      .bar {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 4px 8px;
-      }
-      .filter {
-        flex: 1;
-        min-width: 0;
-      }
-      .sev {
-        display: flex;
-        gap: 4px;
-      }
-      .sev__btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        border: 0;
-        background: transparent;
-        color: inherit;
-        font: inherit;
-        cursor: pointer;
-      }
-      .sev__btn.is-off {
-        opacity: 0.4;
-      }
       .list {
         flex: 1;
         min-height: 0;
