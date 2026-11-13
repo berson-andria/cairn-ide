@@ -46,7 +46,7 @@
     [class.tab--active]="layoutService.isToolkitActive('Log')"
     (click)="layoutService.toggleToolkit('Log')"
   >
-    Log
+    Output
   </button>
   <div style="margin-left: auto; display: flex; flex-direction: row">
     @if (nodeStore.rootPath()) {
@@ -512,7 +512,6 @@
     <app-problems [filter]="filterProblems()"></app-problems>
   }
   @case ('Log') {
-    <!-- Placeholder for Log panel -->
-    <div style="padding: 16px; color: #7f848e">Log panel placeholder</div>
+    <app-output></app-output>
   }
 }

@@ -46,11 +46,12 @@ import {
 import { confirmAction } from '../../../feature/git/ui/git-dialogs';
 import { plural } from '../../../feature/git/features/dialogs/dialog-shared';
 import { GitCommitService } from '../../../feature/git/services/git-commit.service';
+import { OutputPanel } from '../../../feature/output/output';
 
 @Component({
   selector: 'bottom-panel',
   standalone: true,
-  imports: [ResizeHandle, Terminal, Git, Problems, NgIcon, MenuDirective],
+  imports: [ResizeHandle, Terminal, Git, Problems, OutputPanel, NgIcon, MenuDirective],
   templateUrl: './bottom-panel.html',
   styleUrl: './bottom-panel.scss',
   host: {
