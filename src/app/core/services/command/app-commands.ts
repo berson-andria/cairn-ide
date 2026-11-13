@@ -6,7 +6,7 @@ import { LayoutService } from '../layout.service';
 import { message } from '@tauri-apps/plugin-dialog';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
 import { GitBlameService } from '../../../feature/git/services/git-blame.service';
-import { TabStore } from '../../store/tab.store';
+import { Tab, TabStore } from '../../store/tab.store';
 
 /**
  * Connects command ids to what the app actually does.
@@ -23,6 +23,8 @@ export function registerAppCommands(): void {
   commands.register('file.save', async () => {
     const id = tabStore.activeTabId();
     if (!id || !tabStore.isDirty(id)) return;
+    const tab: Tab = tabStore.openedTabs()[id];
+    if (tab.type !== 'DiffEditor' && tab.type !== 'CodeEditor') return;
     if (tabStore.isDiffTab(id)) {
       const modified = tabStore.diffTabs()[id].request.modified;
       if (modified.kind === 'worktree') {

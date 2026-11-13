@@ -35,7 +35,7 @@ import { MonitoringService } from '../../core/services/monitoring.service';
 import { CommonModule } from '@angular/common';
 import { loadIconSprite } from '../../shared/utils/icon-sprite';
 import { MenuDirective } from '../../shared/directives/menu.directive';
-import { TabStore } from '../../core/store/tab.store';
+import { Tab, TabStore } from '../../core/store/tab.store';
 
 @Component({
   selector: 'app-shell',
@@ -111,6 +111,8 @@ export class AppShell {
   async saveFile() {
     const id = this.tabStore.activeTabId();
     if (!id || !this.tabStore.isDirty(id)) return;
+    const tab: Tab = this.tabStore.openedTabs()[id];
+    if (tab.type !== 'CodeEditor' && tab.type !== 'DiffEditor') return;
     if (this.tabStore.isDiffTab(id)) {
       const modified = this.tabStore.diffTabs()[id].request.modified;
       if (modified.kind === 'worktree') {
