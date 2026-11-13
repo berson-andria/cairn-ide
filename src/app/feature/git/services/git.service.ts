@@ -48,6 +48,7 @@ export interface GitIdentity {
   name: string;
   email: string;
 }
+export type StashScope = 'all' | 'staged' | 'unstaged';
 
 export const ok = (output = ''): GitResult => ({ ok: true, output, error: '' });
 export const fail = (error: string): GitResult => ({ ok: false, output: '', error });
@@ -731,11 +732,23 @@ export class GitService {
   // ───────────── stash ─────────────
 
   /** Includes untracked files, so the working tree really ends up clean. */
-  stash(message = '', includeUntracked = false) {
+  async stash(
+    message = '',
+    scope: StashScope = 'all',
+    includeUntracked = false,
+  ): Promise<GitResult> {
     const args = ['stash', 'push'];
-    if (includeUntracked) args.push('--include-untracked');
+    if (scope === 'staged') args.push('--staged'); // only what is in the index
+    if (scope === 'unstaged') args.push('--keep-index'); // see the note on unstaged below
+    // new untracked files count as unstaged changes; --staged can't be combined with them
+    if (scope !== 'staged' && (includeUntracked || scope === 'unstaged'))
+      args.push('--include-untracked');
     if (message.trim()) args.push('-m', message.trim());
-    return this.mutate(args);
+
+    const result = await this.mutate(args);
+    return !result.ok && /unknown option.*staged/i.test(result.error)
+      ? { ...result, error: 'Stashing staged changes needs Git 2.35 or newer.' }
+      : result;
   }
 
   async stashes(): Promise<GitStash[]> {

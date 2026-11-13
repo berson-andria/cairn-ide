@@ -105,6 +105,6 @@ export function getMonacoLanguage(fileName: String): string {
   return 'plaintext';
 }
 
-export function getFileNameFromPath(path: string) {
-  return path.split('/').pop();
+export function getFileNameFromPath(path: string): string {
+  return path.split('/').pop() ?? '';
 }

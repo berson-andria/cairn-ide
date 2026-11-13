@@ -29,7 +29,7 @@ import {
   lucideUnlink,
 } from '@ng-icons/lucide';
 import { LayoutService } from '../../../core/services/layout.service';
-import { GitResult, GitService } from '../../../feature/git/services/git.service';
+import { GitResult, GitService, StashScope } from '../../../feature/git/services/git.service';
 import { Problems } from '../../../feature/problems/problems';
 
 import { MenuDirective } from '../../../shared/directives/menu.directive';
@@ -302,7 +302,11 @@ export class BottomPanel {
     if (strategy === 'force') return this.git.switchTo(branch, { force: true });
 
     const before = (await this.git.stashes()).length;
-    const stashed = await this.git.stash(`Auto-stash before switching to ${branch.name}`, true);
+    const stashed = await this.git.stash(
+      `Auto-stash before switching to ${branch.name}`,
+      'all',
+      true,
+    );
     if (!stashed.ok) return stashed;
     // "No local changes to save" also succeeds: only pop a stash we actually created
     const created = (await this.git.stashes()).length > before;
@@ -420,10 +424,13 @@ export class BottomPanel {
   }
 
   // ── Stash ───────────────────────────────────────────────────────────────────
-  async stashChanges(includeUntracked = false) {
-    const message = await this.dialogs.stashMessage(includeUntracked);
+  async stashChanges(scope: StashScope = 'all', includeUntracked = false) {
+    const message = await this.dialogs.stashMessage(scope, includeUntracked);
     if (message === undefined) return;
-    await this.runAction(() => this.git.stash(message, includeUntracked), 'Changes stashed.');
+    await this.runAction(
+      () => this.git.stash(message, scope, includeUntracked),
+      'Changes stashed.',
+    );
   }
   async stashLatest(action: 'apply' | 'pop') {
     await this.runAction(

@@ -266,7 +266,7 @@ ng-icon {
   border-radius: var(--space-6);
   border: 1px solid var(--color-border-strong);
   min-width: 300px;
-  max-width: 350px;
+  max-width: 420px;
   .menu-item-group {
     display: flex;
     flex-direction: column;
@@ -306,6 +306,7 @@ ng-icon {
 .scrolling-el {
   overflow: auto;
   min-height: 0;
+  min-width: 0;
   box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: var(--color-surface-hover) var(--color-surface-panel);

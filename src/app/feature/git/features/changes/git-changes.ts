@@ -6,10 +6,13 @@ import { GitDiffService } from '../../services/git-diff.service';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowUp,
+  lucideChevronDown,
+  lucideChevronRight,
   lucideEllipsis,
   lucideFileSymlink,
   lucideHardDriveDownload,
   lucideMinus,
+  lucidePlus,
   lucideRefreshCcw,
   lucideUndo,
 } from '@ng-icons/lucide';
@@ -22,12 +25,14 @@ import { GitBranch } from '../../parser/branch.parser';
 import { GitDialogService } from '../../services/git-dialog.service';
 import { TabStore } from '../../../../core/store/tab.store';
 import { CommitMode, GitCommitService } from '../../services/git-commit.service';
+import { getFileNameFromPath } from '../../../../shared/utils/node.utils';
+import { FileIcon } from '../../../../shared/components/file-icon';
 
 @Component({
   selector: 'git-changes',
   templateUrl: './git-changes.html',
   styleUrl: './git-changes.scss',
-  imports: [FormsModule, NgIcon, MenuDirective],
+  imports: [FormsModule, NgIcon, MenuDirective, FileIcon],
   providers: [
     provideIcons({
       lucideFileSymlink,
@@ -37,13 +42,16 @@ import { CommitMode, GitCommitService } from '../../services/git-commit.service'
       lucideMinus,
       lucideRefreshCcw,
       lucideArrowUp,
+      lucidePlus,
+      lucideChevronDown,
+      lucideChevronRight,
     }),
   ],
   standalone: true,
 })
 export class GitChanges {
   readonly git = inject(GitService);
-  private readonly commits = inject(GitCommitService);
+  protected readonly commits = inject(GitCommitService);
   private readonly gitDiff = inject(GitDiffService);
   private dialog = inject(GitDialogService);
   protected editorCommands = inject(EditorCommands);
@@ -93,6 +101,9 @@ export class GitChanges {
   branchFilter = signal('');
   newBranch = signal('');
   branchError = signal<string | null>(null);
+
+  stagedOpen = true;
+  ChangesOpen = true;
 
   /** Remote branches that a local branch already tracks are hidden: switching to the local one is the same thing. */
   visibleBranches = computed(() => {
@@ -289,6 +300,7 @@ export class GitChanges {
 
   statusLabel = statusLabel;
   statusClass = statusStyle;
+  getFileNameFromPath = getFileNameFromPath;
 
   /** Runs a git action, closes menus, and reports the result. */
   runAction = async (action: () => Promise<GitResult>, success: string) => {

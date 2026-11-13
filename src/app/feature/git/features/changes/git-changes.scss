@@ -1,9 +1,53 @@
 :host {
   height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.git-change-container {
+  height: 100%;
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+}
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  padding: var(--space-2) var(--space-6);
+  position: sticky;
+  top: 0;
+  background: var(--color-surface-panel);
+  z-index: 10;
+  cursor: pointer;
+  &:hover {
+    background-color: var(--color-surface-hover);
+  }
+  .count {
+    color: var(--color-attention);
+  }
+  .btn-action-group {
+    display: flex;
+    gap: var(--space-10);
+    padding: var(--space-2) var(--space-8);
+    border-radius: var(--space-6);
+    // background: var(--color-surface-raised);
+    button {
+      padding: var(--space-2);
+      &:hover {
+        background: var(--color-surface-raised-hover);
+      }
+    }
+  }
 }
 .changes-list {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  padding: 0 var(--space-4);
+  padding-bottom: 1em;
 }
 .notice {
   position: relative;
@@ -26,4 +70,45 @@
   top: calc(-1 * var(--space-10));
   right: 0;
   font-size: var(--font-size-page-title);
+}
+.file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-4) var(--space-8);
+  padding-left: var(--space-16);
+  border-radius: 0.25em;
+  cursor: pointer;
+  &:hover {
+    background-color: var(--color-surface-hover);
+    .actions {
+      visibility: visible;
+    }
+  }
+  button {
+    margin-right: var(--space-4);
+    padding: var(--space-2) !important;
+    background: var(--color-surface-raised);
+    &:hover {
+      background-color: var(--color-surface-raised-hover);
+    }
+  }
+  .actions {
+    visibility: hidden;
+    display: flex;
+    gap: var(--space-6);
+    padding: var(--space-2) var(--space-8);
+    border-radius: var(--space-6);
+    margin-left: auto;
+    // background: var(--color-surface-raised);
+  }
+  .status {
+    font-size: var(--font-size-micro);
+    font-weight: var(--font-weight-medium);
+    padding: var(--space-2) var(--space-6);
+    border-radius: var(--radius-chip);
+  }
+}
+.path {
+  color: var(--color-text-faint);
 }

@@ -5,7 +5,7 @@ import { PickerDialogComponent, PickerDialogData } from '../features/dialogs/pic
 import { FormDialog, FormDialogData, FormDialogResult } from '../features/dialogs/form-dialog';
 
 import { GitBranch } from '../parser/branch.parser';
-import { GitResult, GitService } from './git.service';
+import { GitResult, GitService, StashScope } from './git.service';
 import { plural } from '../features/dialogs/dialog-shared';
 import { ChoiceDialog, ChoiceDialogData } from '../features/dialogs/choice-dialog';
 import { GitIdentityDialog } from '../features/dialogs/identity-dialog';
@@ -119,15 +119,47 @@ export class GitDialogService {
     return r?.['message'];
   }
 
-  async unsavedChoice(count: number): Promise<'save' | 'skip' | undefined> {
+  async stashMessage(
+    scope: StashScope = 'all',
+    includeUntracked = false,
+  ): Promise<string | undefined> {
+    const titles = {
+      all: 'Stash changes',
+      staged: 'Stash staged changes',
+      unstaged: 'Stash unstaged changes',
+    };
+    const r = await this.form(
+      includeUntracked && scope === 'all' ? 'Stash including untracked' : titles[scope],
+      {
+        message:
+          scope === 'unstaged'
+            ? 'Your staged changes stay in place. The stash also holds a copy of them, so commit them before applying it back.'
+            : undefined,
+        fields: [{ key: 'message', label: 'Message (optional)', optional: true }],
+        submitLabel: 'Stash',
+      },
+    );
+    return r?.['message'];
+  }
+
+  // Replaces unsavedChoice, so the same prompt works for commit and stash
+  async unsavedChoice(
+    count: number,
+    action: 'commit' | 'stash' = 'commit',
+  ): Promise<'save' | 'skip' | undefined> {
+    const Verb = action === 'commit' ? 'Commit' : 'Stash';
     return (await this.choose('Unsaved files', {
-      message: `${count} ${plural(count, 'file has', 'files have')} unsaved changes. Only what is saved to disk can be committed.`,
+      message: `${count} ${plural(count, 'file has', 'files have')} unsaved changes. Only what is saved to disk can be ${action === 'commit' ? 'committed' : 'stashed'}.`,
       legend: 'What to do with unsaved files',
       submitLabel: 'Continue',
       initial: 'save',
       options: [
-        { value: 'save', label: 'Save All & Commit' },
-        { value: 'skip', label: 'Commit Without Saving', hint: 'unsaved edits stay in the editor' },
+        { value: 'save', label: `Save All & ${Verb}` },
+        {
+          value: 'skip',
+          label: `${Verb} Without Saving`,
+          hint: 'unsaved edits stay in the editor',
+        },
       ],
     })) as 'save' | 'skip' | undefined;
   }
@@ -191,16 +223,6 @@ export class GitDialogService {
       ],
     })) as OverwriteStrategy | undefined;
   }
-
-  /** Optional stash message. Resolves to '' for "no message", undefined for cancel. */
-  async stashMessage(includeUntracked = false): Promise<string | undefined> {
-    const r = await this.form(includeUntracked ? 'Stash including untracked' : 'Stash changes', {
-      fields: [{ key: 'message', label: 'Message (optional)', optional: true }],
-      submitLabel: 'Stash',
-    });
-    return r?.['message'];
-  }
-
   /** Pick a branch. Resolves to the branch name. */
   pickBranch(
     title: string,

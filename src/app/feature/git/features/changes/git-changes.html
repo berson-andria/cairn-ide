@@ -1,148 +1,142 @@
-<div style="height: 100%; overflow: hidden; min-height: 0; display: flex; flex-direction: row">
-  <div style="flex: 1" class="scrolling-el changes-list">
+<div class="git-change-container">
+  <div class="scrolling-el changes-list">
     <!-- Staged Files Group -->
-    <div style="padding: 8px 16px 2px; text-transform: uppercase">
-      <span> Staged · {{ stagedFiles().length }} · </span>
-      <button
-        type="button"
-        class="icon-btn"
-        (click)="git.unstageAll(); $event.stopPropagation()"
-        title="Unstage All"
-      >
-        <ng-icon name="lucideMinus "></ng-icon>
-      </button>
-      <button class="icon-btn">
-        <ng-icon name="lucideHardDriveDownload " />
-      </button>
-    </div>
-    @for (file of stagedFiles(); track file.path) {
-      <div
-        style="
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 6px 16px;
-          padding-left: 13px;
-          cursor: pointer;
-        "
-        (click)="openDiff(file)"
-      >
-        <span
-          [style]="
-            'font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background:' +
-            statusClass(file.status)
-          "
-          >{{ file.status }}</span
-        >
-        <span style="flex: 1">{{ file.path }}</span>
-        <button
-          class="icon-btn"
-          type="button"
-          title="Stage file"
-          (click)="editorCommands.openPath(file.path); $event.stopPropagation()"
-        >
-          <ng-icon name="lucideFileSymlink " />
-        </button>
-        <button
-          type="button"
-          (click)="unstageFile(file); $event.stopPropagation()"
-          class="icon-btn"
-          title="Unstage file"
-        >
-          <ng-icon name="lucideMinus "></ng-icon>
-        </button>
-      </div>
-    } @empty {
-      <div style="padding: 6px 16px; font-size: 13px; color: #a39b8b; font-style: italic">
-        No staged changes
-      </div>
-    }
-
-    <!-- Changes Group -->
-    <div
-      style="
-        padding: 8px 16px 2px;
-        font-size: 11px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      "
-    >
-      Changes · {{ changedFiles().length }}
-    </div>
-    @for (file of changedFiles(); track file.path) {
-      <div
-        style="
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 6px 16px;
-          font-size: 13px;
-          cursor: pointer;
-        "
-        (click)="openDiff(file)"
-      >
-        <span
-          [style]="
-            'font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background:' +
-            statusClass(file.status)
-          "
-          >{{ file.status }}</span
-        >
-        <span style="flex: 1">{{ file.path }}</span>
-        <div class="btn-group">
+    <div class="staged" style="margin-bottom: var(--space-10)">
+      <div class="header" (click)="stagedOpen = !stagedOpen">
+        @if (stagedOpen) {
+          <ng-icon name="lucideChevronDown" />
+        } @else {
+          <ng-icon name="lucideChevronRight" />
+        }
+        <span> Staged </span>
+        <span class="count">{{ stagedFiles().length }}</span>
+        <div class="btn-action-group">
           <button
             type="button"
-            style="
-              background: none;
-              border: none;
-              color: #a39b8b;
-              cursor: pointer;
-              padding: 2px 6px;
-              font-size: 16px;
-            "
-            [title]="file.status === 'U' ? 'Delete untracked file' : 'Discard changes'"
-            [attr.aria-label]="'Discard ' + file.path"
-            [disabled]="git.busy()"
-            (click)="discardFile(file)"
+            class="icon-btn"
+            (click)="git.unstageAll(); $event.stopPropagation()"
+            title="Unstage All"
           >
-            <ng-icon name="lucideUndo " />
+            <ng-icon name="lucideMinus "></ng-icon>
           </button>
-          <button
-            type="button"
-            style="
-              background: none;
-              border: none;
-              color: #a39b8b;
-              cursor: pointer;
-              padding: 2px 6px;
-              font-size: 16px;
-            "
-            title="Stage file"
-          >
-            <ng-icon name="lucideFileSymlink " />
-          </button>
-          <button
-            type="button"
-            (click)="stageFile(file); $event.stopPropagation()"
-            style="
-              background: none;
-              border: none;
-              color: #a39b8b;
-              cursor: pointer;
-              padding: 2px 6px;
-              font-size: 16px;
-            "
-            title="Stage file"
-          >
-            +
+          <button class="icon-btn" (click)="commits.stash('staged')">
+            <ng-icon name="lucideHardDriveDownload " />
           </button>
         </div>
       </div>
-    } @empty {
-      <div style="padding: 6px 16px; font-size: 13px; color: #a39b8b; font-style: italic">
-        No changes detected
+      @if (stagedOpen) {
+        @for (file of stagedFiles(); track file.path) {
+          <div class="file" (click)="openDiff(file)">
+            <file-icon [name]="getFileNameFromPath(file.path)" [type]="'file'" />
+            <span>{{ getFileNameFromPath(file.path) }}</span>
+            <span class="path">{{ file.path }}</span>
+            <div class="actions">
+              <button
+                class="icon-btn"
+                type="button"
+                title="Stage file"
+                (click)="editorCommands.openPath(file.path); $event.stopPropagation()"
+              >
+                <ng-icon name="lucideFileSymlink " />
+              </button>
+              <button
+                type="button"
+                (click)="unstageFile(file); $event.stopPropagation()"
+                class="icon-btn"
+                title="Unstage file"
+              >
+                <ng-icon name="lucideMinus "></ng-icon>
+              </button>
+            </div>
+            <span class="status" [style.background]="statusClass(file.status).background">
+              {{ file.status }}
+            </span>
+          </div>
+        } @empty {
+          <div style="padding: 6px 16px; font-size: 13px; color: #a39b8b; font-style: italic">
+            No staged changes
+          </div>
+        }
+      }
+    </div>
+
+    <!-- Changes Group -->
+    <div class="changes">
+      <div class="header" (click)="ChangesOpen = !ChangesOpen">
+        @if (ChangesOpen) {
+          <ng-icon name="lucideChevronDown" />
+        } @else {
+          <ng-icon name="lucideChevronRight" />
+        }
+        <span> Changes </span>
+        <span class="count">{{ changedFiles().length }}</span>
+        <div class="btn-action-group">
+          <button class="icon-btn" (click)="commits.stash('unstaged')">
+            <ng-icon name="lucideHardDriveDownload " />
+          </button>
+          <button
+            class="icon-btn"
+            type="button"
+            title="Discard changes"
+            [disabled]="git.busy()"
+            (click)="discardAll(); $event.stopPropagation()"
+          >
+            <ng-icon name="lucideUndo " />
+          </button>
+          <button class="icon-btn" type="button" title="Stage file" (click)="discardAll()">
+            <ng-icon name="lucideFileSymlink " />
+          </button>
+          <button
+            class="icon-btn"
+            type="button"
+            (click)="stageAll(); $event.stopPropagation()"
+            title="Stage All Changes"
+          >
+            <ng-icon name="lucidePlus" />
+          </button>
+        </div>
       </div>
-    }
+      @if (ChangesOpen) {
+        @for (file of changedFiles(); track file.path) {
+          <div class="file" (click)="openDiff(file)">
+            <file-icon [name]="getFileNameFromPath(file.path)" [type]="'file'" />
+
+            <span>{{ getFileNameFromPath(file.path) }}</span>
+            <span class="path">{{ file.path }}</span>
+            <div class="actions">
+              <button
+                class="icon-btn"
+                type="button"
+                [title]="file.status === 'U' ? 'Delete untracked file' : 'Discard changes'"
+                [attr.aria-label]="'Discard ' + file.path"
+                [disabled]="git.busy()"
+                (click)="discardFile(file)"
+              >
+                <ng-icon name="lucideUndo " />
+              </button>
+              <button class="icon-btn" type="button" title="Stage file">
+                <ng-icon name="lucideFileSymlink " />
+              </button>
+              <button
+                class="icon-btn"
+                type="button"
+                (click)="stageFile(file); $event.stopPropagation()"
+                title="Stage file"
+              >
+                <ng-icon name="lucidePlus" />
+              </button>
+            </div>
+            <span class="status" [style.background]="statusClass(file.status).background">
+              {{ file.status }}
+            </span>
+          </div>
+        } @empty {
+          <div style="padding: 6px 16px; font-size: 13px; color: #a39b8b; font-style: italic">
+            No changes detected
+          </div>
+        }
+      }
+    </div>
   </div>
   <div style="width: 320px; border-left: 1px solid #2e2a24; padding: 14px; box-sizing: border-box">
     <div class="input-form">

@@ -13,6 +13,10 @@ export type GitView = 'Graph' | 'Changes';
   styles: `
     :host {
       height: 100%;
+      width: 100%;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
     }
   `,
 })
