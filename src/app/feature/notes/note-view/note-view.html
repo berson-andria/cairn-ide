@@ -1,0 +1,110 @@
+<div class="note-view-container">
+  <div class="note-view__subtitle">Note · {{ displayId() }}</div>
+
+  <textarea
+    class="note-view__textarea"
+    aria-label="Note text"
+    [value]="displayContent()"
+    (input)="onContentChange($any($event.target).value)"
+    placeholder="Write your note here..."
+  ></textarea>
+
+  <div class="note-view__section-label">Kind</div>
+  <div class="kind-segmented-control" role="radiogroup" aria-label="Note kind">
+    <button
+      type="button"
+      class="kind-option"
+      [class.kind-option--active]="currentKind() === 'note'"
+      (click)="setKind('note')"
+    >
+      Note
+    </button>
+    <button
+      type="button"
+      class="kind-option"
+      [class.kind-option--active]="currentKind() === 'feedback'"
+      (click)="setKind('feedback')"
+    >
+      Feedback
+    </button>
+    <button
+      type="button"
+      class="kind-option"
+      [class.kind-option--active]="currentKind() === 'question'"
+      (click)="setKind('question')"
+    >
+      Question
+    </button>
+  </div>
+
+  <div class="note-view__section-label">Anchors</div>
+  <div class="note-view__anchors">
+    @for (anch of anchors(); track $index) {
+      @if (anch.kind === 'ast') {
+        <button
+          type="button"
+          class="chip chip--interactive"
+          [class.chip--lost]="anch.lost || anch.label === 'anchor lost'"
+          [title]="anch.path"
+          (click)="onAnchorClick(anch)"
+        >
+          {{ anch.path ? (anch.path + ' · ' + anch.label) : anch.label }}
+        </button>
+      } @else if (anch.kind === 'task') {
+        <button
+          type="button"
+          class="chip chip--interactive"
+          [title]="anch.title ? anch.title : anch.label"
+          (click)="onAnchorClick(anch)"
+        >
+          {{ anch.label }}
+        </button>
+      }
+    }
+    <button
+      type="button"
+      class="chip chip--dashed chip--add"
+      (click)="attachToTask()"
+    >
+      + Add anchor
+    </button>
+  </div>
+
+  <div class="note-view__actions">
+    <button
+      type="button"
+      class="btn-action"
+      (click)="promoteToTask()"
+    >
+      Promote to task
+    </button>
+    <button
+      type="button"
+      class="btn-secondary"
+      (click)="attachToTask()"
+    >
+      Attach to task
+    </button>
+    <button
+      type="button"
+      class="btn-secondary"
+      (click)="openAnchoredCode()"
+    >
+      Open anchored code
+    </button>
+    <button
+      type="button"
+      class="btn-secondary"
+      (click)="toggleResolve()"
+    >
+      {{ isCompleted() ? 'Reopen' : 'Resolve' }}
+    </button>
+    <button
+      type="button"
+      class="btn-secondary btn-secondary--danger"
+      (click)="deleteNote()"
+    >
+      Delete
+    </button>
+  </div>
+</div>

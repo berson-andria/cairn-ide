@@ -21,6 +21,7 @@ import { FileNode } from '../../../core/store/node.state';
 import { EditorService } from '../../../feature/editor/services/editor.service';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
 import { baseName } from '../../../feature/editor/features/diff-tab';
+import { NoteView } from '../../../feature/notes/note-view/note-view';
 import { Editor } from '../../../feature/editor/editor';
 import { FileIcon } from '../../../shared/components/file-icon';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -53,6 +54,7 @@ interface TabView {
     EmptyWorkspace,
     NoFolderOpen,
     Editor,
+    NoteView,
     FileIcon,
     CdkDrag,
     CdkDropList,
@@ -253,10 +255,12 @@ export class MainPanel {
       );
     });
 
-    afterNextRender(() => {
+    effect((onCleanup) => {
+      const stripEl = this.strip()?.nativeElement;
+      if (!stripEl) return;
       const observer = new ResizeObserver(() => this.measure());
-      observer.observe(this.strip()!.nativeElement);
-      this.destroyRef.onDestroy(() => observer.disconnect());
+      observer.observe(stripEl);
+      onCleanup(() => observer.disconnect());
     });
 
     // Tabs opening, closing or renaming change scrollWidth without resizing the strip
@@ -265,23 +269,24 @@ export class MainPanel {
       afterNextRender(() => this.measure(), { injector: this.injector });
     });
   }
-  statusStyle(tab) {
-    console.log(tab);
 
-    return this.fileBadge(tab.id)
-      ? statusStyle(<any>this.fileBadge(tab.id)?.letter).color
+  statusStyle(tab: TabView) {
+    const badge = this.fileBadge(tab);
+    return badge
+      ? statusStyle(<any>badge.letter).color
       : 'inherit';
   }
 
   measure() {
-    const el = this.strip()!.nativeElement;
+    const el = this.strip()?.nativeElement;
+    if (!el) return;
     this.overflowing.set(el.scrollWidth > el.clientWidth + 1);
     this.atEnd.set(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1);
   }
 
   scrollActiveIntoView(): void {
     const container = this.elementRef.nativeElement.querySelector('.opened-tabs') as HTMLElement;
-    const active = container?.querySelector<HTMLElement>('.is-active');
+    const active = container?.querySelector<HTMLElement>('.tab--active, .is-active');
 
     if (!container || !active) return;
 

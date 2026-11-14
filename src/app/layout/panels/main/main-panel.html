@@ -70,7 +70,7 @@
           <p>task review view</p>
         }
         @case ('note') {
-          <p>note view</p>
+          <note-view [noteId]="activeTab()?.id" />
         }
         @case ('chat') {
           <p>chat view</p>

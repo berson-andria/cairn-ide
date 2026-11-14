@@ -52,17 +52,31 @@ export class EditorCommands {
       }
     });
 
-    // A file that no longer exists (deleted, folder switched) can't stay open.
+    // A tab whose backing state no longer exists can't stay open.
     effect(() => {
       const nodes = this.nodes.nodes();
-      const gone = this.tabs.openTabs().filter((id) => !this.tabs.diffTabs()[id] && !nodes[id]);
+      const diffTabs = this.tabs.diffTabs();
+
+      const gone = this.tabs
+        .openedTabs()
+        .filter((t) => {
+          switch (t.type) {
+            case 'CodeEditor':
+              return !nodes[t.id]; // file deleted or folder switched
+            case 'DiffEditor':
+              return !diffTabs[t.id]; // orphaned diff tab with no request metadata
+            default:
+              return false; // Note, Task, Review, Chat don't depend on nodes
+          }
+        })
+        .map((t) => t.id);
+
       if (!gone.length) return;
       untracked(() => {
         gone.forEach((id) => this.tabs.setDirty(id, false));
         this.tabs.closeMany(gone);
       });
     });
-
     // A renamed or moved file keeps its id, so its model has to follow it to the new path.
     effect(() => {
       const nodes = this.nodes.nodes();
