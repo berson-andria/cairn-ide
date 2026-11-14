@@ -2,10 +2,10 @@ import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '
 import { ResizeHandle } from '../../../shared/components/resize-handle/resize-handle';
 import { FileTree } from '../../../feature/explorer/tree';
 import { ReviewList } from '../../../feature/review/review-list';
-import { TaskList } from '../../../feature/task/task-list';
 import { NoteList } from '../../../feature/notes/note-list/note-list';
 import { LayoutService } from '../../../core/services/layout.service';
 import { GitChanges } from '../../../feature/git/features/changes/git-changes';
+import { TaskList } from '../../../feature/tasks/task-list/task-list';
 
 @Component({
   selector: 'left-panel',

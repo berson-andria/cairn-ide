@@ -64,7 +64,7 @@
     } @else {
       @switch (activeTab()?.kind) {
         @case ('task') {
-          <p>task view</p>
+          <app-task-view [taskId]="activeTab()?.id" />
         }
         @case ('review') {
           <p>task review view</p>

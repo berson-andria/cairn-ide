@@ -1,0 +1,119 @@
+@if (task(); as item) {
+  <div class="task-detail">
+    <main class="task-detail__main scrolling-el">
+      <div class="muted">Tasks › {{ item.id.slice(0, 8) }}</div>
+      <input
+        class="task-title-input"
+        aria-label="Title"
+        [value]="item.title"
+        (change)="updateTitle($any($event.target).value)"
+      />
+
+      <div class="status-line">
+        <span class="status-pill" [class]="'status-pill status-pill--' + item.status">{{
+          statusLabel(item.status)
+        }}</span>
+        <span class="muted">›</span><span class="status-pill status-pill--future">Review</span>
+        <span class="muted">›</span><span class="status-pill status-pill--future">Done</span>
+        <span class="status-line__action">
+          <span class="muted">{{ availabilityLabel(item) }}</span>
+          <button class="btn-action run-button" [disabled]="!canStart()" (click)="startTask()">
+            {{ item.status === 'running' ? 'In progress' : 'Run task' }}
+          </button>
+        </span>
+      </div>
+
+      <section class="detail-section">
+        <div class="section-heading">
+          <span>Description</span
+          ><button
+            class="text-button muted normal-case"
+            (click)="editingDescription.update(editing => !editing)"
+          >
+            {{ editingDescription() ? 'Cancel' : 'Click to edit' }}
+          </button>
+        </div>
+        @if (editingDescription()) {
+          <textarea
+            class="description-input"
+            aria-label="Description"
+            [value]="item.description ?? ''"
+            (blur)="updateDescription($any($event.target).value)"
+            (keydown.control.enter)="updateDescription($any($event.target).value)"
+          ></textarea>
+        } @else {
+          <p class="description" (click)="editingDescription.set(true)">
+            {{ item.description || 'No description added.' }}
+          </p>
+        }
+      </section>
+      <section class="detail-section">
+        <div class="section-heading"><span>Acceptance</span></div>
+        @if (item.acceptanceCriteria) {
+          <div class="criteria">
+            <span class="criteria-mark"></span><code>{{ item.acceptanceCriteria }}</code>
+          </div>
+        } @else {
+          <p class="muted">No acceptance criteria added.</p>
+        }
+      </section>
+      <section class="detail-section">
+        <div class="section-heading"><span>Linked notes · {{ linkedNotes().length }}</span></div>
+        @for (note of linkedNotes(); track note.id) {
+          <div class="linked-note">{{ note.content }}</div>
+        } @empty {
+          <p class="muted">No linked notes.</p>
+        }
+      </section>
+      <section class="detail-section">
+        <div class="section-heading">
+          <span>Subtasks · {{ item.subTasks?.length ?? 0 }}</span>
+        </div>
+        @for (subtask of item.subTasks ?? []; track subtask.id) {
+          <div class="criteria">
+            <span
+              class="criteria-mark"
+              [class.criteria-mark--done]="subtask.status === 'completed'"
+            ></span
+            ><span>{{ subtask.title }}</span>
+          </div>
+        } @empty {
+          <p class="muted">No subtasks yet.</p>
+        }
+      </section>
+    </main>
+    <aside class="task-detail__aside scrolling-el">
+      <section class="detail-section">
+        <div class="section-heading">
+          <span>Files</span>
+          <button type="button" class="text-button muted normal-case" (click)="attachLinkedItem()">
+            + Attach
+          </button>
+        </div>
+        @if (item.anchor; as anchor) {
+          <span class="chip file-chip">{{ anchor.path }}</span>
+        } @else {
+          <span class="muted">No linked files</span>
+        }
+      </section>
+      <section class="detail-section">
+        <div class="section-heading">Depends on</div>
+        @if (item.dependsOn) {
+          <span class="chip file-chip">{{ item.dependsOn.slice(0, 8) }}</span>
+        } @else {
+          <span class="muted">No dependencies</span>
+        }
+      </section>
+      <section class="detail-section">
+        <div class="section-heading">Branch</div>
+        @if (item.branch) {
+          <span class="chip file-chip">{{ item.branch }}</span>
+        } @else {
+          <span class="muted">No branch assigned</span>
+        }
+      </section>
+    </aside>
+  </div>
+} @else {
+  <div class="task-empty"><span class="muted">Select a task to view its details.</span></div>
+}

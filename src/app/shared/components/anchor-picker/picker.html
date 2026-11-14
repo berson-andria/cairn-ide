@@ -1,0 +1,105 @@
+<div class="container">
+  <div class="header">
+    @if (sources().length > 1) {
+      <div class="source-toggle" role="tablist">
+        @for (s of sources(); track s) {
+          <button
+            type="button"
+            role="tab"
+            class="chip"
+            [class.active]="s === source()"
+            [attr.aria-selected]="s === source()"
+            (click)="setSource(s)"
+          >
+            <ng-icon [name]="icons[s]"></ng-icon>
+            <span>{{ labels[s] }}</span>
+          </button>
+        }
+      </div>
+    } @else {
+      <div class="mode-indicator">
+        <ng-icon [name]="icons[source()]" class="mode-icon" [attr.data-source]="source()"></ng-icon>
+        <span class="mode-label">{{ labels[source()] }}</span>
+      </div>
+    }
+
+    <div class="btn-group">
+      @if (isSearching()) {
+        <span class="spinner">
+          <ng-icon name="lucideLoader2" class="spin"></ng-icon>
+        </span>
+      }
+    </div>
+  </div>
+
+  <div class="search">
+    <div class="input-form">
+      <input
+        #searchInput
+        type="text"
+        [ngModel]="keyword()"
+        (ngModelChange)="onValueChange($event)"
+        (keydown)="onKeydown($event)"
+        [placeholder]="placeholders[source()]"
+      />
+    </div>
+  </div>
+
+  <div class="result scrolling-el">
+    @for (item of rows(); track item.key; let i = $index) {
+      <div
+        #rowEl
+        class="row"
+        [class.active]="i === activeIndex()"
+        (mouseenter)="activeIndex.set(i)"
+        (click)="pick(item)"
+      >
+        @switch (item.kind) {
+          @case ('file') {
+            <div class="line">
+              <span class="name">{{ item.name }}</span>
+              <span class="dir">{{ item.dir }}</span>
+            </div>
+          }
+          @case ('text') {
+            <div class="line">
+              <span class="name">{{ item.name }}</span>
+              <span class="dir">{{ item.dir }}</span>
+              <span class="lineno">:{{ item.lineNumber }}</span>
+            </div>
+            <div class="snippet">{{ item.text }}</div>
+          }
+          @case ('note') {
+            <div class="line">
+              @if (item.note.type) {
+                <span class="badge">{{ item.note.type }}</span>
+              }
+              <span class="meta">{{ item.note.status }}</span>
+            </div>
+            <div class="body">{{ item.note.content }}</div>
+          }
+          @case ('task') {
+            <div class="line">
+              <span class="status" [attr.data-status]="item.task.status"></span>
+              <span class="name">{{ item.task.title }}</span>
+              <span class="meta">{{ item.task.status }}</span>
+            </div>
+            @if (item.task.anchor?.path) {
+              <div class="dir">{{ item.task.anchor!.path }}</div>
+            }
+          }
+        }
+      </div>
+    }
+  </div>
+
+  <div class="footer">
+    @if (warningMessage()) {
+      <p class="warning">{{ warningMessage() }}</p>
+    } @else if (emptyMessage()) {
+      <p class="no-results">{{ emptyMessage() }}</p>
+    } @else if (hint()) {
+      <p class="hint">{{ hint() }}</p>
+    }
+  </div>
+</div>

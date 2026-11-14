@@ -2,9 +2,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
   output,
 } from '@angular/core';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { lucideTrash } from '@ng-icons/lucide';
 import {
   AstAnchor,
   NoteAnchor,
@@ -12,10 +15,13 @@ import {
   NoteStatus,
   TaskAnchor,
 } from '../note.service';
+import { NoteService } from '../note.service';
 
 @Component({
   selector: 'note, note-item',
   standalone: true,
+  imports: [NgIcon],
+  providers: [provideIcons({ lucideTrash })],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
@@ -69,6 +75,17 @@ import {
 
         @if (isCompleted()) {
           <span class="note-card__completed-badge">Completed</span>
+        }
+        @if (note()) {
+          <button
+            type="button"
+            class="icon-btn note-card__delete"
+            aria-label="Delete note"
+            title="Delete note"
+            (click)="deleteNote($event)"
+          >
+            <ng-icon name="lucideTrash" />
+          </button>
         }
       </div>
     </div>
@@ -163,6 +180,19 @@ import {
       letter-spacing: var(--letter-spacing-label);
     }
 
+    .note-card__delete {
+      align-self: center;
+      flex: none;
+      margin-left: auto;
+      margin-right: var(--space-6);
+      color: var(--color-error-fg);
+    }
+
+    .note-card__delete:hover:not(:disabled) {
+      background: var(--color-error-bg);
+      color: var(--color-error-fg);
+    }
+
     .chip {
       display: inline-flex;
       align-items: center;
@@ -209,6 +239,7 @@ import {
   `,
 })
 export class Note {
+  private readonly noteService = inject(NoteService);
   note = input<NoteItem>();
   content = input<string>('');
   type = input<string>('');
@@ -249,6 +280,12 @@ export class Note {
 
   onSelect(): void {
     this.select.emit();
+  }
+
+  deleteNote(event: MouseEvent): void {
+    event.stopPropagation();
+    const note = this.note();
+    if (note) this.noteService.delete(note.id);
   }
 
   onAnchorClick(event: MouseEvent, anchor: NoteAnchor): void {

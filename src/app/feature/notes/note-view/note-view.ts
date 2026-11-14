@@ -9,6 +9,8 @@ import { CommonModule } from '@angular/common';
 import { TabStore } from '../../../core/store/tab.store';
 import { EditorCommands } from '../../editor/editor.commands';
 import { AstAnchor, NoteAnchor, NoteItem, NoteService, TaskAnchor } from '../note.service';
+import { LayoutService } from '../../../core/services/layout.service';
+import { TaskService } from '../../tasks/task.service';
 
 @Component({
   selector: 'note-view',
@@ -22,6 +24,8 @@ export class NoteView {
   readonly noteService = inject(NoteService);
   private readonly tabStore = inject(TabStore, { optional: true });
   private readonly editorCommands = inject(EditorCommands, { optional: true });
+  private readonly layout = inject(LayoutService);
+  private readonly taskService = inject(TaskService);
 
   /** Optional note ID passed from parent */
   noteId = input<string>();
@@ -104,17 +108,22 @@ export class NoteView {
     this.tabStore?.openTask(taskId, note.content.substring(0, 40));
   }
 
-  attachToTask(): void {
+  async attachToTask(): Promise<void> {
     const note = this.activeNote();
     if (!note) return;
-    const taskId = `t-new`;
-    const taskAnchor: TaskAnchor = {
-      kind: 'task',
-      id: taskId,
-      label: taskId,
-      title: note.content.substring(0, 30),
-    };
-    this.noteService.addAnchor(note.id, taskAnchor);
+    const selected = await this.layout.openComponent({ kind: 'note', id: note.id });
+    if (!selected) return;
+
+    if (selected.kind === 'file') {
+      const anchor: AstAnchor = { kind: 'ast', path: selected.path, label: selected.path.split(/[\\/]/).pop() ?? selected.path };
+      this.noteService.addAnchor(note.id, anchor);
+    } else if (selected.kind === 'task') {
+      const task = this.taskService.get(selected.id);
+      if (!task) return;
+      const anchor: TaskAnchor = { kind: 'task', id: task.id, label: task.id, title: task.title };
+      this.noteService.addAnchor(note.id, anchor);
+      this.taskService.addLinkedNote(task.id, note.id);
+    }
   }
 
   toggleResolve(): void {
