@@ -108,3 +108,71 @@ export function parseCommitDetails(stdout: string): CommitDetails | null {
     files,
   };
 }
+// Paste into parser/log.parser.ts, right after parseLog(). Nothing else in that file changes.
+
+// ───────────── graph ─────────────
+
+export type RefKind = 'head' | 'local' | 'remote' | 'tag';
+
+export interface GraphRef {
+  name: string;
+  kind: RefKind;
+  /** The branch (or detached HEAD) that is checked out right now. */
+  current: boolean;
+}
+
+/** A history commit plus what the graph needs: its parents and the branches/tags pointing at it. */
+export interface GraphCommit extends GitCommit {
+  parents: string[];
+  refs: GraphRef[];
+}
+
+/**
+ * LOG_FORMAT's five fields first, then parents and ref names, so parseLog still reads the
+ * first five. Run it with `--decorate=full`: that is what tells local branches, remote
+ * branches and tags apart in %D.
+ */
+export const GRAPH_FORMAT = `${LOG_FORMAT}%x00%P%x00%D`;
+
+function parseRefs(raw: string): GraphRef[] {
+  if (!raw) return [];
+  const refs: GraphRef[] = [];
+  for (const part of raw.split(', ')) {
+    if (part.startsWith('HEAD -> refs/heads/')) {
+      refs.push({ name: part.slice('HEAD -> refs/heads/'.length), kind: 'local', current: true });
+    } else if (part === 'HEAD') {
+      refs.push({ name: 'HEAD', kind: 'head', current: true }); // detached
+    } else if (part.startsWith('tag: refs/tags/')) {
+      refs.push({ name: part.slice('tag: refs/tags/'.length), kind: 'tag', current: false });
+    } else if (part.startsWith('refs/heads/')) {
+      refs.push({ name: part.slice('refs/heads/'.length), kind: 'local', current: false });
+    } else if (part.startsWith('refs/remotes/')) {
+      const name = part.slice('refs/remotes/'.length);
+      if (!name.endsWith('/HEAD')) refs.push({ name, kind: 'remote', current: false });
+    }
+    // anything else (refs/stash, notes...) is not shown
+  }
+  const order: Record<RefKind, number> = { head: 0, local: 1, remote: 2, tag: 3 };
+  return refs.sort(
+    (a, b) => Number(b.current) - Number(a.current) || order[a.kind] - order[b.kind],
+  );
+}
+
+export function parseGraphLog(stdout: string): GraphCommit[] {
+  const commits: GraphCommit[] = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    if (!line) continue;
+    const [hash, shortHash, author, date, subject, parents, decorations] = line.split('\0');
+    if (!hash) continue;
+    commits.push({
+      hash,
+      shortHash,
+      author,
+      date,
+      subject: subject ?? '',
+      parents: parents ? parents.split(' ') : [],
+      refs: parseRefs(decorations ?? ''),
+    });
+  }
+  return commits;
+}

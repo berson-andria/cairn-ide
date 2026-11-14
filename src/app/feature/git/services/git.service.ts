@@ -16,8 +16,11 @@ import {
   CommitFile,
   GitCommit,
   GitStash,
+  GRAPH_FORMAT,
+  GraphCommit,
   LOG_FORMAT,
   parseCommitDetails,
+  parseGraphLog,
   parseLog,
   parseStashes,
   STASH_FORMAT,
@@ -849,5 +852,36 @@ export class GitService {
     if (!relative) return null;
     const result = await this.exec(['show', `${ref}:${relative}`]);
     return result.ok ? result.output : null;
+  }
+  // 1) Add GRAPH_FORMAT, GraphCommit and parseGraphLog to your existing import from '../parser/log.parser'.
+
+  // 2) Add inside GitService, next to history():
+
+  /**
+   * A page of commits for the graph, newest first, children before parents (--topo-order is
+   * what the lane layout needs). `all` = every branch, `head` = only what the current branch reaches.
+   * refs/stash is excluded so stash commits don't appear as stray branches.
+   */
+  async graphLog(scope: 'all' | 'head', limit: number, skip = 0): Promise<GraphCommit[]> {
+    const args = [
+      'log',
+      '--topo-order',
+      '--decorate=full',
+      GRAPH_FORMAT,
+      `-n${Math.max(1, Math.floor(limit))}`,
+      `--skip=${Math.max(0, Math.floor(skip))}`,
+      ...(scope === 'all' ? ['--exclude=refs/stash', '--all'] : ['HEAD']),
+    ];
+    const result = await this.exec(args);
+    return result.ok ? parseGraphLog(result.output) : [];
+  }
+
+  /**
+   * One cheap string that changes whenever any branch, tag or HEAD moves. The graph compares it
+   * before reloading, so editing files (which bumps statusVersion) doesn't re-run `git log`.
+   */
+  async refsSignature(): Promise<string> {
+    const result = await this.exec(['rev-parse', '--all', 'HEAD']);
+    return result.ok ? result.output : '';
   }
 }

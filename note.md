@@ -34,6 +34,7 @@
 
 
 ### TODO:
+- v2 priority: text editor theme
 - Integrate agentic ai *STAND BY, require model download.*
 - add sandbox cmd *AFTER THE AGENT AI*
 - add right click option, ...right click action attach to task *NO NEED CLAUD FOR THIS*

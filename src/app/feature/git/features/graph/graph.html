@@ -1,7 +1,123 @@
-<div style="height: 100%">
+<div class="graph">
   @if (nodeStore.rootPath()) {
     @if (git.isRepo()) {
-      //content
+      <div class="toolbar">
+        <label class="search">
+          <span aria-hidden="true">⌕</span>
+          <input
+            type="search"
+            placeholder="Search commits"
+            aria-label="Search commits"
+            [value]="query()"
+            (input)="query.set($any($event.target).value)"
+          />
+        </label>
+        <button type="button" class="tool" (click)="toggleScope()">
+          {{ scope() === 'all' ? 'All branches' : 'Current branch' }}
+        </button>
+        <button type="button" class="tool" [disabled]="git.busy()" (click)="fetch()">Fetch</button>
+      </div>
+
+      <div class="body">
+        <div class="list">
+          @if (uncommitted() > 0 && !filtering()) {
+            <div class="row working">
+              <span class="lane-spacer" [style.width.px]="graphWidth()"></span>
+              <span class="subject">Uncommitted changes</span>
+              <span class="muted">{{ uncommitted() }} files</span>
+              <span class="grow"></span>
+              <button type="button" class="tool" (click)="openChanges.emit()">Open changes</button>
+            </div>
+          }
+
+          @if (!rows().length && !loading()) {
+            <p class="empty">{{ filtering() ? 'No commit matches.' : 'No commits yet.' }}</p>
+          }
+
+          <cdk-virtual-scroll-viewport
+            class="viewport"
+            role="listbox"
+            aria-label="Commits"
+            [itemSize]="rowHeight"
+            (scrolledIndexChange)="nearEnd()"
+          >
+            <div
+              *cdkVirtualFor="let row of rows(); trackBy: trackRow"
+              class="row"
+              role="option"
+              [class.selected]="row.commit.hash === selected()"
+              [attr.aria-selected]="row.commit.hash === selected()"
+              (click)="select(row.commit.hash)"
+            >
+              @if (!filtering()) {
+                <svg
+                  class="lanes"
+                  [attr.width]="graphWidth()"
+                  [attr.height]="rowHeight"
+                  aria-hidden="true"
+                >
+                  @for (seg of row.segments; track $index) {
+                    <path [attr.d]="seg.d" [style.stroke]="color(seg.color)" />
+                  }
+                  <circle
+                    [attr.cx]="x(row.col)"
+                    [attr.cy]="rowHeight / 2"
+                    [attr.r]="isHead(row) ? 5 : 4"
+                    [style.stroke]="color(row.color)"
+                    [style.fill]="row.merge ? 'var(--graph-bg)' : color(row.color)"
+                  />
+                </svg>
+              }
+              <span class="subject">{{ row.commit.subject }}</span>
+              @for (ref of row.commit.refs; track ref.name) {
+                <span class="ref" [attr.data-kind]="ref.kind" [class.current]="ref.current">{{
+                  ref.name
+                }}</span>
+              }
+              <span class="grow"></span>
+              <span class="muted author">{{ row.commit.author }}</span>
+              <span class="muted when" [title]="fullDate(row.commit.date)">{{
+                ago(row.commit.date)
+              }}</span>
+              <code class="muted hash">{{ row.commit.shortHash }}</code>
+            </div>
+          </cdk-virtual-scroll-viewport>
+
+          @if (loading()) {
+            <div class="muted loading">Loading…</div>
+          }
+        </div>
+
+        @if (selectedCommit(); as c) {
+          <aside class="details" aria-label="Commit details">
+            <h3>{{ c.subject }}</h3>
+            <p class="muted">
+              <code>{{ c.shortHash }}</code> · {{ c.author }} · {{ ago(c.date) }}
+            </p>
+            @if (details(); as d) {
+              @if (d.message !== c.subject) {
+                <pre class="message">{{ d.message }}</pre>
+              }
+              <div class="files-head">{{ d.files.length }} files</div>
+              @for (file of d.files; track file.path) {
+                <button
+                  type="button"
+                  class="file"
+                  (click)="openCommitFile.emit({ hash: c.hash, file })"
+                >
+                  <span class="status">{{ file.status }}</span>
+                  <span class="path">{{ file.path }}</span>
+                  @if (file.origPath) {
+                    <span class="muted">from {{ file.origPath }}</span>
+                  }
+                </button>
+              }
+            } @else {
+              <p class="muted">Loading files…</p>
+            }
+          </aside>
+        }
+      </div>
     } @else {
       <git-no-repository />
     }

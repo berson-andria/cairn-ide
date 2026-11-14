@@ -1,0 +1,291 @@
+// Only tokens from token.scss are used here, so the graph follows the theme (dark and light).
+:host {
+  // Surface the graph sits on. Also the fill of merge dots, so they must match it.
+  --graph-bg: var(--color-surface-panel);
+
+  display: block;
+  height: 100%;
+  background: var(--graph-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-ui);
+  outline: none;
+}
+
+:host(:focus-visible) {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.graph {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+// ───────────── toolbar ─────────────
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-12);
+  border-bottom: 1px solid var(--color-divider);
+  flex: none;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex: 1;
+  max-width: 320px;
+  padding: var(--space-4) var(--space-10);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  color: var(--color-text-muted);
+
+  &:focus-within {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: 0;
+    outline: none;
+    color: var(--color-text-primary);
+    font: inherit;
+  }
+}
+
+.tool {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-small);
+  padding: var(--space-4) var(--space-10);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--color-surface-hover);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+// ───────────── list ─────────────
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.viewport {
+  flex: 1;
+  min-height: 0;
+}
+
+// The height must match ROW_H in graph.layout.ts: the lane lines are drawn for exactly that.
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  height: 26px;
+  padding: 0 var(--space-12) 0 var(--space-8);
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+  &.selected {
+    background: var(--color-surface-raised);
+
+    &:hover {
+      background: var(--color-surface-raised-hover);
+    }
+  }
+  // Uncommitted work needs you: the only place the attention color is used.
+  &.working {
+    color: var(--color-attention);
+    cursor: default;
+    flex: none;
+
+    &:hover {
+      background: none;
+    }
+  }
+}
+
+.lanes {
+  flex: none;
+  overflow: hidden;
+
+  path {
+    fill: none;
+    stroke-width: 2;
+  }
+  circle {
+    stroke-width: 2;
+  }
+}
+
+.lane-spacer {
+  flex: none;
+}
+
+.subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.grow {
+  flex: 1;
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.author {
+  width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.when {
+  width: 100px;
+  text-align: right;
+}
+
+.hash {
+  width: 60px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-code-sm);
+}
+
+// ───────────── branch and tag labels ─────────────
+// Local = added tint, current = warning tint (the same pairs the rest of the app uses for those roles).
+// Remote and tags have no tint token, so they mix their hue into transparent: theme aware.
+
+.ref {
+  flex: none;
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-micro);
+  font-weight: var(--font-weight-semibold);
+
+  &[data-kind='local'] {
+    background: var(--color-added-bg);
+    color: var(--color-added-fg);
+  }
+  &[data-kind='remote'] {
+    background: color-mix(in srgb, var(--hue-purple) 18%, transparent);
+    color: var(--hue-purple);
+  }
+  &[data-kind='tag'] {
+    background: color-mix(in srgb, var(--hue-blue) 18%, transparent);
+    color: var(--hue-blue);
+  }
+  &[data-kind='head'],
+  &.current {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-fg);
+  }
+}
+
+// ───────────── details ─────────────
+
+.details {
+  width: var(--inspector-width);
+  flex: none;
+  padding: var(--space-12);
+  border-left: 1px solid var(--color-divider);
+  overflow: auto;
+
+  h3 {
+    margin: 0 0 var(--space-4);
+    font-size: var(--font-size-ui);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-code-sm);
+  }
+}
+
+.message {
+  margin: var(--space-8) 0 0;
+  white-space: pre-wrap;
+  font: inherit;
+  line-height: var(--line-height-ui);
+  color: var(--color-text-secondary);
+}
+
+.files-head {
+  margin: var(--space-12) 0 var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.file {
+  display: flex;
+  gap: var(--space-8);
+  width: 100%;
+  padding: var(--space-4) var(--space-6);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-chip);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  .status {
+    width: 64px;
+    flex: none;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-label);
+  }
+  .path {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.empty,
+.loading {
+  padding: var(--space-12);
+  color: var(--color-text-muted);
+}
