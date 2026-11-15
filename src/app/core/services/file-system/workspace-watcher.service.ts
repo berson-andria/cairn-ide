@@ -6,6 +6,7 @@ import { FileSystemService } from './file-system.service';
 import { NodeStore } from '../../store/node.store';
 import { TabStore } from '../../store/tab.store';
 import { fsEvents$ } from './fs-events';
+import { CodeMapService } from '../codemap/codemap.service';
 
 @Injectable({ providedIn: 'root' })
 export class WorkspaceWatcherService {
@@ -13,24 +14,52 @@ export class WorkspaceWatcherService {
   private readonly nodes = inject(NodeStore);
   private readonly tabs = inject(TabStore);
   private readonly editor = inject(EditorService);
+  private readonly codemap = inject(CodeMapService);
+
+  private readonly pendingCodeMapPaths = new Set<string>();
+  private codeMapTimer: ReturnType<typeof setTimeout> | null = null;
+  private codeMapChain: Promise<void> = Promise.resolve();
 
   /** Events are handled one at a time, in order. */
   private queue: Promise<void> = Promise.resolve();
+  /** Indexing starts after the filesystem watcher so events can queue while the initial scan runs. */
+  private codemapReady: Promise<void> = Promise.resolve();
   /** Files with a "reload?" dialog open, so one outside edit asks only once. */
   private readonly openConflicts = new Set<string>();
 
   /** Starts watching `rootPath`. If FileSystemService can stop the previous watcher, do that first. */
   async start(rootPath: string): Promise<void> {
     await this.fileService.startWorkspaceWatcher(rootPath, (event) => this.enqueue(event));
+    this.codemapReady = this.codemap.open(rootPath).then(
+      () => undefined,
+      (error) => {
+        console.error('Could not open the code map for this workspace:', error);
+      },
+    );
   }
 
   private enqueue(event: { type: unknown; paths: string[] }) {
     // Notify all subscribers (like GitService) that a file system event occurred
     fsEvents$.next();
-    
+    if (classifyWatchEvent(event.type).action !== 'ignore') this.queueCodeMap(event.paths);
     this.queue = this.queue
       .then(() => this.process(event))
       .catch((err) => console.error('External watcher event failed', event, err));
+  }
+
+  private queueCodeMap(paths: string[]) {
+    for (const p of paths) this.pendingCodeMapPaths.add(p);
+    if (this.codeMapTimer) clearTimeout(this.codeMapTimer);
+    this.codeMapTimer = setTimeout(() => {
+      const batch = [...this.pendingCodeMapPaths];
+      this.pendingCodeMapPaths.clear();
+      this.codeMapTimer = null;
+      this.codeMapChain = this.codeMapChain
+        .then(() => this.codemapReady)
+        .then(() => this.codemap.updateFiles(batch))
+        .then(() => undefined)
+        .catch((error) => console.error('Could not update the code map:', error));
+    }, 400);
   }
 
   private async process(event: { type: unknown; paths: string[] }) {

@@ -26,6 +26,7 @@ pub fn run() {
         ))))
         .manage(commands::lsp::LspState::default())
         .manage(commands::pty::PtyState::default())
+        .manage(commands::codemap::CodeMapState::default())
         .setup(|app| {
             // Local server that git / ssh questions (password, passphrase, host key) are sent to.
             app.manage(commands::askpass::Askpass::start(app.handle().clone())?);
@@ -57,6 +58,17 @@ pub fn run() {
             commands::pty::pty_write,
             commands::pty::pty_resize,
             commands::pty::pty_kill,
+            commands::codemap::codemap_open,
+            commands::codemap::codemap_close,
+            commands::codemap::codemap_update_files,
+            commands::codemap::codemap_tree,
+            commands::codemap::codemap_symbols_in_file,
+            commands::codemap::codemap_callers,
+            commands::codemap::codemap_callees,
+            commands::codemap::codemap_search,
+            commands::codemap::codemap_symbol_source,
+            commands::codemap::codemap_install_languages,
+            commands::codemap::codemap_missing_languages
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

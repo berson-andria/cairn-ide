@@ -1,4 +1,5 @@
 pub mod askpass;
+pub mod codemap;
 pub mod fs;
 pub mod git;
 pub mod lsp;

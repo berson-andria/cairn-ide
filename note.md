@@ -40,6 +40,9 @@
 - add right click option, ...right click action attach to task *NO NEED CLAUD FOR THIS*
 - highlight unsaved file.*LOW PRIORITY*
 
+- add persistance
+- store setting values
+
 - save file as
 - workspace reset after selecting
 - documentation model, for every change made, the model will update the documentation(it is not app documetion, it's functions documention). this documention will then serve as base for coding agent. It should be coupled with git.

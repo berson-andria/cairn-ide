@@ -31,7 +31,6 @@ import {
   lucideOctagonX,
   lucidePlus,
   lucideRefreshCcw,
-  lucideTerminalSquare,
 } from '@ng-icons/lucide';
 import { DiagnosticsService } from '../../core/services/diagnostics.service';
 import { LspBridgeService } from '../../core/services/lsp/lsp-bridge.service';
