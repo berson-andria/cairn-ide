@@ -6,6 +6,7 @@ import { PickerService } from '../../shared/components/anchor-picker/picker.serv
 import type { PickResult } from '../../shared/components/anchor-picker/picker.model';
 import { NodeStore } from '../store/node.store';
 import { samePath } from './file-system/external-watcher.utils';
+import { Settings } from '../../feature/setting/settings';
 
 export type RailSection = 'Work' | 'Files' | 'Notes' | 'Review';
 export type Toolkit = 'Terminal' | 'Git' | 'Log' | 'Problems';
@@ -45,7 +46,10 @@ export class LayoutService {
 
   /** Opens the picker using the allowed sources for its origin and returns the selected entity. */
   async openComponent(
-    opener: { kind: 'task'; id: string } | { kind: 'note'; id: string } | { kind: 'file'; path?: string },
+    opener:
+      | { kind: 'task'; id: string }
+      | { kind: 'note'; id: string }
+      | { kind: 'file'; path?: string },
   ): Promise<PickResult | undefined> {
     switch (opener.kind) {
       case 'task':
@@ -55,7 +59,9 @@ export class LayoutService {
       case 'file': {
         const selected = await this.picker.forFile(opener.path);
         if (selected?.kind !== 'file') return selected;
-        const node = Object.values(this.nodeStore.nodes()).find((candidate) => samePath(candidate.path, selected.path));
+        const node = Object.values(this.nodeStore.nodes()).find((candidate) =>
+          samePath(candidate.path, selected.path),
+        );
         return node ? { ...selected, id: node.id } : undefined;
       }
     }
@@ -72,5 +78,7 @@ export class LayoutService {
   openSearchDialog() {
     this.dialogService.open(Search);
   }
-  openSettingDialog() {}
+  openSettingDialog() {
+    this.dialogService.open(Settings, { width: 'min(92vw, 980px)' });
+  }
 }
