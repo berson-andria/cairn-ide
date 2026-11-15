@@ -46,8 +46,9 @@ export type FormDialogResult = Record<string, string>;
       textarea {
         display: block;
         width: 100%;
+        box-sizing: border-box;
         min-height: 72px;
-        padding: var(--space-6) 0;
+        padding: var(--space-6) var(--space-8);
         border: 0;
         outline: none;
         resize: vertical;

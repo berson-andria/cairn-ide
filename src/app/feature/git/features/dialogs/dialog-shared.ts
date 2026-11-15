@@ -1,21 +1,20 @@
 /**
  * Styles shared by every Git dialog.
- * Only tokens from token.scss are used. Buttons use the global
- * `.btn-primary` / `.btn-action` classes, inputs sit in the global `.input-form`.
- * No background, border or radius on the host: the dialog shell owns those.
+ * Shared dialog surface, using the same compact spacing and raised hover colors as Git panels.
  */
 export const DIALOG_STYLES = `
   :host {
     display: block;
-    width: 420px;
-    padding: var(--space-16);
+    width: 100%;
+    box-sizing: border-box;
+    padding: var(--space-12) var(--space-16) var(--space-16);
     color: var(--color-text-primary);
     font-family: var(--font-sans);
     font-size: var(--font-size-ui);
   }
 
   h2 {
-    margin: 0 0 var(--space-14);
+    margin: 0 0 var(--space-10);
     font-size: var(--font-size-prose);
     font-weight: var(--font-weight-semibold);
   }
@@ -38,7 +37,14 @@ export const DIALOG_STYLES = `
   }
 
   .input-form input {
-    padding: var(--space-6) 0;
+    padding: var(--space-6) var(--space-8);
+    color: var(--color-text-primary);
+    font: inherit;
+  }
+  .input-form textarea,
+  textarea {
+    color: var(--color-text-primary);
+    font: inherit;
   }
   .input-form.invalid {
     border-color: var(--color-error-fg);
@@ -57,6 +63,10 @@ export const DIALOG_STYLES = `
     padding: var(--space-4) 0;
     color: var(--color-text-primary);
     accent-color: var(--color-action);
+    border-radius: var(--space-4);
+  }
+  .check:hover {
+    background: var(--color-surface-raised);
   }
   .check--danger {
     color: var(--color-error-fg);
@@ -76,13 +86,17 @@ export const DIALOG_STYLES = `
     display: flex;
     justify-content: flex-end;
     gap: var(--space-8);
-    margin-top: var(--space-16);
+    margin-top: var(--space-12);
   }
   .actions button {
     padding: var(--space-6) var(--space-14);
+    border-radius: var(--radius-chip);
+    font: inherit;
+    cursor: pointer;
   }
   .actions button:disabled {
     opacity: 0.4;
+    cursor: default;
   }
   /* Destructive primary action: same shape as .btn-action, error colour. */
   .actions .btn-danger {

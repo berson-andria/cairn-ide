@@ -8,6 +8,9 @@ import { ComponentType } from '@angular/cdk/overlay';
   standalone: true,
   template: `
     <div class="custom-dialog-container">
+      @if (data.title) {
+        <header class="custom-dialog-header">{{ data.title }}</header>
+      }
       <main class="custom-dialog-body">
         <ng-container #contentContainer></ng-container>
       </main>
@@ -43,6 +46,14 @@ import { ComponentType } from '@angular/cdk/overlay';
         display: flex;
         flex-direction: column;
         overflow: hidden;
+      }
+      .custom-dialog-header {
+        flex: 0 0 auto;
+        padding: var(--space-10) var(--space-16);
+        border-bottom: 1px solid var(--color-border);
+        color: var(--color-text-primary);
+        font-size: var(--font-size-prose);
+        font-weight: var(--font-weight-semibold);
       }
     `,
   ],

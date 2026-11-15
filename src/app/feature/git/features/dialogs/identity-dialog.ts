@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { FormsModule } from '@angular/forms';
 import { GitService } from '../../services/git.service';
-// Adjust to your folders.
+import { DIALOG_STYLES } from './dialog-shared';
 
 export interface GitIdentity {
   name: string;
@@ -14,6 +14,20 @@ export interface GitIdentity {
   selector: 'git-identity-dialog',
   standalone: true,
   imports: [FormsModule],
+  styles: [DIALOG_STYLES, `
+    .identity { display: flex; flex-direction: column; }
+    .identity > label { display: block; margin: 0 0 var(--space-6); font-size: var(--font-size-small); color: var(--color-text-secondary); }
+    .identity > input { box-sizing: border-box; width: 100%; margin-bottom: var(--space-10); padding: var(--space-6) var(--space-8); border: 1px solid var(--color-border); border-radius: var(--radius-chip); background: var(--color-surface-panel); color: var(--color-text-primary); font: inherit; outline: none; }
+    .identity > input:focus { border-color: var(--color-action); }
+    .identity > input.invalid { border-color: var(--color-error-fg); }
+    .field-error { margin: calc(-1 * var(--space-8)) 0 var(--space-8); font-size: var(--font-size-small); color: var(--color-error-fg); }
+    .scope { margin: var(--space-4) 0 0; padding: 0; border: 0; }
+    .scope legend { margin-bottom: var(--space-4); padding: 0; color: var(--color-text-faint); text-transform: uppercase; font-size: var(--font-size-label); }
+    .radio { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-4) var(--space-8); border-radius: var(--space-4); }
+    .radio:hover { background: var(--color-surface-raised); }
+    .hint { margin-top: var(--space-8); }
+    .error { padding: var(--space-6) var(--space-8); border-radius: var(--radius-chip); background: var(--color-error-bg); color: var(--color-error-fg); }
+  `],
   template: `
     <form class="identity" (ngSubmit)="save()" novalidate>
       <p class="lead">
@@ -51,7 +65,7 @@ export interface GitIdentity {
 
       <fieldset class="scope">
         <legend>Use this for</legend>
-        <label class="radio">
+        <label class="check radio">
           <input
             type="radio"
             name="scope"
@@ -60,7 +74,7 @@ export interface GitIdentity {
           />
           All repositories on this computer
         </label>
-        <label class="radio">
+        <label class="check radio">
           <input
             type="radio"
             name="scope"
@@ -81,105 +95,12 @@ export interface GitIdentity {
       }
 
       <div class="actions">
-        <button type="button" class="secondary" (click)="cancel()">Cancel</button>
-        <button type="submit" class="primary" [disabled]="saving()">
+        <button type="button" class="btn-primary" (click)="cancel()">Cancel</button>
+        <button type="submit" class="btn-action" [disabled]="saving()">
           {{ saving() ? 'Saving…' : 'Save' }}
         </button>
       </div>
     </form>
-  `,
-  styles: `
-    .identity {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      color: var(--explorer-text);
-    }
-    .lead {
-      margin: 0 0 6px;
-    }
-    label {
-      font-size: 12px;
-      opacity: 0.8;
-      margin-top: 6px;
-    }
-    input[type='text'],
-    input[type='email'] {
-      padding: 6px 8px;
-      border: 1px solid var(--explorer-item-hover-bg, #3e4452);
-      border-radius: 4px;
-      background: var(--explorer-bg);
-      color: inherit;
-      font: inherit;
-      outline: none;
-    }
-    input.invalid {
-      border-color: #d73445;
-    }
-    .field-error {
-      color: #e05561;
-      font-size: 12px;
-    }
-    .scope {
-      margin: 10px 0 0;
-      padding: 0;
-      border: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .scope legend {
-      padding: 0;
-      font-size: 12px;
-      opacity: 0.8;
-    }
-    .radio {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 0;
-      font-size: inherit;
-      opacity: 1;
-    }
-    .hint {
-      margin: 10px 0 0;
-      font-size: 12px;
-      opacity: 0.7;
-    }
-    .error {
-      margin: 6px 0 0;
-      padding: 6px 8px;
-      border-radius: 4px;
-      background: #9f2732;
-      color: #fff;
-      font-size: 12px;
-    }
-    .actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      margin-top: 12px;
-    }
-    button {
-      padding: 6px 14px;
-      border: 0;
-      border-radius: 4px;
-      font: inherit;
-      cursor: pointer;
-    }
-    button.primary {
-      background: #4aa5f0;
-      color: #10151c;
-    }
-    button.secondary {
-      background: transparent;
-      color: inherit;
-      border: 1px solid var(--explorer-item-hover-bg, #3e4452);
-    }
-    button:disabled {
-      opacity: 0.6;
-      cursor: default;
-    }
   `,
 })
 export class GitIdentityDialog {
@@ -221,7 +142,6 @@ export class GitIdentityDialog {
   }
 
   async save() {
-    console.log(typeof this.nameValue);
     this.showErrors.set(true);
     if (this.nameError() || this.emailError() || this.saving()) return;
 

@@ -35,6 +35,7 @@ export interface PickerDialogData {
     `
       .list {
         max-height: 200px;
+        overflow-y: auto;
         border: 1px solid var(--color-border);
         border-radius: var(--radius-chip);
       }
@@ -43,17 +44,19 @@ export interface PickerDialogData {
         justify-content: space-between;
         align-items: center;
         width: 100%;
-        padding: var(--space-8) var(--space-10);
+        padding: var(--space-4) var(--space-8);
         text-align: left;
+        color: var(--color-text-primary);
+        border-radius: var(--space-4);
       }
       .row:hover {
-        background: var(--color-surface-hover);
+        background: var(--color-surface-raised);
       }
       .row.selected {
-        background: var(--color-surface-raised-hover);
+        background: var(--color-surface-raised);
       }
       .empty {
-        padding: var(--space-8) var(--space-10);
+        padding: var(--space-8);
       }
     `,
   ],
