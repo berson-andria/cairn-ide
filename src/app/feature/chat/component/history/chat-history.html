@@ -1,0 +1,7 @@
+<div class="chat-history" aria-label="Chat history">
+  @for (chat of chatService.chatList(); track chat.id) {
+    <app-chat-history-item [chat]="chat" />
+  } @empty {
+    <p class="chat-history__empty">No chats yet</p>
+  }
+</div>

@@ -137,14 +137,8 @@
     <ng-template #chatMenu>
       <div class="menu actions-menu" role="menu">
         <div class="menu-item-group">
-          <span class="menu-item-label">Open chats</span>
-          @for (chat of chatTabs(); track chat.id) {
-            <button class="menu-item" role="menuitem" (click)="tabStore.activate(chat.id)">
-              {{ chat.title ?? 'Chat' }}
-            </button>
-          } @empty {
-            <span class="menu-item-label">No open chats</span>
-          }
+          <span class="menu-item-label">Chat history</span>
+          <app-chat-history />
         </div>
       </div>
     </ng-template>

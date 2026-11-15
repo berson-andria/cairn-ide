@@ -50,6 +50,26 @@ export class ChatService {
     return chat;
   }
 
+  forkChat(id: string): Chat | undefined {
+    const source = this.getChatById(id);
+    if (!source) return undefined;
+
+    const fork: Chat = {
+      ...source,
+      id: crypto.randomUUID(),
+      title: source.title ? `${source.title} (fork)` : 'Forked chat',
+      messages: {
+        ...source.messages,
+        data: source.messages.data.map((message) => ({ ...message })),
+      },
+      anchors: source.anchors.map((anchor) => ({ ...anchor })),
+      updatedAt: Date.now(),
+    };
+
+    this._chats.update((chats) => [fork, ...chats]);
+    return fork;
+  }
+
   updateChat(id: string, updates: Partial<Omit<Chat, 'id' | 'updatedAt'>>): void {
     this._updateChat(id, (chat) => ({ ...chat, ...updates }));
   }

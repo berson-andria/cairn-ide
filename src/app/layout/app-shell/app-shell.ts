@@ -43,11 +43,12 @@ import { MenuDirective } from '../../shared/directives/menu.directive';
 import { Tab, TabStore } from '../../core/store/tab.store';
 import { GitClient } from '../../feature/git/services/git-client.service';
 import { ChatService } from '../../feature/chat/chat.service';
+import { ChatHistory } from '../../feature/chat/component/history/chat-history';
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [LeftPanel, MainPanel, NgIcon, CommonModule, MenuDirective],
+  imports: [LeftPanel, MainPanel, ChatHistory, NgIcon, CommonModule, MenuDirective],
   templateUrl: './app-shell.html',
   styleUrl: './app-shell.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -79,9 +80,6 @@ export class AppShell {
   readonly ngZone = inject(NgZone);
   readonly lsp = inject(LspBridgeService);
   protected tabStore = inject(TabStore);
-  protected readonly chatTabs = computed(() =>
-    this.tabStore.openedTabs().filter((tab) => tab.type === 'chat' || tab.type === 'Chat'),
-  );
   readonly monitoring = inject(MonitoringService);
   readonly chatService = inject(ChatService);
 

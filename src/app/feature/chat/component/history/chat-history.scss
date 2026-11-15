@@ -1,0 +1,14 @@
+.chat-history {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: min(60vh, 480px);
+  overflow-y: auto;
+}
+
+.chat-history__empty {
+  margin: 0;
+  padding: var(--space-8) var(--space-10);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-ui);
+}
