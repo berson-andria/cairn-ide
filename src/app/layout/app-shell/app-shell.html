@@ -118,24 +118,43 @@
   </button>
 
   <div class="title-bar__end" data-tauri-drag-region>
-    <button class="title-bar__action" type="button" aria-label="New chat">
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 14 14"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.3"
-        stroke-linejoin="round"
-        aria-hidden="true"
+    <div class="linked-btn chat-actions">
+      <button class="icon-btn main-btn" type="button" (click)="newChat()">
+        <ng-icon name="lucidePlus" />
+        <span>Chat</span>
+      </button>
+      <button
+        class="icon-btn chat-actions__menu-button"
+        type="button"
+        aria-label="Chat list"
+        title="Chat list"
+        [appMenu]="chatMenu"
+        [menuPosition]="['right', 'bottom']"
       >
-        <path d="M2 3h10v7H6l-3 2.5V10H2z" />
-      </svg>
-      + Chat
-    </button>
-    <button class="title-bar__chats" type="button" aria-label="Chat list">Chats ▾</button>
+        <ng-icon name="lucideChevronDown" />
+      </button>
+    </div>
+    <ng-template #chatMenu>
+      <div class="menu actions-menu" role="menu">
+        <div class="menu-item-group">
+          <span class="menu-item-label">Open chats</span>
+          @for (chat of chatTabs(); track chat.id) {
+            <button class="menu-item" role="menuitem" (click)="tabStore.activate(chat.id)">
+              {{ chat.title ?? 'Chat' }}
+            </button>
+          } @empty {
+            <span class="menu-item-label">No open chats</span>
+          }
+        </div>
+      </div>
+    </ng-template>
 
-    <button class="icon-btn" type="button" aria-label="Settings">
+    <button
+      class="icon-btn"
+      type="button"
+      aria-label="Settings"
+      (click)="layoutService.openSettingDialog()"
+    >
       <svg
         width="16"
         height="16"

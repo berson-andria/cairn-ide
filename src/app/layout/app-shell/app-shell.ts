@@ -29,6 +29,7 @@ import {
   lucideGitCommitHorizontal,
   lucideGitGraph,
   lucideOctagonX,
+  lucidePlus,
   lucideRefreshCcw,
   lucideTerminalSquare,
 } from '@ng-icons/lucide';
@@ -41,6 +42,7 @@ import { loadIconSprite } from '../../shared/utils/icon-sprite';
 import { MenuDirective } from '../../shared/directives/menu.directive';
 import { Tab, TabStore } from '../../core/store/tab.store';
 import { GitClient } from '../../feature/git/services/git-client.service';
+import { ChatService } from '../../feature/chat/chat.service';
 
 @Component({
   selector: 'app-shell',
@@ -51,6 +53,7 @@ import { GitClient } from '../../feature/git/services/git-client.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [
     provideIcons({
+      lucidePlus,
       lucideChevronDown,
       lucideChevronRight,
       lucideFolderRoot,
@@ -76,7 +79,11 @@ export class AppShell {
   readonly ngZone = inject(NgZone);
   readonly lsp = inject(LspBridgeService);
   protected tabStore = inject(TabStore);
+  protected readonly chatTabs = computed(() =>
+    this.tabStore.openedTabs().filter((tab) => tab.type === 'chat' || tab.type === 'Chat'),
+  );
   readonly monitoring = inject(MonitoringService);
+  readonly chatService = inject(ChatService);
 
   protected readonly project = computed(() => {
     return this.nodeStore.rootName() ? this.nodeStore.rootName() : 'cairn-ide';
@@ -161,6 +168,10 @@ export class AppShell {
       this.layoutService.toggleToolkit(toolkit);
       this.layoutService.toggleBottomPanel();
     }
+  }
+  protected newChat(): void {
+    const chat = this.chatService.createChat();
+    if (chat.id) this.tabStore.openChat(chat.id, 'New chat');
   }
   protected async openFile() {
     const files = await this.nodeStore.addStandaloneFiles();

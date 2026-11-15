@@ -73,7 +73,7 @@
           <note-view [noteId]="activeTab()?.id" />
         }
         @case ('chat') {
-          <p>chat view</p>
+          <app-chat [chatId]="activeTab()!.id" />
         }
         @default {
           <text-editor />

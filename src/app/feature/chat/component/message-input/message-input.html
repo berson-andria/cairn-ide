@@ -1,0 +1,25 @@
+<form class="composer" (ngSubmit)="sendQuery()">
+  <textarea
+    name="message"
+    aria-label="Message"
+    autoExpand
+    (submit)="sendQuery()"
+    rows="1"
+    autocomplete="off"
+    placeholder="Ask anything..."
+    [formControl]="queryController"
+  ></textarea>
+
+  <div class="composer__footer">
+    <span class="composer__hint">Enter to send <span aria-hidden="true">·</span> Shift+Enter for a new line</span>
+    <button
+      class="send-button"
+      type="submit"
+      aria-label="Send message"
+      title="Send message"
+      [disabled]="!canSend"
+    >
+      <ng-icon name="lucideArrowUp" />
+    </button>
+  </div>
+</form>

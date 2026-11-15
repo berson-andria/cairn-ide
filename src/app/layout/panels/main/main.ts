@@ -32,6 +32,7 @@ import { GitService } from '../../../feature/git/services/git.service';
 import { statusStyle } from '../../../feature/git/ui/git-ui';
 import { getFileNameFromPath } from '../../../shared/utils/node.utils';
 import { TaskView } from '../../../feature/tasks/task-view/task-view';
+import { Chat } from '../../../feature/chat/chat';
 
 /** What the tab strip draws: a file, diff, task, review, note, or chat tab. */
 interface TabView {
@@ -57,6 +58,7 @@ interface TabView {
     Editor,
     NoteView,
     TaskView,
+    Chat,
     FileIcon,
     CdkDrag,
     CdkDropList,
@@ -274,9 +276,7 @@ export class MainPanel {
 
   statusStyle(tab: TabView) {
     const badge = this.fileBadge(tab);
-    return badge
-      ? statusStyle(<any>badge.letter).color
-      : 'inherit';
+    return badge ? statusStyle(<any>badge.letter).color : 'inherit';
   }
 
   measure() {

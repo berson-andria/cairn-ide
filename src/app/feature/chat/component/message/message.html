@@ -1,0 +1,7 @@
+<article class="message" [class.message--user]="message().role === 'user'">
+  <div class="message__identity">
+    <span class="message__marker" aria-hidden="true">{{ message().role === 'user' ? 'Y' : 'C' }}</span>
+    <span>{{ message().role === 'user' ? 'You' : 'Cairn' }}</span>
+  </div>
+  <div class="message__body">{{ message().content }}</div>
+</article>

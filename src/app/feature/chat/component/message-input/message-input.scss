@@ -1,0 +1,90 @@
+:host {
+  display: block;
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface-panel);
+  transition: border-color 140ms ease, background-color 140ms ease;
+
+  &:focus-within {
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-raised);
+  }
+
+  textarea {
+    display: block;
+    width: 100%;
+    min-height: 22px;
+    max-height: 160px;
+    padding: var(--space-2) 0;
+    border: 0;
+    outline: 0;
+    resize: none;
+    overflow-y: auto;
+    background: transparent;
+    color: var(--color-text-primary);
+    font: inherit;
+    line-height: var(--line-height-ui);
+    user-select: text;
+
+    &::placeholder {
+      color: var(--color-text-muted);
+    }
+  }
+}
+
+.composer__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+}
+
+.composer__hint {
+  color: var(--color-text-faint);
+  font-size: var(--font-size-small);
+  line-height: 1.2;
+}
+
+.send-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: var(--radius-control);
+  background: var(--color-action);
+  color: var(--color-text-on-action);
+  transition: background-color 140ms ease, opacity 140ms ease, transform 140ms ease;
+
+  ng-icon {
+    font-size: 16px;
+  }
+
+  &:hover:not(:disabled) {
+    background: var(--color-action-hover);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer,
+  .send-button {
+    transition: none;
+  }
+}

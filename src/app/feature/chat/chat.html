@@ -1,0 +1,30 @@
+@if (chat(); as currentChat) {
+  <section class="chat-view" aria-label="Chat conversation">
+    <div class="chat-scroll scrolling-el">
+      <div class="conversation">
+        @if (currentChat.messages.data.length === 0) {
+          <div class="conversation__intro">
+            <span class="conversation__glyph" aria-hidden="true">C</span>
+            <h2>What are we working on?</h2>
+            <p>Ask a question, explore an idea, or get help with your workspace.</p>
+          </div>
+        }
+
+        <div class="messages" aria-label="Conversation messages">
+          @for (message of currentChat.messages.data; track $index) {
+            <app-message [message]="message" />
+          }
+        </div>
+      </div>
+    </div>
+
+    <footer class="chat-compose">
+      @if (currentChat.id; as id) {
+        <message-input [chatId]="id" />
+      }
+      <p class="chat-compose__note">AI can make mistakes. Review important changes before applying them.</p>
+    </footer>
+  </section>
+} @else {
+  <div class="chat-unavailable">This chat is no longer available.</div>
+}
