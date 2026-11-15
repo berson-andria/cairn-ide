@@ -11,13 +11,16 @@
   ></textarea>
 
   <div class="composer__footer">
-    <span class="composer__hint">Enter to send <span aria-hidden="true">·</span> Shift+Enter for a new line</span>
+    <span class="composer__hint"
+      >Enter to send <span aria-hidden="true">·</span> Shift+Enter for a new line</span
+    >
     <button
       class="send-button"
-      type="submit"
+      type="button"
       aria-label="Send message"
       title="Send message"
       [disabled]="!canSend"
+      (click)="sendQuery()"
     >
       <ng-icon name="lucideArrowUp" />
     </button>
