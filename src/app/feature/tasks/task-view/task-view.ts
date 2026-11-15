@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
-import { TaskService, type TaskItem, type TaskAnchor } from '../task.service';
+import { TaskService, type TaskItem } from '../task.service';
 import { NoteAnchor, NoteService } from '../../notes/note.service';
 import { LayoutService } from '../../../core/services/layout.service';
 
 @Component({
   selector: 'app-task-view',
-  templateUrl: '../task-view.html',
+  templateUrl: './task-view.html',
   styleUrl: './task-view.scss',
+  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TaskView {
