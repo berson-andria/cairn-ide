@@ -33,85 +33,7 @@ export interface NoteItem {
   providedIn: 'root',
 })
 export class NoteService {
-  private readonly _notes = signal<NoteItem[]>([
-    {
-      id: '1',
-      content: "Depends on the session store, which doesn't exist yet.",
-      status: 'open',
-      anchors: [
-        {
-          kind: 'ast',
-          label: 'AuthClient.refresh',
-          path: 'src/auth/client.ts',
-        },
-      ],
-      createdAt: Date.now() - 3600000,
-    },
-    {
-      id: '2',
-      type: 'FEEDBACK',
-      content: 'Retry should not loop on 401.',
-      status: 'open',
-      anchors: [
-        {
-          kind: 'task',
-          id: 't-7f3b',
-          label: 't-7f3b',
-          title: 'Retry logic loop on 401 response',
-        },
-      ],
-      createdAt: Date.now() - 3000000,
-    },
-    {
-      id: '3',
-      type: 'QUESTION',
-      content: 'Should expiry use server time?',
-      status: 'open',
-      anchors: [
-        {
-          kind: 'ast',
-          label: 'Token',
-          path: 'src/auth/token.ts',
-        },
-      ],
-      createdAt: Date.now() - 2000000,
-    },
-    {
-      id: '4',
-      content: 'Cache the parsed token.',
-      status: 'open',
-      anchors: [
-        {
-          kind: 'ast',
-          label: 'anchor lost',
-          path: 'src/auth/token.ts',
-          lost: true,
-        },
-      ],
-      createdAt: Date.now() - 1000000,
-    },
-    {
-      id: '5',
-      content: 'Look at retry backoff later.',
-      status: 'open',
-      anchors: [],
-      createdAt: Date.now() - 500000,
-    },
-    {
-      id: '6',
-      content: 'Verify token refresh with mock server.',
-      status: 'completed',
-      anchors: [
-        {
-          kind: 'task',
-          id: 't-4a11',
-          label: 't-4a11',
-          title: 'Session storage setup',
-        },
-      ],
-      createdAt: Date.now() - 86400000,
-    },
-  ]);
+  private readonly _notes = signal<NoteItem[]>([]);
 
   /** Read-only signal access to all notes */
   readonly notes = this._notes.asReadonly();
@@ -119,7 +41,7 @@ export class NoteService {
   readonly openNotes = computed(() => this._notes().filter((n) => n.status === 'open'));
   readonly completedNotes = computed(() => this._notes().filter((n) => n.status === 'completed'));
   readonly inboxNotes = computed(() =>
-    this._notes().filter((n) => !n.anchors || n.anchors.length === 0)
+    this._notes().filter((n) => !n.anchors || n.anchors.length === 0),
   );
 
   get(id: string): NoteItem | undefined {
@@ -146,11 +68,7 @@ export class NoteService {
 
   edit(id: string, updates: Partial<Omit<NoteItem, 'id' | 'createdAt'>>): void {
     this._notes.update((list) =>
-      list.map((note) =>
-        note.id === id
-          ? { ...note, ...updates, updatedAt: Date.now() }
-          : note
-      )
+      list.map((note) => (note.id === id ? { ...note, ...updates, updatedAt: Date.now() } : note)),
     );
   }
 
@@ -183,7 +101,7 @@ export class NoteService {
     if (!note) return;
     this.setAnchors(
       id,
-      note.anchors.filter((_, i) => i !== index)
+      note.anchors.filter((_, i) => i !== index),
     );
   }
 
