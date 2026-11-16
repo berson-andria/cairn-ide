@@ -14,7 +14,7 @@
 - add node drag and drop , change is expanded to true after a given delay hover folder to drop.**DONE**
 - reshape node store, store should manage UI only, not monaco model creation **DONE**
 - diff is specialized, it is made for commit only. make more generalized.**DONE**
-- add git graph **DONE**
+
 - add menu directive **DONE**
 - check git blame **DONE**
 - system logs. **DONE**
@@ -29,6 +29,7 @@
 
 ### PROCESSED:
 - save state after app close.*PROCESSED*
+- add git graph **PROCESSED**
 
 ### REVIEW:
 - lsp note: stop lsp on folder change.*REVIEW*
@@ -48,6 +49,7 @@
 - documentation model, for every change made, the model will update the documentation(it is not app documetion, it's functions documention). this documention will then serve as base for coding agent. It should be coupled with git.
 - let the user add python code to set their own agentic ai workflow.
 - define which script is running
+- *BUG*: Monaco diff editor, text selection not highlighted on line that differentiate the two text.
 
 ### ADDITIONAL TASKS
 - add restapi interaction as new functionality *LOW PRIORITY*

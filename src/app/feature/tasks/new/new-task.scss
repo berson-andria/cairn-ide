@@ -1,0 +1,206 @@
+:host {
+  display: block;
+  max-width: 100%;
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+}
+
+.dialog {
+  padding: var(--space-10) var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  color: var(--color-text-primary);
+}
+
+.dialog__title {
+  margin: 0;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-semibold);
+}
+.field {
+  width: 100%;
+  background: var(--color-surface-base);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-ui);
+  padding: var(--space-8) var(--space-10);
+  outline: none;
+  &:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  &::placeholder {
+    color: var(--color-text-muted);
+  }
+}
+.field--area {
+  height: 80px;
+  resize: vertical;
+}
+.field--compact {
+  padding: var(--space-6) var(--space-8);
+}
+
+.disclosure {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+.disclosure svg {
+  transition: transform 120ms ease;
+}
+.disclosure .chevron--collapsed {
+  transform: rotate(-90deg);
+}
+.section {
+  border-top: 1px solid var(--color-divider);
+  padding-top: var(--space-12);
+}
+.section__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 0 var(--space-8);
+  font-size: var(--font-size-label);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.section__hint,
+.empty-hint {
+  margin: var(--space-8) 0 0;
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
+}
+.icon-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-button-sm);
+}
+.icon-btn:hover {
+  background: var(--color-surface-hover);
+}
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-9);
+  padding: var(--space-4) 0;
+  font-size: var(--font-size-ui);
+}
+.row__dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border: 1.5px solid var(--color-text-secondary);
+  border-radius: var(--radius-round);
+}
+.row__text {
+  flex: 1;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 2px 7px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-chip);
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+.remove {
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+.remove:hover,
+.text-button:hover {
+  color: var(--color-text-primary);
+}
+.subtask-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin-bottom: var(--space-4);
+}
+.text-button {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+.extra-fields {
+  display: grid;
+  gap: var(--space-8);
+}
+.field-label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-label);
+}
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-12);
+  margin-top: var(--space-8);
+}
+.footer__meta {
+  max-width: 220px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+.footer__actions {
+  display: flex;
+  gap: var(--space-8);
+  flex: none;
+}
+.btn {
+  background: none;
+  //   border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-ui);
+}
+.btn--primary {
+  background: var(--color-action);
+  color: var(--color-text-on-action);
+  border: 0;
+  font-weight: var(--font-weight-semibold);
+}
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-action-hover);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 540px) {
+  .dialog {
+    padding: var(--space-16);
+  }
+  .footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .footer__meta {
+    max-width: none;
+  }
+}

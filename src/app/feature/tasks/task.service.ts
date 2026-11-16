@@ -37,66 +37,7 @@ export interface TaskItem {
   providedIn: 'root',
 })
 export class TaskService {
-  private readonly _tasks = signal<TaskItem[]>([
-    {
-      id: crypto.randomUUID(),
-      title: 'Setup tree-sitter integration',
-      description: 'Integrate tree-sitter parser for AST extraction in Rust backend',
-      status: 'running',
-      anchor: {
-        kind: 'file',
-        path: 'src-tauri/src/ast/mod.rs',
-      },
-      createdAt: Date.now() - 86400000,
-    },
-    {
-      id: crypto.randomUUID(),
-      title: 'Build function summary cache',
-      description: 'Cache AI-generated one-line summaries for each function with body hash invalidation',
-      status: 'ready',
-      anchor: {
-        kind: 'file',
-        path: 'src-tauri/src/codemap/cache.rs',
-      },
-      dependsOn: undefined, // will be set to first task's ID
-      createdAt: Date.now() - 72000000,
-    },
-    {
-      id: crypto.randomUUID(),
-      title: 'Implement Python agent runtime',
-      description: 'JSON-RPC bridge between Rust and Python SDK for custom agent workflows',
-      status: 'blocked',
-      anchor: {
-        kind: 'file',
-        path: 'src-tauri/src/agent/runtime.rs',
-      },
-      subTasks: [
-        {
-          id: crypto.randomUUID(),
-          title: 'Design JSON-RPC protocol',
-          description: 'Define request/response schema for IDE primitives',
-          status: 'completed',
-          createdAt: Date.now() - 60000000,
-        },
-        {
-          id: crypto.randomUUID(),
-          title: 'Build thin Python SDK',
-          description: 'Wrapper library for tasks, notes, codemap, models',
-          status: 'ready',
-          createdAt: Date.now() - 50000000,
-        },
-      ],
-      acceptanceCriteria: 'python -m pytest tests/agent/',
-      createdAt: Date.now() - 48000000,
-    },
-    {
-      id: crypto.randomUUID(),
-      title: 'Add task-to-branch workflow',
-      description: 'Automatically create git branch when task starts, run checks before review',
-      status: 'ready',
-      createdAt: Date.now() - 36000000,
-    },
-  ]);
+  private readonly _tasks = signal<TaskItem[]>([]);
 
   /** Read-only signal access to all tasks */
   readonly tasks = this._tasks.asReadonly();
@@ -105,28 +46,20 @@ export class TaskService {
   readonly selectedTaskId = signal<string | null>(this._tasks()[0]?.id ?? null);
   readonly selectedTask = computed(() => {
     const id = this.selectedTaskId();
-    return id ? this.get(id) ?? null : null;
+    return id ? (this.get(id) ?? null) : null;
   });
 
   select(id: string | null): void {
     this.selectedTaskId.set(id && this.get(id) ? id : null);
   }
 
-  readonly readyTasks = computed(() => 
-    this._tasks().filter((t) => t.status === 'ready')
-  );
-  
-  readonly runningTasks = computed(() => 
-    this._tasks().filter((t) => t.status === 'running')
-  );
-  
-  readonly blockedTasks = computed(() => 
-    this._tasks().filter((t) => t.status === 'blocked')
-  );
-  
-  readonly completedTasks = computed(() => 
-    this._tasks().filter((t) => t.status === 'completed')
-  );
+  readonly readyTasks = computed(() => this._tasks().filter((t) => t.status === 'ready'));
+
+  readonly runningTasks = computed(() => this._tasks().filter((t) => t.status === 'running'));
+
+  readonly blockedTasks = computed(() => this._tasks().filter((t) => t.status === 'blocked'));
+
+  readonly completedTasks = computed(() => this._tasks().filter((t) => t.status === 'completed'));
 
   /**
    * Tasks that have no dependencies or whose dependencies are completed
@@ -137,7 +70,7 @@ export class TaskService {
       if (!t.dependsOn) return true;
       const dependency = this.get(t.dependsOn);
       return dependency?.status === 'completed';
-    })
+    }),
   );
 
   /**
@@ -183,9 +116,9 @@ export class TaskService {
     this._tasks.update((list) =>
       list.map((task) => {
         if (task.id !== id) return task;
-        
+
         const updated = { ...task, ...updates, updatedAt: Date.now() };
-        
+
         // Auto-update status to blocked if dependsOn is set and not completed
         if (updates.dependsOn !== undefined) {
           const dep = this.get(updates.dependsOn);
@@ -193,9 +126,9 @@ export class TaskService {
             updated.status = 'blocked';
           }
         }
-        
+
         return updated;
-      })
+      }),
     );
   }
 
@@ -213,7 +146,7 @@ export class TaskService {
    */
   setStatus(id: string, status: TaskStatus): void {
     this.edit(id, { status });
-    
+
     // Update dependent tasks when this task completes
     if (status === 'completed') {
       this._unblockDependentTasks(id);
@@ -241,7 +174,7 @@ export class TaskService {
     if (!task) return;
 
     this.edit(id, { dependsOn: dependsOn ?? undefined });
-    
+
     // Update status based on dependency
     if (dependsOn) {
       const dep = this.get(dependsOn);
@@ -257,11 +190,14 @@ export class TaskService {
   /**
    * Add a subtask to an existing task
    */
-  addSubTask(taskId: string, subTask: {
-    title: string;
-    description?: string;
-    status?: TaskStatus;
-  }): SubTask | undefined {
+  addSubTask(
+    taskId: string,
+    subTask: {
+      title: string;
+      description?: string;
+      status?: TaskStatus;
+    },
+  ): SubTask | undefined {
     const task = this.get(taskId);
     if (!task) return undefined;
 
@@ -275,7 +211,7 @@ export class TaskService {
 
     const updatedSubTasks = [...(task.subTasks ?? []), newSubTask];
     this.edit(taskId, { subTasks: updatedSubTasks });
-    
+
     return newSubTask;
   }
 
@@ -285,15 +221,13 @@ export class TaskService {
   updateSubTask(
     taskId: string,
     subTaskId: string,
-    updates: Partial<Omit<SubTask, 'id' | 'createdAt'>>
+    updates: Partial<Omit<SubTask, 'id' | 'createdAt'>>,
   ): void {
     const task = this.get(taskId);
     if (!task?.subTasks) return;
 
     const updatedSubTasks = task.subTasks.map((st) =>
-      st.id === subTaskId
-        ? { ...st, ...updates, updatedAt: Date.now() }
-        : st
+      st.id === subTaskId ? { ...st, ...updates, updatedAt: Date.now() } : st,
     );
 
     this.edit(taskId, { subTasks: updatedSubTasks });
@@ -323,9 +257,9 @@ export class TaskService {
   canStart(id: string): boolean {
     const task = this.get(id);
     if (!task || task.status === 'completed') return false;
-    
+
     if (!task.dependsOn) return true;
-    
+
     const dep = this.get(task.dependsOn);
     return dep?.status === 'completed';
   }
@@ -365,15 +299,15 @@ export class TaskService {
    */
   private _computeInitialStatus(
     requestedStatus: TaskStatus | undefined,
-    dependsOn: string | undefined
+    dependsOn: string | undefined,
   ): TaskStatus {
     if (requestedStatus) return requestedStatus;
-    
+
     if (dependsOn) {
       const dep = this.get(dependsOn);
       return dep?.status === 'completed' ? 'ready' : 'blocked';
     }
-    
+
     return 'ready';
   }
 

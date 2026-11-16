@@ -1,11 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
 import { bootstrapChevronDown, bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
 import { NgIcon, provideIcons } from '@ng-icons/core';
+import { lucidePlus } from '@ng-icons/lucide';
 import { LayoutService } from '../../../core/services/layout.service';
+import { DialogService } from '../../../core/services/dialog/dialog.service';
 import { EmptyTaskList } from '../empty-task-list';
 import { TaskService, TaskItem, TaskStatus } from '../task.service';
 import { Task } from '../task/task';
 import { TabStore } from '../../../core/store/tab.store';
+import { NewTask } from '../new/new-task';
 
 @Component({
   selector: 'task-list',
@@ -24,6 +27,17 @@ import { TabStore } from '../../../core/store/tab.store';
           Work
         </span>
         <span class="rail-section__meta">{{ tasks().length }}</span>
+        @if (tasks().length > 0) {
+          <button
+            class="icon-btn"
+            type="button"
+            aria-label="Create new task"
+            title="Create new task"
+            (click)="$event.stopPropagation(); createTask()"
+          >
+            <ng-icon name="lucidePlus" />
+          </button>
+        }
       </div>
       <div class="rail__body">
         @if (tasks().length === 0) {
@@ -72,10 +86,11 @@ import { TabStore } from '../../../core/store/tab.store';
   host: { '[style.flex]': 'layoutService.isRailSectionActive("Work")? 1: "none"' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [NgIcon, EmptyTaskList, Task],
-  providers: [provideIcons({ bootstrapChevronDown, bootstrapChevronRight })],
+  providers: [provideIcons({ bootstrapChevronDown, bootstrapChevronRight, lucidePlus })],
 })
 export class TaskList {
   readonly layoutService = inject(LayoutService);
+  private readonly dialogService = inject(DialogService);
   private readonly taskService = inject(TaskService);
   private readonly tabStore = inject(TabStore);
   readonly tasks = this.taskService.tasks;
@@ -97,6 +112,10 @@ export class TaskList {
     this.taskService.select(task.id);
     this.tabStore.openTask(task.id, task.title, task.id);
     this.taskSelected.emit(task);
+  }
+
+  createTask(): void {
+    this.dialogService.open(NewTask, { width: 'min(92vw, 560px)' });
   }
 
   statusLabel(status: TaskStatus): string {

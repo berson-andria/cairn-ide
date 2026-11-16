@@ -1,0 +1,210 @@
+<section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+  <h2 class="dialog__title" id="dialog-title">New task</h2>
+
+  <input
+    class="field"
+    type="text"
+    aria-label="Title"
+    placeholder="What should be done?"
+    [value]="title()"
+    (input)="title.set($any($event.target).value)"
+    (keydown.control.enter)="createTask()"
+    autofocus
+  />
+  <textarea
+    class="field field--area"
+    aria-label="Description"
+    placeholder="Context the model needs. Markdown is fine."
+    [value]="description()"
+    (input)="description.set($any($event.target).value)"
+  ></textarea>
+
+  <button
+    class="disclosure"
+    type="button"
+    [attr.aria-expanded]="showOptions()"
+    (click)="showOptions.update((show) => !show)"
+  >
+    <svg
+      [class.chevron--collapsed]="!showOptions()"
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.4"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M1.5 3l3.5 3.5L8.5 3" />
+    </svg>
+    More options
+  </button>
+
+  @if (showOptions()) {
+    <div class="section">
+      <div class="section__head">
+        <span>Subtasks</span>
+        <button
+          class="icon-btn"
+          type="button"
+          aria-label="Add subtask"
+          (click)="showSubtaskInput.set(true)"
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M5 1.5v7M1.5 5h7" />
+          </svg>
+        </button>
+      </div>
+      @if (showSubtaskInput()) {
+        <form class="subtask-form" (submit)="$event.preventDefault(); addSubtask()">
+          <input
+            class="field field--compact"
+            aria-label="Subtask title"
+            placeholder="Subtask title"
+            [value]="subtaskDraft()"
+            (input)="subtaskDraft.set($any($event.target).value)"
+          />
+          <button class="text-button" type="submit">Add</button>
+        </form>
+      }
+      <ul class="list">
+        @for (subtask of subtasks(); track $index; let i = $index) {
+          <li class="row">
+            <span class="row__dot"></span><span class="row__text">{{ subtask }}</span
+            ><button
+              class="remove"
+              type="button"
+              aria-label="Remove subtask"
+              (click)="removeSubtask(i)"
+            >
+              ×
+            </button>
+          </li>
+        } @empty {
+          @if (!showSubtaskInput()) {
+            <li class="empty-hint">No subtasks added.</li>
+          }
+        }
+      </ul>
+    </div>
+
+    <div class="section">
+      <label class="section__head" for="dependency">Depends on</label>
+      <select
+        id="dependency"
+        class="field field--compact"
+        [value]="dependsOn()"
+        (change)="dependsOn.set($any($event.target).value)"
+      >
+        <option value="">No dependency</option>
+        @for (task of tasks(); track task.id) {
+          <option [value]="task.id">{{ task.id.slice(0, 8) }} · {{ task.title }}</option>
+        }
+      </select>
+      @if (dependsOn()) {
+        <div class="chips">
+          <span class="chip"
+            >{{ dependsOn().slice(0, 8) }} · {{ taskService.get(dependsOn())?.title
+            }}<button
+              class="remove"
+              type="button"
+              aria-label="Remove dependency"
+              (click)="dependsOn.set('')"
+            >
+              ×
+            </button></span
+          >
+        </div>
+      }
+    </div>
+
+    <div class="section">
+      <div class="section__head">
+        <span>Anchors</span
+        ><button class="icon-btn" type="button" aria-label="Attach file" (click)="attachAnchor()">
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M5 1.5v7M1.5 5h7" />
+          </svg>
+        </button>
+      </div>
+      @if (anchorPath()) {
+        <div class="chips">
+          <span class="chip"
+            ><svg
+              width="11"
+              height="11"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+              aria-hidden="true"
+            >
+              <path d="M2.5 1.5h4.5l2.5 2.5v6.5h-7z" /></svg
+            >{{ anchorPath()
+            }}<button
+              class="remove"
+              type="button"
+              aria-label="Remove file"
+              (click)="anchorPath.set('')"
+            >
+              ×
+            </button></span
+          >
+        </div>
+      } @else {
+        <p class="section__hint">A file to give this task context.</p>
+      }
+    </div>
+
+    <div class="section extra-fields">
+      <label class="field-label" for="acceptance">Acceptance criteria</label>
+      <textarea
+        id="acceptance"
+        class="field field--compact"
+        placeholder="How will this task be checked?"
+        [value]="acceptanceCriteria()"
+        (input)="acceptanceCriteria.set($any($event.target).value)"
+      ></textarea>
+      <label class="field-label" for="branch">Branch</label>
+      <input
+        id="branch"
+        class="field field--compact"
+        placeholder="Optional branch name"
+        [value]="branch()"
+        (input)="branch.set($any($event.target).value)"
+      />
+    </div>
+  }
+
+  <div class="footer">
+    <span class="footer__meta"
+      >New tasks start as ready, or blocked by an unfinished dependency.</span
+    >
+    <span class="footer__actions">
+      <button class="btn-primary" type="button" (click)="cancel()">Cancel</button>
+      <button class="btn-action" type="button" [disabled]="!title().trim()" (click)="createTask()">
+        Create task
+      </button>
+    </span>
+  </div>
+</section>
