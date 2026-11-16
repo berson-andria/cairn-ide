@@ -34,7 +34,7 @@ pub fn run() {
         })
         .plugin(
             tauri_plugin_log::Builder::new()
-                .level(tauri_plugin_log::log::LevelFilter::Info)
+                .level(tauri_plugin_log::log::LevelFilter::Trace)
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
@@ -54,6 +54,10 @@ pub fn run() {
             commands::lsp::lsp_start,
             commands::lsp::lsp_send,
             commands::lsp::lsp_stop,
+            commands::secrets::secret_set,
+            commands::secrets::secret_get,
+            commands::secrets::secret_delete,
+            commands::models::model_test_local,
             commands::pty::pty_spawn,
             commands::pty::pty_write,
             commands::pty::pty_resize,
@@ -68,7 +72,8 @@ pub fn run() {
             commands::codemap::codemap_search,
             commands::codemap::codemap_symbol_source,
             commands::codemap::codemap_install_languages,
-            commands::codemap::codemap_missing_languages
+            commands::codemap::codemap_missing_languages,
+            commands::diagnostics::set_log_level
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

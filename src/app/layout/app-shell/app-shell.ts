@@ -25,12 +25,14 @@ import {
   lucideChevronRight,
   lucideCloudUpload,
   lucideFolderRoot,
+  lucideFolderTree,
   lucideGitBranch,
   lucideGitCommitHorizontal,
   lucideGitGraph,
   lucideOctagonX,
   lucidePlus,
   lucideRefreshCcw,
+  lucideSettings2,
 } from '@ng-icons/lucide';
 import { DiagnosticsService } from '../../core/services/diagnostics.service';
 import { LspBridgeService } from '../../core/services/lsp/lsp-bridge.service';
@@ -65,6 +67,8 @@ import { ChatHistory } from '../../feature/chat/component/history/chat-history';
       lucideOctagonX,
       lucideAlertTriangle,
       lucideBraces,
+      lucideFolderTree,
+      lucideSettings2,
     }),
   ],
 })

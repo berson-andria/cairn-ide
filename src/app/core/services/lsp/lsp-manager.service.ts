@@ -1,12 +1,13 @@
 import { Injectable, effect, inject, untracked } from '@angular/core';
 import type * as Monaco from 'monaco-editor';
 import { LspClient } from './lsp-client';
-import { LspServerConfig, serverForLanguage } from './lsp-servers';
+import { LSP_SERVERS, LspServerConfig } from './lsp-servers';
 
 import { NodeStore } from '../../store/node.store';
 import { EditorService } from '../../../feature/editor/services/editor.service';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
 import { LspMonitor } from './lsp-monitor.service';
+import { SettingsService } from '../../../feature/setting/settings.service';
 
 const IDLE_STOP_MS = 60_000;
 
@@ -30,8 +31,22 @@ export class LspManager {
   private readonly idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly failed = new Set<string>(); // servers that failed to start (e.g. not installed)
   private readonly monitor = inject(LspMonitor);
+  private readonly settings = inject(SettingsService);
+  private readonly configSignatures = new Map<string, string>();
 
   constructor() {
+    effect(() => {
+      const configs = LSP_SERVERS.map((server) => {
+        const config = this.configForServer(server);
+        return { id: server.id, config, signature: JSON.stringify(config) };
+      });
+      const changed = configs.filter(({ id, signature }) => this.configSignatures.get(id) !== signature);
+      for (const { id, signature } of configs) this.configSignatures.set(id, signature);
+      untracked(() => {
+        if (this.initialized) changed.forEach(({ id }) => void this.restartServer(id));
+      });
+    });
+
     // Workspace changed -> servers have the wrong root; restart them.
     effect(() => {
       this.store.rootPath(); // read first so the effect always tracks it
@@ -64,7 +79,7 @@ export class LspManager {
 
   private async attach(model: Monaco.editor.ITextModel): Promise<void> {
     if (model.uri.scheme !== 'file') return;
-    const config = serverForLanguage(model.getLanguageId());
+    const config = this.configForLanguage(model.getLanguageId());
     if (!config || this.failed.has(config.id)) return;
 
     const key = model.uri.toString();
@@ -154,6 +169,44 @@ export class LspManager {
     this.idleTimers.clear();
     await Promise.all(running.map(async (p) => (await p)?.stop()));
     this.monaco!.editor.getModels().forEach((m) => void this.attach(m));
+  }
+
+  private configForLanguage(languageId: string): LspServerConfig | undefined {
+    const server = LSP_SERVERS.find((candidate) => candidate.languages.includes(languageId));
+    if (!server) return undefined;
+    const config = this.configForServer(server);
+    return config.enabled ? config : undefined;
+  }
+
+  private configForServer(server: LspServerConfig): LspServerConfig {
+    const enabled = this.settings.get<boolean>(`lsp.${server.id}.enabled`)();
+    const configuredCommand = this.settings.get<string>(`lsp.${server.id}.commandPath`)();
+    const args = this.settings.get<string[]>(`lsp.${server.id}.args`)();
+    const command = configuredCommand || server.command;
+    return {
+      ...server,
+      enabled,
+      command,
+      args: [...args],
+      npm: command === server.command ? server.npm : false,
+    };
+  }
+
+  private async restartServer(id: string): Promise<void> {
+    if (!this.monaco) return;
+    const timer = this.idleTimers.get(id);
+    if (timer) clearTimeout(timer);
+    this.idleTimers.delete(id);
+    this.failed.delete(id);
+    const running = this.clients.get(id);
+    this.clients.delete(id);
+    for (const [uri, client] of this.modelClient) {
+      if (client.config.id === id) this.modelClient.delete(uri);
+    }
+    if (running) await (await running)?.stop().catch(() => {});
+    for (const model of this.monaco.editor.getModels()) {
+      if (this.configForLanguage(model.getLanguageId())?.id === id) void this.attach(model);
+    }
   }
 
   // ───────────────────────── go-to-definition across files ─────────────────────────

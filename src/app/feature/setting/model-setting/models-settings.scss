@@ -1,0 +1,163 @@
+:host {
+  display: block;
+  width: 100%;
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.models-settings {
+  display: grid;
+  gap: var(--space-12);
+  width: 100%;
+}
+
+.models-settings__default,
+.model-form__grid label {
+  display: grid;
+  gap: var(--space-6);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-ui);
+}
+
+.models-settings__default {
+  grid-template-columns: minmax(120px, 1fr) minmax(180px, 2fr);
+  align-items: center;
+  padding: var(--space-8) var(--space-4) var(--space-12);
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.model-card,
+.model-form {
+  display: grid;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-panel);
+}
+
+.model-card__header,
+.model-card__actions,
+.model-form__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.model-card__header {
+  justify-content: space-between;
+}
+
+.model-card__actions { justify-content: flex-end; }
+
+.model-form__actions { justify-content: flex-start; }
+
+.model-card__header h4,
+.model-form h4 {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-ui);
+  font-weight: var(--font-weight-semibold);
+}
+
+.model-card__type,
+.model-card__details,
+.models-settings__empty {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-ui);
+}
+
+.model-card__details { margin: 0; overflow-wrap: anywhere; }
+
+.model-card__default,
+.model-form__saved {
+  display: inline-block;
+  margin-left: var(--space-8);
+  font-size: var(--font-size-micro);
+}
+
+.model-card__default {
+  padding: var(--space-2) var(--space-6);
+  color: var(--color-warning-fg);
+  border-radius: var(--radius-badge);
+  background: var(--color-warning-bg);
+}
+
+.model-form__saved { color: var(--color-status-done); }
+
+.model-card__result {
+  margin: 0;
+  padding: var(--space-6) var(--space-8);
+  color: var(--color-added-fg);
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-ui);
+  overflow-wrap: anywhere;
+  border-left: 2px solid var(--color-status-done);
+  background: var(--color-added-bg);
+}
+
+.model-card__result.is-error,
+.model-form__error { color: var(--color-error-fg); }
+
+.model-card__result.is-error {
+  border-left-color: var(--color-error-fg);
+  background: var(--color-error-bg);
+}
+
+.model-form__error { margin: 0; font-size: var(--font-size-small); }
+
+.model-form__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-12);
+}
+
+.model-form__wide { grid-column: span 2; }
+.models-settings__empty { margin: var(--space-8) 0; }
+
+.field {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: var(--space-4) var(--space-8);
+  color: var(--color-text-primary);
+  font: inherit;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  outline: none;
+
+  &:focus-visible { border-color: var(--color-border-strong); }
+  &:disabled { color: var(--color-text-faint); cursor: default; }
+  &::placeholder { color: var(--color-text-muted); }
+}
+
+.field--text,
+.field--number,
+.field--select { width: 100%; }
+
+.field--number { font-variant-numeric: tabular-nums; }
+
+.field--select option {
+  color: var(--color-text-primary);
+  background: var(--color-surface-raised);
+}
+
+.btn-primary:focus-visible,
+.btn-action:focus-visible,
+.field:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+
+@media (max-width: 700px) {
+  .model-form__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .model-form__wide { grid-column: span 2; }
+}
+
+@media (max-width: 480px) {
+  .models-settings__default { grid-template-columns: minmax(0, 1fr); }
+  .model-form__grid { grid-template-columns: minmax(0, 1fr); }
+  .model-form__wide { grid-column: auto; }
+  .model-card__header { align-items: flex-start; }
+  .model-card__actions { justify-content: flex-start; }
+}

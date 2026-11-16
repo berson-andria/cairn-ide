@@ -1,0 +1,114 @@
+<div class="models-settings">
+  <div class="models-settings__default">
+    <label for="default-model">Default model</label>
+    <select id="default-model" class="field field--select" [value]="defaultModel()" (change)="setDefault($event)">
+      <option value="">No default model</option>
+      @for (model of models(); track model.id) {
+        <option [value]="model.id">{{ model.id }}</option>
+      }
+    </select>
+  </div>
+
+  @for (model of models(); track model.id) {
+    <article class="model-card">
+      <header class="model-card__header">
+        <div>
+          <h4>{{ model.id }}</h4>
+          <span class="model-card__type">{{ model.type === 'local' ? 'Local · llama.cpp' : 'API · ' + model.provider }}</span>
+          @if (defaultModel() === model.id) { <span class="model-card__default">Default</span> }
+          @if (model.type === 'api' && model.apiKeyRef) { <span class="model-card__default">API key saved</span> }
+        </div>
+        <div class="model-card__actions">
+          <button type="button" class="btn-primary" [disabled]="testingId() === model.id || busy()" (click)="testConnection(model)">
+            {{ testingId() === model.id ? 'Testing…' : 'Test connection' }}
+          </button>
+          <button type="button" class="btn-primary" [disabled]="busy()" (click)="edit(model)">Edit</button>
+          <button type="button" class="btn-primary" [disabled]="busy()" (click)="duplicate(model)">Duplicate</button>
+          <button type="button" class="btn-primary" [disabled]="busy()" (click)="remove(model)">Remove</button>
+        </div>
+      </header>
+      <p class="model-card__details">
+        @if (model.type === 'local') {
+          {{ model.ggufPath }} · context {{ model.contextSize }} · {{ model.gpuLayers }} GPU layers · {{ model.threads }} threads
+        } @else {
+          {{ model.modelName }} · {{ model.baseUrl }} · context {{ model.contextLimit }}
+        }
+      </p>
+      @if (testMessages()[model.id]; as result) {
+        <p class="model-card__result" [class.is-error]="!result.ok" role="status">{{ result.text }}</p>
+      }
+    </article>
+  } @empty {
+    <p class="models-settings__empty">No models configured yet.</p>
+  }
+
+  @if (formOpen()) {
+    <form class="model-form" (submit)="$event.preventDefault(); saveModel()">
+      <h4>{{ editingId() ? 'Edit model' : 'Add model' }}</h4>
+      <div class="model-form__grid">
+        <label>Unique name
+          <input class="field field--text" type="text" [value]="draft().id" (input)="setText('id', $event)" autocomplete="off" />
+        </label>
+        <label>Type
+          <select class="field field--select" [value]="draft().type" (change)="setType($event)">
+            <option value="local">Local · llama.cpp</option>
+            <option value="api">API</option>
+          </select>
+        </label>
+        <label>Context limit
+          <input class="field field--number" type="number" min="1" [value]="draft().contextLimit" (input)="setNumber('contextLimit', $event)" />
+        </label>
+      </div>
+
+      @if (draft().type === 'local') {
+        <div class="model-form__grid">
+          <label class="model-form__wide">GGUF file path
+            <input class="field field--text" type="text" [value]="draft().ggufPath" (input)="setText('ggufPath', $event)" placeholder="C:\\models\\model.gguf" />
+          </label>
+          <label>GPU layers
+            <input class="field field--number" type="number" min="0" [value]="draft().gpuLayers" (input)="setNumber('gpuLayers', $event)" />
+          </label>
+          <label>Context size
+            <input class="field field--number" type="number" min="1" [value]="draft().contextSize" (input)="setNumber('contextSize', $event)" />
+          </label>
+          <label>Threads
+            <input class="field field--number" type="number" min="1" [value]="draft().threads" (input)="setNumber('threads', $event)" />
+          </label>
+          <label>Temperature
+            <input class="field field--number" type="number" min="0" step="0.05" [value]="draft().temperature" (input)="setNumber('temperature', $event)" />
+          </label>
+          <label>Top P
+            <input class="field field--number" type="number" min="0" max="1" step="0.01" [value]="draft().topP" (input)="setNumber('topP', $event)" />
+          </label>
+          <label>Top K
+            <input class="field field--number" type="number" min="1" [value]="draft().topK" (input)="setNumber('topK', $event)" />
+          </label>
+        </div>
+      } @else {
+        <div class="model-form__grid">
+          <label>Provider
+            <input class="field field--text" type="text" [value]="draft().provider" (input)="setText('provider', $event)" placeholder="OpenAI-compatible" />
+          </label>
+          <label>Model name
+            <input class="field field--text" type="text" [value]="draft().modelName" (input)="setText('modelName', $event)" />
+          </label>
+          <label class="model-form__wide">Base URL
+            <input class="field field--text" type="url" [value]="draft().baseUrl" (input)="setText('baseUrl', $event)" placeholder="https://api.example.com/v1" />
+          </label>
+          <label class="model-form__wide">API key
+            <input class="field field--text" type="password" [value]="apiKey()" (input)="setApiKey($event)" autocomplete="new-password" spellcheck="false" />
+            @if (savedSecret() && !apiKey()) { <span class="model-form__saved">Saved in OS keychain</span> }
+          </label>
+        </div>
+      }
+
+      @if (formError()) { <p class="model-form__error" role="alert">{{ formError() }}</p> }
+      <div class="model-form__actions">
+        <button type="submit" class="btn-action" [disabled]="busy()">{{ busy() ? 'Saving…' : 'Save model' }}</button>
+        @if (hasModels()) { <button type="button" class="btn-primary" [disabled]="busy()" (click)="cancelEdit()">Cancel</button> }
+      </div>
+    </form>
+  } @else {
+    <button type="button" class="btn-action" (click)="startAdd()">Add model</button>
+  }
+</div>

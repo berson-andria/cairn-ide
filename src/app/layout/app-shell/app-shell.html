@@ -142,6 +142,9 @@
         </div>
       </div>
     </ng-template>
+    <button class="icon-btn" style="margin-right: var(--space-10)">
+      <ng-icon name="lucideFolderTree" />
+    </button>
 
     <button
       class="icon-btn"
@@ -149,7 +152,7 @@
       aria-label="Settings"
       (click)="layoutService.openSettingDialog()"
     >
-      <svg
+      <!-- <svg
         width="16"
         height="16"
         viewBox="0 0 16 16"
@@ -163,7 +166,8 @@
         <circle class="title-bar__knob" cx="10" cy="4" r="1.6" />
         <circle class="title-bar__knob" cx="5" cy="8" r="1.6" />
         <circle class="title-bar__knob" cx="11" cy="12" r="1.6" />
-      </svg>
+      </svg> -->
+      <ng-icon name="lucideSettings2" />
     </button>
 
     <div class="title-bar__window-controls">
@@ -221,7 +225,7 @@
 </header>
 
 <div class="app-shell__body">
-  <left-panel />
+  <left-panel id="left-panel" />
   <main-panel />
 </div>
 

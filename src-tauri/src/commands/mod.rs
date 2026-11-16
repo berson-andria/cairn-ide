@@ -1,7 +1,10 @@
 pub mod askpass;
 pub mod codemap;
+pub mod diagnostics;
 pub mod fs;
 pub mod git;
 pub mod lsp;
+pub mod models;
 pub mod pty;
+pub mod secrets;
 pub mod search;

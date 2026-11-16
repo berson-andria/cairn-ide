@@ -1,9 +1,10 @@
-import { Injectable, NgZone, computed, inject, signal } from '@angular/core';
+import { Injectable, NgZone, computed, effect, inject, signal } from '@angular/core';
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ITheme, Terminal } from '@xterm/xterm';
+import { SettingsService } from '../../feature/setting/settings.service';
 
 type PtyEvent = { event: 'data'; data: string } | { event: 'exit'; data: number | null };
 
@@ -135,6 +136,7 @@ function buildTheme(): ITheme {
 @Injectable({ providedIn: 'root' })
 export class TerminalService {
   private readonly zone = inject(NgZone);
+  private readonly settings = inject(SettingsService);
   private counter = 0;
 
   readonly sessions = signal<TerminalSession[]>([]);
@@ -144,6 +146,14 @@ export class TerminalService {
   );
 
   constructor() {
+    effect(() => {
+      const fontSize = this.settings.get<number>('terminal.fontSize')();
+      const cursor = this.settings.get<'block' | 'line' | 'underline'>('terminal.cursorStyle')();
+      for (const session of this.sessions()) {
+        session.term.options.fontSize = fontSize;
+        session.term.options.cursorStyle = cursor === 'line' ? 'bar' : cursor;
+      }
+    });
     // Re-theme every open terminal when <html data-theme> changes. Lives as long as the app.
     this.zone.runOutsideAngular(() => {
       new MutationObserver(() => this.applyTheme()).observe(document.documentElement, {
@@ -172,8 +182,8 @@ export class TerminalService {
     try {
       session.ptyId = await invoke<string>('pty_spawn', {
         cwd,
-        shell: shell ?? null,
-        args: null,
+        shell: (shell ?? this.settings.get<string>('terminal.shell')()) || null,
+        args: this.settings.get<string[]>('terminal.shellArgs')(),
         cols: session.term.cols,
         rows: session.term.rows,
         onEvent: channel,
@@ -238,11 +248,13 @@ export class TerminalService {
   // ───────────────────────── internals ─────────────────────────
 
   private buildSession(): TerminalSession {
+    const cursor = this.settings.get<'block' | 'line' | 'underline'>('terminal.cursorStyle')();
     const term = new Terminal({
       fontFamily: "'Cascadia Code', Consolas, 'Courier New', monospace",
-      fontSize: 13,
+      fontSize: this.settings.get<number>('terminal.fontSize')(),
+      cursorStyle: cursor === 'line' ? 'bar' : cursor,
       cursorBlink: true,
-      scrollback: 5000,
+      scrollback: this.settings.get<number>('terminal.scrollback')(),
       theme: buildTheme(),
       allowProposedApi: false,
     });

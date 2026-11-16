@@ -20,14 +20,14 @@
 - system logs. **DONE**
 - create ide icon **DONE**
 - terminal creation sync **DONE**
+- Redesign the note, the actual note is too much for the IDE **DONE**
+- App redesign **DONE**
+- Setting **DONE**
+- store setting values
 
 
 ### PROCESSED:
 - save state after app close.*PROCESSED*
-- Setting *PROCESSED*
-- Redesign the note, the actual note is too much for the IDE *PROCESSED*
-- *LOW PRIORITY* check for potential redesign : [IDE UI DESIGN](https://dribbble.com/shots/27023881-IDE-AI-developer-environment-Anatoliy-Demyanchuk) *PROCESSED*
-
 
 ### REVIEW:
 - lsp note: stop lsp on folder change.*REVIEW*
@@ -39,9 +39,9 @@
 - add sandbox cmd *AFTER THE AGENT AI*
 - add right click option, ...right click action attach to task *NO NEED CLAUD FOR THIS*
 - highlight unsaved file.*LOW PRIORITY*
-
 - add persistance
-- store setting values
+
+- *BUG*: ctrl+s don't set dirty state to false on diff tab, while the content have been saved in file model.
 
 - save file as
 - workspace reset after selecting

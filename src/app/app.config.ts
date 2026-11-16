@@ -12,16 +12,24 @@ import { registerAppCommands } from './core/services/command/app-commands';
 import { KeybindingService } from './core/services/command/keybinding.service';
 import { provideGitBlame } from './feature/git/features/blame/git-blame.provider';
 import { GitAskpassService } from './feature/git/services/git-askpass.service';
+import { SettingsService } from './feature/setting/settings.service';
+import { SettingsRuntimeService } from './core/services/settings-runtime.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideGitBlame(),
     provideAppInitializer(
-      (keybinding = inject(KeybindingService), gitAskpassService = inject(GitAskpassService)) => {
+      (
+        keybinding = inject(KeybindingService),
+        gitAskpassService = inject(GitAskpassService),
+        settings = inject(SettingsService),
+        _settingsRuntime = inject(SettingsRuntimeService),
+      ) => {
         registerAppCommands();
         keybinding.init();
         gitAskpassService.init();
+        return settings.load();
       },
     ),
     provideEnvironmentInitializer(async () => {

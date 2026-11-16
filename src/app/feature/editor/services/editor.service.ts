@@ -1,4 +1,4 @@
-import { DestroyRef, inject, Injectable, NgZone, OnDestroy, signal } from '@angular/core';
+import { DestroyRef, effect, inject, Injectable, NgZone, OnDestroy, signal } from '@angular/core';
 import type * as Monaco from 'monaco-editor';
 import { computeMinimalEdit } from '../../../core/services/file-system/external-watcher.utils';
 import { EDITOR_EXTENSIONS } from '../editor-extensions';
@@ -13,6 +13,7 @@ import { setupMonacoEnvironment } from '../setup/monaco-environment';
 import { registerExtraLanguages } from '../setup/monaco-languages';
 import { defineGhostTheme } from '../setup/monaco-theme';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { SettingsService } from '../../../feature/setting/settings.service';
 
 /** A file path on disk, or any URI (a Monaco Uri or plain components, e.g. for git content). */
 export type ModelUri = string | Monaco.UriComponents;
@@ -48,6 +49,7 @@ interface ModelEntry {
 @Injectable({ providedIn: 'root' })
 export class EditorService implements OnDestroy {
   private readonly zone = inject(NgZone);
+  private readonly settings = inject(SettingsService);
   /** Features that decorate code editors (git blame...), provided by the app. */
   private readonly extensionFactories = inject(EDITOR_EXTENSIONS, { optional: true }) ?? [];
 
@@ -72,6 +74,8 @@ export class EditorService implements OnDestroy {
   readonly #modelsVersion = signal(0);
   /** Bumps when a model is replaced under the same id (a renamed file), so editors know to show it again. */
   readonly modelsVersion = this.#modelsVersion.asReadonly();
+  readonly #contentVersion = signal(0);
+  readonly contentVersion = this.#contentVersion.asReadonly();
 
   readonly editorOption: Monaco.editor.IStandaloneEditorConstructionOptions = {
     model: null,
@@ -84,6 +88,38 @@ export class EditorService implements OnDestroy {
     wordWrap: 'off',
     automaticLayout: false,
   };
+
+  constructor() {
+    effect(() => {
+      const options: Monaco.editor.IEditorOptions = {
+        fontFamily: this.settings.get<string>('appearance.editorFontFamily')(),
+        fontSize: this.settings.get<number>('appearance.editorFontSize')(),
+        lineHeight: this.settings.get<number>('appearance.editorLineHeight')(),
+        wordWrap: this.settings.get<Monaco.editor.IEditorOptions['wordWrap']>('editor.wordWrap')(),
+        minimap: { enabled: this.settings.get<boolean>('editor.minimap')() },
+        bracketPairColorization: { enabled: this.settings.get<boolean>('editor.bracketColorization')() },
+        renderWhitespace: this.settings.get<Monaco.editor.IEditorOptions['renderWhitespace']>('editor.renderWhitespace')(),
+      };
+      const modelOptions: Monaco.editor.ITextModelUpdateOptions = {
+        tabSize: this.settings.get<number>('editor.tabSize')(),
+        insertSpaces: this.settings.get<boolean>('editor.insertSpaces')(),
+      };
+      Object.assign(this.editorOption, options, modelOptions);
+      this.handles.forEach((handle) => handle.updateOptions(options));
+      this.models.forEach(({ model }) => model.updateOptions(modelOptions));
+    });
+  }
+
+  updateOptions(options: Monaco.editor.IEditorOptions): void {
+    Object.assign(this.editorOption, options);
+    this.handles.forEach((handle) => handle.updateOptions(options));
+  }
+
+  async formatModel(id: string): Promise<void> {
+    const model = this.models.get(id)?.model;
+    const handle = model && [...this.handles].find((candidate) => candidate.usesModel(model));
+    if (handle) await handle.formatDocument();
+  }
 
   // ───────────── loading ─────────────
 
@@ -223,6 +259,10 @@ export class EditorService implements OnDestroy {
       spec.language,
       this.toUri(monaco, spec.uri),
     );
+    model.updateOptions({
+      tabSize: this.settings.get<number>('editor.tabSize')(),
+      insertSpaces: this.settings.get<boolean>('editor.insertSpaces')(),
+    });
     const entry: ModelEntry = {
       model,
       originalContent: spec.content,
@@ -231,9 +271,10 @@ export class EditorService implements OnDestroy {
       onDirtyChange: spec.onDirtyChange,
       owners: new Set([owner]),
     };
-    model.onDidChangeContent(() =>
-      this.setDirty(entry, model.getAlternativeVersionId() !== entry.savedVersionId),
-    );
+    model.onDidChangeContent(() => {
+      this.#contentVersion.update((version) => version + 1);
+      this.setDirty(entry, model.getAlternativeVersionId() !== entry.savedVersionId);
+    });
 
     this.models.set(spec.id, entry);
     return model;
@@ -281,11 +322,16 @@ export class EditorService implements OnDestroy {
     if (old.uri.toString() === uri.toString()) return;
 
     const model = monaco.editor.createModel(old.getValue(), language, uri);
+    model.updateOptions({
+      tabSize: this.settings.get<number>('editor.tabSize')(),
+      insertSpaces: this.settings.get<boolean>('editor.insertSpaces')(),
+    });
     entry.model = model;
     entry.savedVersionId = entry.dirty ? -1 : model.getAlternativeVersionId();
-    model.onDidChangeContent(() =>
-      this.setDirty(entry, model.getAlternativeVersionId() !== entry.savedVersionId),
-    );
+    model.onDidChangeContent(() => {
+      this.#contentVersion.update((version) => version + 1);
+      this.setDirty(entry, model.getAlternativeVersionId() !== entry.savedVersionId);
+    });
 
     this.handles.forEach((h) => h.usesModel(old) && h.detach());
     old.dispose();

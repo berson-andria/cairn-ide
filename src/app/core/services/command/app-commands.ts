@@ -23,7 +23,8 @@ export function registerAppCommands(): void {
   commands.register('file.save', async () => {
     const id = tabStore.activeTabId();
     if (!id || !tabStore.isDirty(id)) return;
-    const tab: Tab = tabStore.openedTabs()[id];
+    const tab = tabStore.activeTab();
+
     if (tab.type !== 'DiffEditor' && tab.type !== 'CodeEditor') return;
     if (tabStore.isDiffTab(id)) {
       const modified = tabStore.diffTabs()[id].request.modified;

@@ -63,6 +63,10 @@
         <section class="group">
           <h3 class="group__title">{{ group.title }}</h3>
 
+          @if (group.id === 'models') {
+            <app-models-settings />
+          }
+
           @for (def of group.defs; track def.key) {
             <div class="row" [class.is-modified]="settings.isModified(def.key)">
               <div class="row__text">
@@ -72,14 +76,25 @@
                   }
                   {{ def.label }}
                 </label>
-                <p class="row__desc">{{ def.description }}</p>
-                @if (def.type === 'select' && selectedHint(def)) {
-                  <p class="row__hint">{{ selectedHint(def) }}</p>
+                @if (def.status === 'planned') {
+                  <span class="row__hint">Coming soon</span>
                 }
+                <span class="row__hint">Source: {{ sourceLabel(def) }}</span>
+                <p class="row__desc">{{ def.description }}</p>
                 <code class="row__key">{{ def.key }}</code>
               </div>
 
               <div class="row__control">
+                @if (def.scope === 'both') {
+                  <div class="segmented" role="group" [attr.aria-label]="'Edit scope for ' + def.label">
+                    <button type="button" class="segmented__item" [disabled]="def.status === 'planned'" [attr.aria-pressed]="targetScope(def) === 'user'" (click)="selectScope(def, 'user')">User</button>
+                    <button type="button" class="segmented__item" [disabled]="def.status === 'planned'" [attr.aria-pressed]="targetScope(def) === 'workspace'" (click)="selectScope(def, 'workspace')">Workspace</button>
+                  </div>
+                } @else {
+                  <div class="segmented" role="group" [attr.aria-label]="'Setting scope for ' + def.label">
+                    <button type="button" class="segmented__item" disabled>{{ targetScope(def) === 'user' ? 'User' : 'Workspace' }}</button>
+                  </div>
+                }
                 @switch (def.type) {
                   @case ('boolean') {
                     <button
@@ -88,6 +103,7 @@
                       role="switch"
                       [id]="controlId(def)"
                       [attr.aria-checked]="bool(def)"
+                      [disabled]="def.status === 'planned'"
                       (click)="toggle(def)"
                     >
                       <span class="toggle__knob"></span>
@@ -100,70 +116,49 @@
                         type="number"
                         inputmode="decimal"
                         [id]="controlId(def)"
-                        [attr.min]="def.min"
-                        [attr.max]="def.max"
-                        [attr.step]="def.step"
+                        [disabled]="def.status === 'planned'"
                         [value]="num(def)"
                         (change)="onNumber(def, $event)"
                       />
-                      @if (def.unit) {
-                        <span class="number__unit">{{ def.unit }}</span>
-                      }
                     </span>
                   }
-                  @case ('select') {
-                    @if (def.ui === 'segmented') {
-                      <div
-                        class="segmented"
-                        role="radiogroup"
-                        [id]="controlId(def)"
-                        [attr.aria-labelledby]="controlId(def) + '-label'"
-                      >
-                        @for (o of def.options; track o.value) {
-                          <button
-                            type="button"
-                            class="segmented__item"
-                            role="radio"
-                            [attr.aria-checked]="str(def) === o.value"
-                            (click)="pick(def, o.value)"
-                          >
-                            {{ o.label }}
-                          </button>
-                        }
-                      </div>
-                    } @else {
-                      <select class="field field--select" [id]="controlId(def)" (change)="onSelect(def, $event)">
-                        @for (o of def.options; track o.value) {
-                          <option [value]="o.value" [selected]="str(def) === o.value">{{ o.label }}</option>
-                        }
-                      </select>
-                    }
+                  @case ('enum') {
+                    <select class="field field--select" [id]="controlId(def)" [disabled]="def.status === 'planned'" (change)="onSelect(def, $event)">
+                      @for (o of def.options; track o.value) {
+                        <option [value]="o.value" [selected]="str(def) === o.value">{{ o.label }}</option>
+                      }
+                    </select>
                   }
-                  @case ('text') {
+                  @case ('string') {
                     <input
                       class="field field--text"
-                      [class.is-mono]="def.monospace"
                       type="text"
                       spellcheck="false"
                       [id]="controlId(def)"
-                      [attr.placeholder]="def.placeholder"
+                      [disabled]="def.status === 'planned'"
                       [value]="str(def)"
                       (change)="onText(def, $event)"
                     />
                   }
+                  @case ('path') {
+                    <input class="field field--text" type="text" [id]="controlId(def)" [value]="str(def)" [disabled]="def.status === 'planned'" (change)="onText(def, $event)" />
+                  }
+                  @case ('command') {
+                    <input class="field field--text" type="text" [id]="controlId(def)" [value]="str(def)" [disabled]="def.status === 'planned'" (change)="onText(def, $event)" />
+                  }
+                  @case ('string-list') {
+                    <textarea class="field field--text" [id]="controlId(def)" [disabled]="def.status === 'planned'" [value]="stringListValue(def)" (change)="onStringList(def, $event)"></textarea>
+                  }
                 }
 
-                @if (settings.isModified(def.key)) {
-                  <button
-                    type="button"
-                    class="row__reset"
-                    [attr.aria-label]="'Reset ' + def.label + ' to default'"
-                    title="Reset to default"
-                    (click)="settings.reset(def.key)"
-                  >
-                    Reset
-                  </button>
-                }
+                <button
+                  type="button"
+                  class="row__reset"
+                  [attr.aria-label]="'Reset ' + def.label + ' at ' + targetScope(def) + ' scope'"
+                  title="Reset this setting at the selected scope"
+                  [disabled]="def.status === 'planned'"
+                  (click)="reset(def)"
+                >Reset</button>
               </div>
             </div>
           }

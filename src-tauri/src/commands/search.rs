@@ -176,8 +176,12 @@ fn run_search(
     Ok(grouped_results)
 }
 #[tauri::command]
-pub fn search_files(root_path: &str, query: &str) -> Result<Vec<FileNameSearchResult>, String> {
-    let base_path = Path::new(root_path);
+pub fn search_files(
+    root_path: &str,
+    query: &str,
+    excluded_folders: Vec<String>,
+) -> Result<Vec<FileNameSearchResult>, String> {
+    let base_path = PathBuf::from(root_path);
     if !base_path.exists() {
         return Err("Root path does not exist".to_string());
     }
@@ -185,16 +189,28 @@ pub fn search_files(root_path: &str, query: &str) -> Result<Vec<FileNameSearchRe
     let normalized_query = query.to_lowercase().replace('\\', "/");
     let mut matching_files: Vec<FileNameSearchResult> = Vec::new();
 
-    let walker = ignore::WalkBuilder::new(base_path)
+    let base_path_for_filter = base_path.clone();
+    let walker = ignore::WalkBuilder::new(&base_path)
         .hidden(true)
         .git_ignore(true)
+        .filter_entry(move |entry| {
+            if !entry.file_type().map_or(false, |kind| kind.is_dir())
+                || entry.path() == base_path_for_filter
+            {
+                return true;
+            }
+            let Ok(relative) = entry.path().strip_prefix(&base_path_for_filter) else {
+                return true;
+            };
+            !is_excluded_folder(relative, &excluded_folders)
+        })
         .build();
 
     for entry in walker.flatten() {
         if entry.file_type().map_or(false, |ft| ft.is_file()) {
             let full_path = entry.path();
 
-            if let Ok(relative_path) = full_path.strip_prefix(base_path) {
+            if let Ok(relative_path) = full_path.strip_prefix(&base_path) {
                 let relative_str = relative_path
                     .to_string_lossy()
                     .to_lowercase()
@@ -211,4 +227,23 @@ pub fn search_files(root_path: &str, query: &str) -> Result<Vec<FileNameSearchRe
     }
 
     Ok(matching_files)
+}
+
+fn is_excluded_folder(path: &Path, exclusions: &[String]) -> bool {
+    let relative = path.to_string_lossy().replace('\\', "/").to_lowercase();
+    exclusions.iter().any(|entry| {
+        let rule = entry
+            .replace('\\', "/")
+            .trim_matches('/')
+            .trim_start_matches("./")
+            .to_lowercase();
+        if rule.is_empty() {
+            return false;
+        }
+        if rule.contains('/') {
+            relative == rule || relative.starts_with(&format!("{rule}/"))
+        } else {
+            relative.split('/').any(|part| part == rule)
+        }
+    })
 }

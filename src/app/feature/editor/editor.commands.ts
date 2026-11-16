@@ -10,6 +10,7 @@ import { MessageService } from '../../core/services/message.service';
 import { TerminalService } from '../terminal/terminal.service';
 import { TabStore } from '../../core/store/tab.store';
 import { DiagnosticsService } from '../../core/services/diagnostics.service';
+import { SettingsService } from '../../feature/setting/settings.service';
 
 export type SaveChoice = 'save' | 'discard' | 'cancel';
 
@@ -25,9 +26,13 @@ export class EditorCommands {
   private readonly editor = inject(EditorService);
   private readonly messageService = inject(MessageService);
   private readonly diagnostic = inject(DiagnosticsService);
+  private readonly settings = inject(SettingsService);
+  private readonly autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private windowSaveTimer?: ReturnType<typeof setTimeout>;
   // private readonly terminalService = inject(TerminalService);
 
   constructor() {
+    let previousActiveTab: string | null = null;
     // The explorer's current node follows the focused file tab.
     effect(() => {
       const id = this.tabs.activeTabId();
@@ -77,6 +82,54 @@ export class EditorCommands {
         this.tabs.closeMany(gone);
       });
     });
+
+    effect(() => {
+      const autoSave = this.settings.get<string>('editor.autoSave')();
+      this.editor.contentVersion();
+      const dirtyIds = this.tabs.dirtyIds();
+      const activeTabId = this.tabs.activeTabId();
+      untracked(() => {
+        if (autoSave === 'afterDelay') {
+          const dirty = new Set(dirtyIds);
+          for (const [id, timer] of this.autoSaveTimers) {
+            if (!dirty.has(id)) {
+              clearTimeout(timer);
+              this.autoSaveTimers.delete(id);
+            }
+          }
+          for (const id of dirtyIds) {
+            const previous = this.autoSaveTimers.get(id);
+            if (previous) clearTimeout(previous);
+            this.autoSaveTimers.set(id, setTimeout(() => {
+              this.autoSaveTimers.delete(id);
+              void this.saveFile(id);
+            }, 1000));
+          }
+        } else {
+          this.autoSaveTimers.forEach((timer) => clearTimeout(timer));
+          this.autoSaveTimers.clear();
+        }
+
+        if (
+          autoSave === 'onFocusChange' &&
+          previousActiveTab &&
+          previousActiveTab !== activeTabId &&
+          dirtyIds.includes(previousActiveTab)
+        ) void this.saveFile(previousActiveTab);
+        previousActiveTab = activeTabId;
+      });
+    });
+
+    const saveOnWindowChange = () => {
+      if (this.settings.get<string>('editor.autoSave')() !== 'onWindowChange') return;
+      if (this.windowSaveTimer) clearTimeout(this.windowSaveTimer);
+      this.windowSaveTimer = setTimeout(() => {
+        this.windowSaveTimer = undefined;
+        void this.saveAll();
+      }, 50);
+    };
+    window.addEventListener('blur', saveOnWindowChange);
+    document.addEventListener('visibilitychange', saveOnWindowChange);
     // A renamed or moved file keeps its id, so its model has to follow it to the new path.
     effect(() => {
       const nodes = this.nodes.nodes();
@@ -155,6 +208,13 @@ export class EditorCommands {
 
   /** Reads the text from the editor, writes it through the node store, then tells the editor it is on disk. */
   async saveFile(id: string): Promise<boolean> {
+    if (this.settings.get<boolean>('editor.formatOnSave')()) {
+      try {
+        await this.editor.formatModel(id);
+      } catch (error) {
+        console.warn('Could not format file before saving:', error);
+      }
+    }
     const content = this.editor.getContent(id);
     if (content === undefined) return true; // never opened in an editor: nothing to save
     try {

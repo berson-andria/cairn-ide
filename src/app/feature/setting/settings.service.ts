@@ -1,137 +1,225 @@
 import { computed, effect, inject, Injectable, Signal, signal } from '@angular/core';
-import { LayoutService } from '../../core/services/layout.service';
-import { SETTINGS, SettingDef, SettingValue } from './settings.model';
+import { BaseDirectory, exists, mkdir, readTextFile, rename, writeTextFile } from '@tauri-apps/plugin-fs';
+import { join } from '@tauri-apps/api/path';
+import { NodeStore } from '../../core/store/node.store';
+import { SETTINGS, SettingDef, SettingScope, SettingValue } from './settings.registry';
 
-const STORAGE_KEY = 'app.settings.v1';
+const USER_SETTINGS_FILE = 'settings.json';
+const WORKSPACE_SETTINGS_DIR = '.cairn';
+const WRITE_DEBOUNCE_MS = 300;
+type StoredValues = Record<string, SettingValue>;
 
-interface Binding {
-  get: () => SettingValue;
-  set: (value: SettingValue) => void;
-}
-
-/**
- * Single access point for every setting.
- *
- * - Layout settings are *bound* to LayoutService signals (LayoutService stays the source of truth,
- *   so dragging a gutter or pressing a toggle also updates the settings UI and is persisted).
- * - Every other setting lives in `overrides` (only values that differ from the default are stored).
- * - Persistence is localStorage behind load() / save(): swap those two for a Tauri store / settings.json later.
- *
- * Read from anywhere (reactive):   settings.get<number>('editor.fontSize')
- *                                  readonly fontSize = settings.select<number>('editor.fontSize');
- *
- * Inject this service once at startup (e.g. in IdeShell) so the saved layout is restored immediately.
- */
 @Injectable({ providedIn: 'root' })
 export class SettingsService {
-  private readonly layout = inject(LayoutService);
-
+  private readonly nodes = inject(NodeStore);
   readonly definitions = SETTINGS;
-  private readonly byKey = new Map(SETTINGS.map((d) => [d.key, d]));
-  private readonly overrides = signal<Record<string, SettingValue>>({});
+  private readonly byKey = new Map(SETTINGS.map((def) => [def.key, def]));
+  private readonly userValues = signal<StoredValues>({});
+  private readonly workspaceValues = signal<StoredValues>({});
+  private readonly workspacePath = signal<string | null>(null);
+  private readonly writeTimers: Partial<Record<'user' | 'workspace', ReturnType<typeof setTimeout>>> = {};
+  private writeQueue: Promise<void> = Promise.resolve();
+  private loadGeneration = 0;
 
-  readonly modifiedCount = computed(() =>
-    this.definitions.reduce((n, d) => n + (this.isModified(d.key) ? 1 : 0), 0),
-  );
+  readonly modifiedCount = computed(() => this.definitions.filter((def) => this.isModified(def.key)).length);
 
   constructor() {
-    this.restore(this.load());
-    effect(() => this.save(this.snapshot()));
-  }
-
-  /** Current value. Reactive when called inside a template, computed() or effect(). */
-  get<T extends SettingValue = SettingValue>(key: string): T {
-    const def = this.def(key);
-    return (this.overrides()[key] ?? def.default) as T;
-  }
-
-  /** A signal for one setting, handy as a component field. */
-  select<T extends SettingValue = SettingValue>(key: string): Signal<T> {
-    return computed(() => this.get<T>(key));
-  }
-
-  /** Validates (type, range, allowed options) then applies. Invalid values are ignored. */
-  set(key: string, raw: unknown): void {
-    const def = this.def(key);
-    const value = coerce(def, raw);
-    if (value === undefined) return;
-
-    this.overrides.update((o) => {
-      const next = { ...o };
-      if (value === def.default) delete next[key];
-      else next[key] = value;
-      return next;
+    effect(() => {
+      const path = this.nodes.rootPath();
+      if (path !== this.workspacePath()) void this.reloadWorkspace(path);
     });
   }
 
-  reset(key: string): void {
-    this.set(key, this.def(key).default);
+  /** Reactive effective value: workspace, then user, then the registry default. */
+  get<T = SettingValue>(key: string): Signal<T> {
+    const def = this.definition(key);
+    return computed(() => this.effective(def) as T);
   }
 
-  resetAll(): void {
-    this.overrides.set({});
+  /** Backwards-friendly alias for call sites that prefer the select terminology. */
+  select<T = SettingValue>(key: string): Signal<T> {
+    return this.get<T>(key);
+  }
+
+  /** Apply a valid value immediately, then persist a debounced scope snapshot. */
+  set(key: string, raw: unknown, scope?: 'user' | 'workspace'): void {
+    const def = this.definition(key);
+    const target = scope ?? this.defaultWriteScope(def);
+    this.assertAllowed(def, target);
+    if (!isValidValue(def, raw)) throw new TypeError(`Invalid value for setting "${key}"`);
+
+    const values = target === 'user' ? this.userValues : this.workspaceValues;
+    values.update((current) => {
+      const next = { ...current };
+      if (sameValue(raw, def.default)) delete next[key];
+      else next[key] = cloneValue(raw);
+      return next;
+    });
+    this.scheduleWrite(target);
+  }
+
+  reset(key: string, scope?: 'user' | 'workspace'): void {
+    const def = this.definition(key);
+    this.set(key, def.default, scope);
+  }
+
+  sourceOf(key: string): 'default' | 'user' | 'workspace' {
+    const def = this.definition(key);
+    if (Object.hasOwn(this.workspaceValues(), key)) return 'workspace';
+    if (Object.hasOwn(this.userValues(), key)) return 'user';
+    return 'default';
   }
 
   isModified(key: string): boolean {
-    return this.get(key) !== this.def(key).default;
+    return this.sourceOf(key) !== 'default';
   }
 
-  // ---------------------------------------------------------------- internals
-  private def(key: string): SettingDef {
+  resetAll(): void {
+    this.userValues.set({});
+    this.workspaceValues.set({});
+    this.scheduleWrite('user');
+    if (this.workspacePath()) this.scheduleWrite('workspace');
+  }
+
+  /** Loads user settings and the currently open workspace settings. Safe to call at startup. */
+  async load(): Promise<void> {
+    await this.loadUserSettings();
+    await this.reloadWorkspace(this.nodes.rootPath());
+  }
+
+  /** Reload workspace overrides after opening or switching a folder. */
+  async reloadWorkspace(rootPath: string | null = this.nodes.rootPath()): Promise<void> {
+    const generation = ++this.loadGeneration;
+    this.workspacePath.set(rootPath);
+    this.workspaceValues.set({});
+    if (!rootPath) {
+      return;
+    }
+    const path = await join(rootPath, WORKSPACE_SETTINGS_DIR, USER_SETTINGS_FILE);
+    const values = await this.readValues(path);
+    if (generation === this.loadGeneration && rootPath === this.workspacePath()) {
+      this.workspaceValues.set(filterValues(values, this.byKey, 'workspace'));
+    }
+  }
+
+  private effective(def: SettingDef): SettingValue {
+    const workspace = this.workspaceValues();
+    if (Object.hasOwn(workspace, def.key)) return workspace[def.key];
+    const user = this.userValues();
+    if (Object.hasOwn(user, def.key)) return user[def.key];
+    return def.default;
+  }
+
+  private definition(key: string): SettingDef {
     const def = this.byKey.get(key);
     if (!def) throw new Error(`Unknown setting "${key}"`);
     return def;
   }
 
-  private snapshot(): Record<string, SettingValue> {
-    const out: Record<string, SettingValue> = {};
-    for (const def of this.definitions) {
-      const v = this.get(def.key);
-      if (v !== def.default) out[def.key] = v;
-    }
-    return out;
+  private defaultWriteScope(def: SettingDef): 'user' | 'workspace' {
+    return def.scope === 'workspace' ? 'workspace' : 'user';
   }
 
-  private restore(saved: Record<string, unknown>): void {
-    for (const [key, value] of Object.entries(saved)) {
-      if (this.byKey.has(key)) this.set(key, value);
+  private assertAllowed(def: SettingDef, scope: 'user' | 'workspace'): void {
+    if (def.scope !== 'both' && def.scope !== scope) {
+      throw new Error(`Setting "${def.key}" does not allow ${scope} scope`);
+    }
+    if (scope === 'workspace' && !this.workspacePath()) {
+      throw new Error(`Cannot write workspace setting "${def.key}" without an open workspace`);
     }
   }
 
-  // Swap these two for a Tauri store / settings.json file if you want settings outside the webview.
-  private load(): Record<string, unknown> {
+  private async loadUserSettings(): Promise<void> {
+    const values = await this.readValues(USER_SETTINGS_FILE, { baseDir: BaseDirectory.AppData });
+    this.userValues.set(filterValues(values, this.byKey, 'user'));
+  }
+
+  private async readValues(path: string, opts?: { baseDir: BaseDirectory }): Promise<StoredValues> {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const parsed = raw ? JSON.parse(raw) : {};
-      return parsed && typeof parsed === 'object' ? parsed : {};
+      if (!(await exists(path, opts))) return {};
+      const parsed: unknown = JSON.parse(await readTextFile(path, opts));
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as StoredValues : {};
     } catch {
+      // Missing, unreadable, or malformed files all fall back to defaults.
       return {};
     }
   }
 
-  private save(values: Record<string, SettingValue>): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
-    } catch {
-      /* storage unavailable or full: settings simply won't persist */
-    }
+  private scheduleWrite(scope: 'user' | 'workspace'): void {
+    const existing = this.writeTimers[scope];
+    if (existing) clearTimeout(existing);
+    const snapshot = cloneRecord(scope === 'user' ? this.userValues() : this.workspaceValues());
+    const targetPath = scope === 'workspace' ? this.workspacePath() : null;
+    this.writeTimers[scope] = setTimeout(() => {
+      delete this.writeTimers[scope];
+      this.enqueueWrite(scope, snapshot, targetPath);
+    }, WRITE_DEBOUNCE_MS);
+  }
+
+  private enqueueWrite(scope: 'user' | 'workspace', snapshot: StoredValues, targetPath: string | null): void {
+    if (scope === 'workspace' && !targetPath) return;
+    this.writeQueue = this.writeQueue
+      .then(() => scope === 'user'
+        ? this.writeUserSettings(snapshot)
+        : this.writeWorkspaceSettings(targetPath!, snapshot))
+      .catch((error) => console.error(`Failed to write ${scope} settings`, error));
+  }
+
+  private async writeUserSettings(values: StoredValues): Promise<void> {
+    await mkdir('', { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {});
+    await this.atomicWrite(USER_SETTINGS_FILE, JSON.stringify(values, null, 2), { baseDir: BaseDirectory.AppData });
+  }
+
+  private async writeWorkspaceSettings(rootPath: string, values: StoredValues): Promise<void> {
+    const directory = await join(rootPath, WORKSPACE_SETTINGS_DIR);
+    await mkdir(directory, { recursive: true });
+    const path = await join(directory, USER_SETTINGS_FILE);
+    await this.atomicWrite(path, JSON.stringify(values, null, 2));
+  }
+
+  private async atomicWrite(path: string, contents: string, opts?: { baseDir: BaseDirectory }): Promise<void> {
+    const temporary = `${path}.tmp`;
+    await writeTextFile(temporary, contents, opts);
+    await rename(temporary, path, opts && { oldPathBaseDir: opts.baseDir, newPathBaseDir: opts.baseDir });
   }
 }
 
-function coerce(def: SettingDef, raw: unknown): SettingValue | undefined {
+function isValidValue(def: SettingDef, value: unknown): value is SettingValue {
   switch (def.type) {
-    case 'boolean':
-      return typeof raw === 'boolean' ? raw : undefined;
-    case 'number': {
-      if (typeof raw !== 'number' || !Number.isFinite(raw)) return undefined;
-      let n = raw;
-      if (def.min !== undefined) n = Math.max(def.min, n);
-      if (def.max !== undefined) n = Math.min(def.max, n);
-      return Number.isInteger(def.step ?? 1) ? Math.round(n) : n;
-    }
-    case 'select':
-      return typeof raw === 'string' && def.options?.some((o) => o.value === raw) ? raw : undefined;
-    case 'text':
-      return typeof raw === 'string' ? raw : undefined;
+    case 'boolean': return typeof value === 'boolean';
+    case 'number': return typeof value === 'number' && Number.isFinite(value);
+    case 'enum': return typeof value === 'string' && !!def.options?.some((option) => option.value === value);
+    case 'string':
+    case 'path':
+    case 'command': return typeof value === 'string';
+    case 'string-list': return Array.isArray(value) && value.every((item) => typeof item === 'string');
   }
+}
+
+function filterValues(
+  values: StoredValues,
+  definitions: Map<string, SettingDef>,
+  scope: 'user' | 'workspace',
+): StoredValues {
+  const accepted: StoredValues = {};
+  for (const [key, value] of Object.entries(values)) {
+    const def = definitions.get(key);
+    if (def && (def.scope === scope || def.scope === 'both') && isValidValue(def, value) && !sameValue(value, def.default)) {
+      accepted[key] = cloneValue(value);
+    }
+  }
+  return accepted;
+}
+
+function sameValue(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  try { return JSON.stringify(left) === JSON.stringify(right); } catch { return false; }
+}
+
+function cloneValue<T extends SettingValue>(value: T): T {
+  return structuredClone(value);
+}
+
+function cloneRecord(values: StoredValues): StoredValues {
+  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, cloneValue(value)]));
 }

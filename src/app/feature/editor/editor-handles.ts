@@ -29,6 +29,15 @@ export abstract class BaseEditorHandle {
     this.editor.layout(dimension);
   }
 
+  updateOptions(options: Monaco.editor.IEditorOptions) {
+    this.editor.updateOptions(options);
+  }
+
+  async formatDocument(): Promise<void> {
+    const action = this.textEditor.getAction('editor.action.formatDocument');
+    if (action) await action.run();
+  }
+
   focus() {
     this.textEditor.focus();
   }

@@ -8,8 +8,9 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { SettingDef, SETTING_CATEGORIES, CategoryId, SettingOption } from './settings.model';
+import { SECTIONS, Section, SettingDef } from './settings.registry';
 import { SettingsService } from './settings.service';
+import { ModelsSettings } from './model-setting/models-settings';
 
 interface Group {
   id: string;
@@ -17,66 +18,57 @@ interface Group {
   defs: SettingDef[];
 }
 
-/** Settings editor. Open it in your modal: dialogService.open(Settings). The modal owns the background. */
 @Component({
   selector: 'app-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './settings.html',
   styleUrl: './settings.scss',
+  imports: [ModelsSettings],
 })
 export class Settings {
   readonly settings = inject(SettingsService);
-  readonly categories = SETTING_CATEGORIES;
-
+  readonly categories = SECTIONS;
   readonly query = signal('');
-  readonly category = signal<CategoryId>('workbench');
+  readonly category = signal<Section['id']>('appearance');
   readonly onlyModified = signal(false);
-
+  readonly targetScopes = signal<Record<string, 'user' | 'workspace'>>({});
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
-  private readonly categoryLabels = new Map(SETTING_CATEGORIES.map((c) => [c.id, c.label]));
-
+  private readonly sectionLabels = new Map(SECTIONS.map((section) => [section.id, section.label]));
   readonly isFiltering = computed(() => this.query().trim() !== '' || this.onlyModified());
 
-  /** Settings matching the search box / "modified only" (all categories). */
   private readonly filtered = computed(() => {
     const terms = this.query().toLowerCase().split(/\s+/).filter(Boolean);
-    const modifiedOnly = this.onlyModified();
-    return this.settings.definitions.filter((d) => {
-      if (modifiedOnly && !this.settings.isModified(d.key)) return false;
+    return this.settings.definitions.filter((def) => {
+      if (this.onlyModified() && !this.settings.isModified(def.key)) return false;
       if (!terms.length) return true;
-      const haystack = [
-        d.label,
-        d.description,
-        d.key,
-        this.categoryLabel(d),
-        d.section,
-        ...(d.keywords ?? []),
-      ]
-        .join(' ')
-        .toLowerCase();
-      return terms.every((t) => haystack.includes(t));
+      return terms.every((term) =>
+        [def.label, def.description, def.key].join(' ').toLowerCase().includes(term),
+      );
     });
   });
 
-  /** Per-category result counts for the nav (follows the current filter). */
   readonly counts = computed(() => {
-    const counts: Partial<Record<CategoryId, number>> = {};
-    for (const d of this.filtered()) counts[d.category] = (counts[d.category] ?? 0) + 1;
+    const counts: Partial<Record<Section['id'], number>> = {};
+    for (const def of this.filtered()) counts[def.section] = (counts[def.section] ?? 0) + 1;
     return counts;
   });
 
-  /** Browsing: the selected category split by section. Filtering: all matches split by category. */
   readonly groups = computed<Group[]>(() => {
     const filtering = this.isFiltering();
-    const selected = this.category();
     const groups = new Map<string, Group>();
-
-    for (const d of this.filtered()) {
-      if (!filtering && d.category !== selected) continue;
-      const id = filtering ? d.category : d.section;
-      const title = filtering ? this.categoryLabel(d) : d.section;
-      if (!groups.has(id)) groups.set(id, { id, title, defs: [] });
-      groups.get(id)!.defs.push(d);
+    for (const def of this.filtered()) {
+      if (!filtering && def.section !== this.category()) continue;
+      const groupId = def.subsection ? `${def.section}.${def.subsection}` : def.section;
+      const title = def.subsection === 'lsp' ? 'Language Server Protocol' : this.categoryLabel(def);
+      if (!groups.has(groupId)) {
+        groups.set(groupId, { id: groupId, title, defs: [] });
+      }
+      if (
+        def.section === 'models' &&
+        (def.key === 'models.registry' || def.key === 'models.defaultModel')
+      )
+        continue;
+      groups.get(groupId)!.defs.push(def);
     }
     return [...groups.values()];
   });
@@ -85,14 +77,17 @@ export class Settings {
     afterNextRender(() => this.searchInput()?.nativeElement.focus());
   }
 
-  // ------------------------------------------------------------- navigation
-  selectCategory(id: CategoryId): void {
+  categoryLabel(def: SettingDef): string {
+    return this.sectionLabels.get(def.section) ?? def.section;
+  }
+
+  selectCategory(id: Section['id']): void {
     this.category.set(id);
     this.query.set('');
     this.onlyModified.set(false);
   }
 
-  isCategoryActive(id: CategoryId): boolean {
+  isCategoryActive(id: Section['id']): boolean {
     return !this.isFiltering() && this.category() === id;
   }
 
@@ -101,7 +96,6 @@ export class Settings {
   }
 
   onSearchKey(event: KeyboardEvent): void {
-    // First Escape clears the search; only an empty search lets Escape reach the modal.
     if (event.key === 'Escape' && this.query()) {
       event.preventDefault();
       event.stopPropagation();
@@ -109,52 +103,69 @@ export class Settings {
     }
   }
 
-  // ------------------------------------------------------------ value access
-  categoryLabel(def: SettingDef): string {
-    return this.categoryLabels.get(def.category) ?? '';
-  }
-
   controlId(def: SettingDef): string {
-    return 'setting-' + def.key.replace(/\./g, '-');
+    return `setting-${def.key.replace(/\./g, '-')}`;
   }
-
   bool(def: SettingDef): boolean {
-    return this.settings.get<boolean>(def.key);
+    return this.settings.get<boolean>(def.key)();
   }
   num(def: SettingDef): number {
-    return this.settings.get<number>(def.key);
+    return this.settings.get<number>(def.key)();
   }
   str(def: SettingDef): string {
-    return this.settings.get<string>(def.key);
+    const value = this.settings.get(def.key)();
+    return Array.isArray(value) ? value.join(', ') : String(value);
   }
-
-  /** Description of the currently selected option, when the options have one. */
-  selectedHint(def: SettingDef): string {
-    const current = this.str(def);
-    return def.options?.find((o: SettingOption) => o.value === current)?.description ?? '';
-  }
-
-  // ---------------------------------------------------------------- handlers
   toggle(def: SettingDef): void {
-    this.settings.set(def.key, !this.bool(def));
+    this.write(def, !this.bool(def));
   }
-
   onSelect(def: SettingDef, event: Event): void {
-    this.settings.set(def.key, (event.target as HTMLSelectElement).value);
+    this.write(def, (event.target as HTMLSelectElement).value);
   }
-
-  pick(def: SettingDef, value: string): void {
-    this.settings.set(def.key, value);
-  }
-
   onText(def: SettingDef, event: Event): void {
-    this.settings.set(def.key, (event.target as HTMLInputElement).value);
+    const text = (event.target as HTMLInputElement).value;
+    this.write(def, text);
   }
-
-  /** Commit on change / blur / Enter. Out-of-range input is clamped and the field shows the real value. */
+  onStringList(def: SettingDef, event: Event): void {
+    const text = (event.target as HTMLTextAreaElement).value;
+    this.write(
+      def,
+      text
+        .split(/\r?\n/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
+  }
   onNumber(def: SettingDef, event: Event): void {
     const input = event.target as HTMLInputElement;
-    if (!Number.isNaN(input.valueAsNumber)) this.settings.set(def.key, input.valueAsNumber);
+    if (!Number.isNaN(input.valueAsNumber)) this.write(def, input.valueAsNumber);
     input.value = String(this.num(def));
+  }
+
+  targetScope(def: SettingDef): 'user' | 'workspace' {
+    if (def.scope !== 'both') return def.scope;
+    return this.targetScopes()[def.key] ?? 'user';
+  }
+
+  selectScope(def: SettingDef, scope: 'user' | 'workspace'): void {
+    this.targetScopes.update((targets) => ({ ...targets, [def.key]: scope }));
+  }
+
+  reset(def: SettingDef): void {
+    this.settings.reset(def.key, this.targetScope(def));
+  }
+
+  sourceLabel(def: SettingDef): string {
+    const source = this.settings.sourceOf(def.key);
+    return source === 'default' ? 'Default' : source === 'user' ? 'User' : 'Workspace';
+  }
+
+  stringListValue(def: SettingDef): string {
+    const value = this.settings.get<string[]>(def.key)();
+    return value.join('\n');
+  }
+
+  private write(def: SettingDef, value: unknown): void {
+    this.settings.set(def.key, value, this.targetScope(def));
   }
 }
