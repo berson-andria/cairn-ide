@@ -41,7 +41,7 @@
 - add right click option, ...right click action attach to task *NO NEED CLAUD FOR THIS*
 - highlight unsaved file.*LOW PRIORITY*
 - add persistance
-
+- add lsp installation process
 
 - save file as
 - workspace reset after selecting

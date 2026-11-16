@@ -28,6 +28,9 @@ export class Editor {
   /** The kind of editor currently active ('CodeEditor' | 'DiffEditor' | null). */
   activeKind = computed<'CodeEditor' | 'DiffEditor' | null>(() => {
     const type = this.tabStore.activeTabType();
+
+    console.log(type);
+
     if (type === 'CodeEditor' || type === 'DiffEditor') {
       return type;
     }

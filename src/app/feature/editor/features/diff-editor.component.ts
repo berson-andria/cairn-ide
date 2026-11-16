@@ -142,7 +142,6 @@ export class DiffEditor {
   private readonly commands = inject(EditorCommands);
   private readonly sources = inject(ModelSourceService);
   private readonly editorService = inject(EditorService);
-  private readonly store = inject(NodeStore);
   private readonly destroyRef = inject(DestroyRef);
   private readonly diffHost = viewChild.required<ElementRef<HTMLElement>>('host');
 
@@ -161,12 +160,12 @@ export class DiffEditor {
   private layoutFrame = 0;
   message = signal<string | null>(null);
 
-  title = computed(() => {
-    return this.tabs.diffTabs()[this.tabs.activeTabId()].title;
+  private activeDiffTab = computed(() => {
+    const id = this.tabs.activeTabId();
+    return id && this.tabs.activeTabType() === 'DiffEditor' ? this.tabs.diffTabs()[id] : undefined;
   });
-  path = computed(() => {
-    return this.tabs.diffTabs()[this.tabs.activeTabId()].request.modified.path;
-  });
+  title = computed(() => this.activeDiffTab()?.title ?? '');
+  path = computed(() => this.activeDiffTab()?.request.modified.path ?? '');
 
   constructor() {
     afterNextRender(() => this.init());
@@ -174,7 +173,7 @@ export class DiffEditor {
       const handle = this.handle();
       if (!handle) return;
       this.editorService.modelsVersion(); // a renamed file gets a new model: show it again
-      const tabId = this.tabs.activeTabId();
+      const tabId = this.activeDiffTab()?.id ?? null;
       untracked(() => void this.show(handle, tabId));
     });
 

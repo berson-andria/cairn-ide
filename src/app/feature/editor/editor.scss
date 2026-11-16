@@ -154,8 +154,7 @@
   inset: 0;
 }
 .pane.hidden {
-  visibility: hidden;
-  opacity: 0;
+  display: none;
 }
 .node.is-diff {
   font-style: italic;
