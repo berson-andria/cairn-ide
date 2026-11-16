@@ -97,7 +97,7 @@ export const SETTINGS: SettingDef[] = [
     'appearance',
     'layoutDensity',
     'enum',
-    'comfortable',
+    'compact',
     'user',
     active,
     'Spacing density for interface controls.',
