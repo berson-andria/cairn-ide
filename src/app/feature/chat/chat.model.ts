@@ -6,9 +6,12 @@ export interface Anchor {
   link: string;
 }
 
+export type ChatGoal = 'brainstorming' | 'planning';
+
 export interface ChatMessage {
   content: string;
   role: 'user' | 'assistant';
+  goal?: ChatGoal;
   /** Unix timestamp in milliseconds. */
   createdAt: number;
 }

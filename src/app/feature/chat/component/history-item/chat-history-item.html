@@ -15,41 +15,33 @@
     </button>
   }
 
-  <button
-    class="history-item__more"
-    type="button"
-    aria-label="Chat actions"
-    title="Chat actions"
-    [class.is-visible]="menuOpen()"
-    [appMenu]="actions"
-    [menuPosition]="['right', 'bottom']"
-    #itemMenu="appMenu"
-    (opened)="menuOpen.set(true)"
-    (closed)="menuOpen.set(false)"
-  >
-    <ng-icon name="lucideEllipsis" />
-  </button>
-
-  <ng-template #actions>
-    <div class="menu actions-menu" role="menu">
-      <div class="menu-item-group">
-        <button class="menu-item" type="button" (click)="beginRename(); itemMenu.close()">
-          <ng-icon name="lucidePencil" />
-          <span>Rename</span>
-        </button>
-        <button class="menu-item" type="button" (click)="forkChat(); itemMenu.close()">
-          <ng-icon name="lucideGitFork" />
-          <span>Create a Fork</span>
-        </button>
-        <button
-          class="menu-item menu-btn-danger"
-          type="button"
-          (click)="deleteChat(); itemMenu.close()"
-        >
-          <ng-icon name="lucideTrash2" />
-          <span>Delete</span>
-        </button>
-      </div>
-    </div>
-  </ng-template>
+  <div class="history-item__actions" aria-label="Chat actions">
+    <button
+      class="history-item__action"
+      type="button"
+      title="Rename chat"
+      aria-label="Rename chat"
+      (click)="beginRename()"
+    >
+      <ng-icon name="lucidePencil" />
+    </button>
+    <button
+      class="history-item__action"
+      type="button"
+      title="Create a fork"
+      aria-label="Create a fork"
+      (click)="forkChat()"
+    >
+      <ng-icon name="lucideGitFork" />
+    </button>
+    <button
+      class="history-item__action history-item__action--danger"
+      type="button"
+      title="Delete chat"
+      aria-label="Delete chat"
+      (click)="deleteChat()"
+    >
+      <ng-icon name="lucideTrash2" />
+    </button>
+  </div>
 </div>

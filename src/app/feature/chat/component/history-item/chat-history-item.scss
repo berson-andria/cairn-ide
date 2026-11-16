@@ -24,7 +24,16 @@
   white-space: nowrap;
 }
 
-.history-item__more {
+.history-item__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.history-item__action {
   display: inline-flex;
   flex: 0 0 24px;
   align-items: center;
@@ -33,18 +42,22 @@
   height: 24px;
   border-radius: var(--radius-chip);
   color: var(--color-text-muted);
-  opacity: 0;
 
-  &:hover,
-  &.is-visible {
+  &:hover {
     background: var(--color-surface-hover);
     color: var(--color-text-primary);
   }
 }
 
-.history-item:hover .history-item__more,
-.history-item__more:focus-visible {
+.history-item__action--danger:hover {
+  background: var(--color-error-bg);
+  color: var(--color-error-fg);
+}
+
+.history-item:hover .history-item__actions,
+.history-item:focus-within .history-item__actions {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .history-item__rename {

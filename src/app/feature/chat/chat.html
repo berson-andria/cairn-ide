@@ -10,7 +10,14 @@
           </div>
         }
 
-        <div class="messages" aria-label="Conversation messages">
+        <div
+          class="messages"
+          role="log"
+          aria-label="Conversation messages"
+          aria-live="polite"
+          aria-relevant="additions text"
+          aria-atomic="false"
+        >
           @for (message of currentChat.messages.data; track $index) {
             <app-message [message]="message" />
           }
@@ -22,9 +29,9 @@
       @if (currentChat.id; as id) {
         <message-input [chatId]="id" />
       }
-      <p class="chat-compose__note">
+      <!-- <p class="chat-compose__note">
         AI can make mistakes. Review important changes before applying them.
-      </p>
+      </p> -->
     </footer>
   </section>
 } @else {

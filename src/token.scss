@@ -71,9 +71,10 @@
   --shadow-overlay: 0 4px 14px rgba(0, 0, 0, 0.53); /* [screens] menu, toast, modal (modal was 16px, normalised) */
 
   /* ---------- Typography ---------- */
-  --font-sans: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  // --font-sans: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
-
+  --font-nav: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-size-display: 32px; /* [sheet] */
   --font-size-page-title: 26px; /* [sheet] (screens use 28 for the task title: drift) */
   --font-size-section-title: 18px; /* [sheet] */

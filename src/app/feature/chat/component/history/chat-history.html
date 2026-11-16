@@ -1,7 +1,19 @@
 <div class="chat-history" aria-label="Chat history">
-  @for (chat of chatService.chatList(); track chat.id) {
+  <label class="chat-history__search">
+    <span class="visually-hidden">Search chat history</span>
+    <input
+      type="search"
+      placeholder="Search chats"
+      [value]="search()"
+      (input)="search.set($any($event.target).value)"
+    />
+  </label>
+
+  @for (chat of filteredChats(); track chat.id) {
     <app-chat-history-item [chat]="chat" />
   } @empty {
-    <p class="chat-history__empty">No chats yet</p>
+    <p class="chat-history__empty">
+      {{ search().trim() ? 'No matching chats' : 'No chats yet' }}
+    </p>
   }
 </div>

@@ -1,23 +1,21 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideEllipsis, lucideGitFork, lucidePencil, lucideTrash2 } from '@ng-icons/lucide';
+import { lucideGitFork, lucidePencil, lucideTrash2 } from '@ng-icons/lucide';
 import { TabStore } from '../../../../core/store/tab.store';
-import { MenuDirective } from '../../../../shared/directives/menu.directive';
 import type { ChatSummary } from '../../chat.model';
 import { ChatService } from '../../chat.service';
 
 @Component({
   selector: 'app-chat-history-item',
   standalone: true,
-  imports: [MenuDirective, NgIcon],
+  imports: [NgIcon],
   templateUrl: './chat-history-item.html',
   styleUrl: './chat-history-item.scss',
-  providers: [provideIcons({ lucideEllipsis, lucideGitFork, lucidePencil, lucideTrash2 })],
+  providers: [provideIcons({ lucideGitFork, lucidePencil, lucideTrash2 })],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChatHistoryItem {
   readonly chat = input.required<ChatSummary>();
-  readonly menuOpen = signal(false);
   readonly renaming = signal(false);
   readonly draftTitle = signal('');
 
