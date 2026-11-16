@@ -22,17 +22,18 @@ export function registerAppCommands(): void {
   // ── files ──
   commands.register('file.save', async () => {
     const id = tabStore.activeTabId();
-    if (!id || !tabStore.isDirty(id)) return;
+    if (!id) return;
     const tab = tabStore.activeTab();
 
     if (tab.type !== 'DiffEditor' && tab.type !== 'CodeEditor') return;
     if (tabStore.isDiffTab(id)) {
       const modified = tabStore.diffTabs()[id].request.modified;
-      if (modified.kind === 'worktree') {
+      if (modified.kind === 'worktree' && tabStore.isDirty(modified.fileId)) {
         return await editorCommand.saveFile(modified.fileId);
       }
       return;
     } else {
+      if (!tabStore.isDirty(id)) return;
       return await editorCommand.saveFile(id);
     }
   });

@@ -25,6 +25,7 @@
 - Setting **DONE**
 - store setting values
 
+- *FIXED*: ctrl+s don't set dirty state to false on diff tab, while the content have been saved in file monaco model and file disk.
 
 ### PROCESSED:
 - save state after app close.*PROCESSED*
@@ -41,7 +42,6 @@
 - highlight unsaved file.*LOW PRIORITY*
 - add persistance
 
-- *BUG*: ctrl+s don't set dirty state to false on diff tab, while the content have been saved in file model.
 
 - save file as
 - workspace reset after selecting
