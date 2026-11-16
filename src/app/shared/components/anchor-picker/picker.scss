@@ -180,14 +180,12 @@
       }
 
       .lineno {
-        font-family: var(--font-mono);
         font-size: var(--font-size-code-sm);
         color: var(--color-text-faint);
         flex-shrink: 0;
       }
 
       .snippet {
-        font-family: var(--font-mono);
         font-size: var(--font-size-code-sm);
         color: var(--color-text-secondary);
         white-space: nowrap;

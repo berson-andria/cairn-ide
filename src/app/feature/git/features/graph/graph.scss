@@ -7,7 +7,7 @@
   height: 100%;
   background: var(--graph-bg);
   color: var(--color-text-primary);
-  font-family: var(--font-sans);
+
   font-size: var(--font-size-ui);
   outline: none;
 }
@@ -182,7 +182,7 @@
 
 .hash {
   width: 60px;
-  font-family: var(--font-mono);
+
   font-size: var(--font-size-code-sm);
 }
 
@@ -232,7 +232,6 @@
   }
 
   code {
-    font-family: var(--font-mono);
     font-size: var(--font-size-code-sm);
   }
 }

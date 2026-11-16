@@ -9,7 +9,6 @@ export const DIALOG_STYLES = `
     box-sizing: border-box;
     padding: var(--space-12) var(--space-16) var(--space-16);
     color: var(--color-text-primary);
-    font-family: var(--font-sans);
     font-size: var(--font-size-ui);
   }
 

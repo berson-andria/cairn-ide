@@ -117,7 +117,7 @@ import { lucideTrash2 } from '@ng-icons/lucide';
         border-radius: var(--radius-chip);
         color: var(--color-text-muted);
         font-size: var(--font-size-ui);
-        font-family: var(--font-sans);
+
         cursor: pointer;
         transition:
           background-color 0.15s ease-in-out,
@@ -185,7 +185,7 @@ import { lucideTrash2 } from '@ng-icons/lucide';
         border-radius: var(--radius-chip);
         color: var(--color-text-primary);
         font-size: var(--font-size-ui);
-        font-family: var(--font-sans);
+
         font-weight: var(--font-weight-medium);
         cursor: pointer;
         transition:

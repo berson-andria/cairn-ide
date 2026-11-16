@@ -9,6 +9,11 @@
   box-sizing: border-box;
 }
 
+:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+}
+
 /* Desktop window, not a web page: the page itself never scrolls.
    Every element that needs scrolling owns its own overflow. */
 html,
@@ -20,15 +25,24 @@ body {
   overflow: hidden;
   background: var(--color-surface-base);
   color: var(--color-text-primary);
-  font-family: var(--font-sans);
+  font-family: var(--font-nav);
   font-size: var(--font-size-ui);
   -webkit-user-select: none;
   user-select: none;
 }
-
-:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
+.md-ui {
+  #left-panel,
+  #bottom-panel {
+    margin: 1px !important;
+    border-radius: var(--radius-panel) !important;
+    border: 1px solid var(--color-border) !important;
+  }
+  #left-panel {
+    height: calc(100% - 2px);
+  }
+  #bottom-panel {
+    width: calc(100% - 2px);
+  }
 }
 .file-icon {
   --icon-blue: color-mix(in srgb, var(--hue-blue) var(--icon-alpha), var(--color-surface-panel));
@@ -90,6 +104,7 @@ button:disabled {
 .btn-action {
   font-size: var(--font-size-ui);
   font-weight: var(--font-weight-semibold);
+  padding: var(--space-4);
   border-radius: var(--space-6);
   background: var(--color-action);
   color: var(--color-text-on-action);
@@ -197,7 +212,7 @@ button:disabled {
   .icon-btn.active {
     background: var(--color-surface-hover);
     color: var(--color-text-primary);
-    outline: 1px solid var(--color-border-strong);
+    // outline: 1px solid var(--color-border-strong);
   }
 }
 .rail-section--active {
@@ -212,7 +227,7 @@ button:disabled {
   .icon-btn.active {
     background: var(--color-surface-hover);
     color: var(--color-text-primary);
-    outline: 1px solid var(--color-border-strong);
+    // outline: 1px solid var(--color-border-strong);
     flex: none;
   }
   .rail__body {
@@ -345,7 +360,7 @@ ng-icon {
     border: none;
     background: transparent;
     color: var(--color-text-primary);
-    font-family: var(--font-sans);
+
     font-size: var(--font-size-ui);
     outline: none;
 
@@ -369,7 +384,7 @@ ng-icon {
     &.active {
       background: var(--color-surface-hover);
       color: var(--color-text-primary);
-      outline: 1px solid var(--color-border-strong);
+      // outline: 1px solid var(--color-border-strong);
     }
 
     &:disabled {

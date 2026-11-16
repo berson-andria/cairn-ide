@@ -255,7 +255,7 @@
         .create-path {
           flex: 1;
           min-width: 0;
-          font-family: var(--font-mono);
+
           font-size: var(--font-size-code-sm);
           color: var(--color-status-running);
           overflow: hidden;
@@ -264,7 +264,6 @@
         }
 
         .shortcut {
-          font-family: var(--font-sans);
           font-size: var(--font-size-small);
           padding: var(--space-2) var(--space-4);
           border: 1px solid var(--color-border-strong);

@@ -122,7 +122,7 @@
     display: inline-block;
     min-width: 2em;
     text-align: right;
-    font-family: var(--font-mono);
+
     font-size: var(--font-size-code-sm);
     color: var(--color-text-faint);
     flex-shrink: 0;
@@ -131,7 +131,7 @@
   .text {
     flex: 1;
     min-width: 0;
-    font-family: var(--font-mono);
+
     font-size: var(--font-size-code-sm);
     color: var(--color-text-prose);
     overflow: hidden;
