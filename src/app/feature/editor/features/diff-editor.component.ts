@@ -219,9 +219,11 @@ export class DiffEditor {
     const tab = tabId ? this.tabs.diffTabs()[tabId] : undefined;
     if (!tab) {
       this.editableFileId = null;
-      this.message.set('This file is no longer part of the repository.');
+      this.message.set(null);
       return handle.detach(); // a file tab (or none) is focused
     }
+
+    this.message.set(null);
 
     const { original, modified } = tab.request;
     // Recorded first, so a half-loaded diff is still released when its tab closes.
