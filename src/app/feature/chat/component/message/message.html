@@ -1,7 +1,45 @@
-<article class="message" [class.message--user]="message().role === 'user'">
-  <div class="message__identity">
-    <span class="message__marker" aria-hidden="true">{{ message().role === 'user' ? 'Y' : 'C' }}</span>
-    <span>{{ message().role === 'user' ? 'You' : 'Cairn' }}</span>
-  </div>
+<article
+  class="message"
+  [class.message--user]="message().role === 'user'"
+  [attr.aria-label]="message().role === 'user' ? 'Your message' : 'Cairn response'"
+>
+  @if (message().role === 'assistant') {
+    <div class="message__identity">
+      <span class="message__marker" aria-hidden="true">C</span>
+      <span>Cairn</span>
+    </div>
+  }
+  @if (message().goal) {
+    <span class="message__goal">
+      {{ message().goal === 'brainstorming' ? 'Brainstorm' : 'Plan' }}
+    </span>
+  }
   <div class="message__body">{{ message().content }}</div>
+  <div class="message__meta">
+    @if (message().role === 'user') {
+      <button
+        class="message__copy"
+        type="button"
+        [attr.aria-label]="copied() ? 'Message copied' : 'Copy message'"
+        [title]="copied() ? 'Copied' : 'Copy message'"
+        (click)="copyMessage()"
+      >
+        <ng-icon [name]="copied() ? 'lucideCheck' : 'lucideCopy'" />
+      </button>
+    }
+    <time [attr.datetime]="message().createdAt | date: 'yyyy-MM-ddTHH:mm:ss'">
+      {{ message().createdAt | date: 'shortTime' }}
+    </time>
+    @if (message().role === 'assistant') {
+      <button
+        class="message__copy"
+        type="button"
+        [attr.aria-label]="copied() ? 'Message copied' : 'Copy message'"
+        [title]="copied() ? 'Copied' : 'Copy message'"
+        (click)="copyMessage()"
+      >
+        <ng-icon [name]="copied() ? 'lucideCheck' : 'lucideCopy'" />
+      </button>
+    }
+  </div>
 </article>

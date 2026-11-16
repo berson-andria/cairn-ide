@@ -1,7 +1,31 @@
-<form class="composer" (ngSubmit)="sendQuery()">
+<form class="composer" aria-label="Message composer" (ngSubmit)="sendQuery()">
+  <div class="composer__goal-row">
+    <div class="goal-selector" role="group" aria-label="Message goal">
+      <button
+        type="button"
+        class="goal-selector__option"
+        [class.goal-selector__option--active]="selectedGoal() === 'brainstorming'"
+        [attr.aria-pressed]="selectedGoal() === 'brainstorming'"
+        (click)="setGoal('brainstorming'); $event.stopPropagation()"
+      >
+        Brainstorm
+      </button>
+      <button
+        type="button"
+        class="goal-selector__option"
+        [class.goal-selector__option--active]="selectedGoal() === 'planning'"
+        [attr.aria-pressed]="selectedGoal() === 'planning'"
+        (click)="setGoal('planning'); $event.stopPropagation()"
+      >
+        Plan
+      </button>
+    </div>
+  </div>
+
   <textarea
     name="message"
     aria-label="Message"
+    aria-describedby="composer-hint"
     autoExpand
     (submit)="sendQuery()"
     rows="1"
@@ -10,10 +34,33 @@
     [formControl]="queryController"
   ></textarea>
 
+  @if (chat()?.anchors?.length) {
+    <div class="composer__anchors" aria-label="Attached context">
+      @for (anchor of chat()!.anchors; track $index) {
+        <span class="context-chip" [title]="anchor.link">
+          <span>{{ anchor.label }}</span>
+          <button
+            type="button"
+            [attr.aria-label]="'Remove ' + anchor.label + ' context'"
+            (click)="removeAnchor($index)"
+          >
+            <ng-icon name="lucideX" />
+          </button>
+        </span>
+      }
+    </div>
+  }
+
   <div class="composer__footer">
-    <span class="composer__hint"
-      >Enter to send <span aria-hidden="true">·</span> Shift+Enter for a new line</span
-    >
+    <button class="icon-btn" type="button" (click)="attachContext()">
+      <ng-icon name="lucidePaperclip" />
+    </button>
+    <span class="composer__hint" id="composer-hint">
+      <kbd>Enter</kbd> to send
+      <span class="composer__shift-hint">
+        <span aria-hidden="true">·</span> <kbd>Shift+Enter</kbd> for a new line
+      </span>
+    </span>
     <button
       class="send-button"
       type="button"
@@ -22,7 +69,7 @@
       [disabled]="!canSend"
       (click)="sendQuery()"
     >
-      <ng-icon name="lucideArrowUp" />
+      <ng-icon name="lucideSend" />
     </button>
   </div>
 </form>

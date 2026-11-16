@@ -5,22 +5,25 @@
 .composer {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--space-10);
   padding: var(--space-12);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-pill);
   background: var(--color-surface-panel);
-  transition: border-color 140ms ease, background-color 140ms ease;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
 
   &:focus-within {
-    border-color: var(--color-border-strong);
+    border-color: var(--color-focus);
     background: var(--color-surface-raised);
   }
 
   textarea {
     display: block;
     width: 100%;
-    min-height: 22px;
+    // min-height: 32px;
     max-height: 160px;
     padding: var(--space-2) 0;
     border: 0;
@@ -39,33 +42,155 @@
   }
 }
 
+.composer__goal-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: 30px;
+}
+
+.goal-selector__label {
+  color: var(--color-text-faint);
+  font-size: var(--font-size-small);
+}
+
+.goal-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface-base);
+}
+
+.goal-selector__option {
+  min-height: 26px;
+  padding: 0 var(--space-10);
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
+  }
+
+  &--active {
+    background: var(--color-surface-raised-hover);
+    color: var(--color-text-ui);
+  }
+}
+
 .composer__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 28px;
+  gap: var(--space-8);
+  min-height: 34px;
+}
+
+.composer__anchors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  padding-top: var(--space-2);
+}
+
+.context-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: 260px;
+  padding: 2px var(--space-4) 2px var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+
+  > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    border-radius: var(--radius-chip);
+    color: var(--color-text-muted);
+
+    &:hover {
+      background: var(--color-surface-hover);
+      color: var(--color-text-primary);
+    }
+  }
+}
+
+.context-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-height: 30px;
+  padding: 0 var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  white-space: nowrap;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
+  }
+
+  ng-icon {
+    font-size: 16px;
+  }
 }
 
 .composer__hint {
+  flex: 1;
   color: var(--color-text-faint);
   font-size: var(--font-size-small);
   line-height: 1.2;
+  text-align: center;
+
+  kbd {
+    padding: 1px var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-badge);
+    color: var(--color-text-muted);
+    font: inherit;
+  }
 }
 
 .send-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  border-radius: var(--radius-control);
-  background: var(--color-action);
-  color: var(--color-text-on-action);
-  transition: background-color 140ms ease, opacity 140ms ease, transform 140ms ease;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: var(--radius-round);
+  // background: var(--color-action);
+  // color: var(--color-text-on-action);
+  transition:
+    background-color 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
 
   ng-icon {
-    font-size: 16px;
+    font-size: 18px;
   }
 
   &:hover:not(:disabled) {
@@ -84,7 +209,22 @@
 
 @media (prefers-reduced-motion: reduce) {
   .composer,
-  .send-button {
+  .send-button,
+  .goal-selector__option {
     transition: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .composer {
+    padding: var(--space-10);
+  }
+
+  .composer__hint {
+    font-size: var(--font-size-label);
+  }
+
+  .composer__shift-hint {
+    display: none;
   }
 }
