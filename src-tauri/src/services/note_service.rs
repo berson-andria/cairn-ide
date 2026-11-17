@@ -8,10 +8,20 @@ use crate::{
         task::TaskItem,
     },
 };
+use serde::Deserialize;
 use std::{
     path::Path,
     sync::{Arc, Mutex},
 };
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NewNote {
+    pub content: String,
+    pub r#type: Option<String>,
+    #[serde(default)]
+    pub anchors: Vec<NoteAnchor>,
+}
 
 #[derive(Debug, Default, Clone)]
 pub struct NotePatch {
@@ -57,6 +67,12 @@ impl NoteService {
         drop(_g);
         self.sink.emit(ChangeEvent::NoteCreated(n.clone()));
         Ok(n)
+    }
+    pub fn create_input(&self, input: NewNote) -> Result<NoteItem, ServiceError> {
+        let mut note = NoteItem::new(input.content);
+        note.r#type = input.r#type;
+        note.anchors = input.anchors;
+        self.create(note)
     }
     pub fn update(&self, id: &str, patch: NotePatch, rev: u64) -> Result<NoteItem, ServiceError> {
         let _g = self.lock()?;

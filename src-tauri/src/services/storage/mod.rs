@@ -79,7 +79,8 @@ impl RepositoryRecord for crate::types::note::NoteItem {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ListReport<T> {
     pub records: Vec<T>,
     pub errors: Vec<StorageError>,

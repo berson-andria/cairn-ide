@@ -27,6 +27,7 @@ pub fn run() {
         .manage(commands::lsp::LspState::default())
         .manage(commands::pty::PtyState::default())
         .manage(commands::codemap::CodeMapState::default())
+        .manage(services::project::ProjectState::default())
         .setup(|app| {
             // Local server that git / ssh questions (password, passphrase, host key) are sent to.
             app.manage(commands::askpass::Askpass::start(app.handle().clone())?);
@@ -63,6 +64,38 @@ pub fn run() {
             commands::pty::pty_resize,
             commands::pty::pty_kill,
             commands::codemap::codemap_open,
+            commands::project::project_open,
+            commands::project::project_close,
+            commands::tasks::task_list,
+            commands::tasks::task_get,
+            commands::tasks::task_create,
+            commands::tasks::task_update,
+            commands::tasks::task_delete,
+            commands::tasks::task_set_status,
+            commands::tasks::task_start,
+            commands::tasks::task_complete,
+            commands::tasks::task_set_dependency,
+            commands::tasks::task_set_anchor,
+            commands::tasks::task_link_note,
+            commands::tasks::task_unlink_note,
+            commands::tasks::task_get_dependent_tasks,
+            commands::tasks::task_can_start,
+            commands::tasks::task_set_acceptance_criteria,
+            commands::tasks::task_set_branch,
+            commands::tasks::task_add_subtask,
+            commands::tasks::task_update_subtask,
+            commands::tasks::task_delete_subtask,
+            commands::notes::note_list,
+            commands::notes::note_get,
+            commands::notes::note_create,
+            commands::notes::note_update,
+            commands::notes::note_delete,
+            commands::notes::note_set_anchors,
+            commands::notes::note_set_anchor,
+            commands::notes::note_add_anchor,
+            commands::notes::note_remove_anchor,
+            commands::notes::note_set_status,
+            commands::notes::note_toggle_status,
             commands::codemap::codemap_close,
             commands::codemap::codemap_update_files,
             commands::codemap::codemap_tree,

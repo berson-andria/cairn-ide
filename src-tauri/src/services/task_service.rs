@@ -8,11 +8,51 @@ use crate::{
         task::{SubTask, TaskItem, TaskStatus},
     },
 };
+use serde::{Deserialize, Deserializer};
 use std::{
     collections::HashSet,
     path::Path,
     sync::{Arc, Mutex},
 };
+
+fn deserialize_some<'de, D, T>(d: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(d).map(Some)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NewSubTask {
+    pub title: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NewTask {
+    pub title: String,
+    pub description: Option<String>,
+    pub anchor: Option<crate::types::task::FileAnchor>,
+    #[serde(rename = "linkedNoteIds")]
+    pub linked_note_ids: Option<Vec<String>>,
+    #[serde(rename = "subTasks")]
+    pub sub_tasks: Option<Vec<NewSubTask>>,
+    pub depends_on: Option<String>,
+    pub acceptance_criteria: Option<String>,
+    pub branch: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SubTaskPatch {
+    pub title: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_some")]
+    pub description: Option<Option<String>>,
+    pub status: Option<TaskStatus>,
+}
 
 #[derive(Debug, Default, Clone)]
 pub struct TaskPatch {
@@ -186,6 +226,26 @@ impl TaskService {
             self.emit_changed(task);
         }
         Ok(result)
+    }
+    pub fn create_input(&self, input: NewTask) -> Result<TaskItem, ServiceError> {
+        let mut task = TaskItem::new(input.title);
+        task.description = input.description;
+        task.anchor = input.anchor;
+        task.linked_note_ids = input.linked_note_ids;
+        task.sub_tasks = input.sub_tasks.map(|items| {
+            items
+                .into_iter()
+                .map(|item| {
+                    let mut subtask = SubTask::new(item.title);
+                    subtask.description = item.description;
+                    subtask
+                })
+                .collect()
+        });
+        task.depends_on = input.depends_on;
+        task.acceptance_criteria = input.acceptance_criteria;
+        task.branch = input.branch;
+        self.create(task)
     }
     pub fn update(
         &self,
@@ -529,6 +589,16 @@ impl TaskService {
         self.emit_changed(t.clone());
         Ok(t)
     }
+    pub fn add_new_subtask(
+        &self,
+        id: &str,
+        input: NewSubTask,
+        rev: u64,
+    ) -> Result<TaskItem, ServiceError> {
+        let mut subtask = SubTask::new(input.title);
+        subtask.description = input.description;
+        self.add_subtask(id, subtask, rev)
+    }
     pub fn update_subtask(
         &self,
         id: &str,
@@ -554,6 +624,31 @@ impl TaskService {
         drop(_g);
         self.emit_changed(t.clone());
         Ok(t)
+    }
+    pub fn patch_subtask(
+        &self,
+        id: &str,
+        sub_id: &str,
+        patch: SubTaskPatch,
+        rev: u64,
+        actor: Actor,
+    ) -> Result<TaskItem, ServiceError> {
+        let mut task = self.get(id)?;
+        let subtask = task
+            .sub_tasks
+            .as_mut()
+            .and_then(|items| items.iter_mut().find(|item| item.id == sub_id))
+            .ok_or_else(|| ServiceError::new(ServiceErrorCode::NotFound, "Subtask not found"))?;
+        if let Some(title) = patch.title {
+            subtask.title = title;
+        }
+        if let Some(description) = patch.description {
+            subtask.description = description;
+        }
+        if let Some(status) = patch.status {
+            subtask.status = status;
+        }
+        self.update_subtask(id, sub_id, subtask.clone(), rev, actor)
     }
     pub fn delete_subtask(
         &self,
