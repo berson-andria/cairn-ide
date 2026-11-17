@@ -90,7 +90,9 @@
         <note
           [note]="item"
           [selected]="selectedNoteId() === item.id"
+          [linkedToTask]="isNoteLinkedToTask(item.id)"
           (select)="selectNote(item.id)"
+          (noteDeleted)="deleteNote($event)"
           (anchorClick)="onAnchorClick($event)"
         />
       } @empty {

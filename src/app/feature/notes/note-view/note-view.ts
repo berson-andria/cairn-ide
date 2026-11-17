@@ -8,7 +8,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { TabStore } from '../../../core/store/tab.store';
 import { EditorCommands } from '../../editor/editor.commands';
-import { AstAnchor, NoteAnchor, NoteItem, NoteService, TaskAnchor } from '../note.service';
+import { AstAnchor, NoteAnchor, NoteItem, NoteService } from '../note.service';
 import { LayoutService } from '../../../core/services/layout.service';
 import { TaskService } from '../../tasks/task.service';
 
@@ -68,6 +68,11 @@ export class NoteView {
   });
 
   readonly anchors = computed<NoteAnchor[]>(() => this.activeNote()?.anchors ?? []);
+  readonly linkedTasks = computed(() => {
+    const noteId = this.activeNote()?.id;
+    if (!noteId) return [];
+    return this.taskService.tasks().filter((task) => task.linkedNoteIds?.includes(noteId));
+  });
 
   readonly isCompleted = computed(() => this.activeNote()?.status === 'completed');
 
@@ -85,13 +90,13 @@ export class NoteView {
   }
 
   onAnchorClick(anchor: NoteAnchor): void {
-    if (anchor.kind === 'task') {
-      this.tabStore?.openTask(anchor.id, anchor.title);
-    } else if (anchor.kind === 'ast') {
-      if (this.editorCommands) {
-        void this.editorCommands.openPath(anchor.path);
-      }
+    if (this.editorCommands) {
+      void this.editorCommands.openPath(anchor.path);
     }
+  }
+
+  openLinkedTask(taskId: string, title: string): void {
+    this.tabStore?.openTask(taskId, title);
   }
 
   openAnchoredCode(): void {
@@ -104,8 +109,12 @@ export class NoteView {
   promoteToTask(): void {
     const note = this.activeNote();
     if (!note) return;
-    const taskId = `t-${note.id}`;
-    this.tabStore?.openTask(taskId, note.content.substring(0, 40));
+    const task = this.taskService.add({
+      title: note.content.substring(0, 40) || 'New task from note',
+      description: note.content,
+    });
+    this.taskService.addLinkedNote(task.id, note.id);
+    this.tabStore?.openTask(task.id, task.title, task.id);
   }
 
   async attachToTask(): Promise<void> {
@@ -120,8 +129,6 @@ export class NoteView {
     } else if (selected.kind === 'task') {
       const task = this.taskService.get(selected.id);
       if (!task) return;
-      const anchor: TaskAnchor = { kind: 'task', id: task.id, label: task.id, title: task.title };
-      this.noteService.addAnchor(note.id, anchor);
       this.taskService.addLinkedNote(task.id, note.id);
     }
   }
@@ -136,6 +143,7 @@ export class NoteView {
     const note = this.activeNote();
     if (!note) return;
     const id = note.id;
+    this.taskService.removeLinkedNote(id);
     this.noteService.delete(id);
     if (this.tabStore) {
       this.tabStore.closeTab(id);

@@ -166,6 +166,17 @@ export class TaskService {
     this.edit(id, { linkedNoteIds: [...(task.linkedNoteIds ?? []), noteId] });
   }
 
+  removeLinkedNote(noteId: string): void {
+    this._tasks.update((tasks) => {
+      const now = Date.now();
+      return tasks.map((task) => {
+        if (!task.linkedNoteIds?.includes(noteId)) return task;
+        const linkedNoteIds = task.linkedNoteIds.filter((id) => id !== noteId);
+        return { ...task, linkedNoteIds, updatedAt: now };
+      });
+    });
+  }
+
   /**
    * Set task dependency
    */

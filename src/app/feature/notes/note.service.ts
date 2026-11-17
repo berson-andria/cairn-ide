@@ -1,12 +1,5 @@
 import { Injectable, computed, signal } from '@angular/core';
 
-export interface TaskAnchor {
-  kind: 'task';
-  id: string; // task id
-  label: string; // task label, e.g. 't-7f3b'
-  title: string; // task title
-}
-
 export interface AstAnchor {
   kind: 'ast';
   id?: string;
@@ -15,7 +8,7 @@ export interface AstAnchor {
   lost?: boolean; // true if the AST anchor was lost
 }
 
-export type NoteAnchor = TaskAnchor | AstAnchor;
+export type NoteAnchor = AstAnchor;
 
 export type NoteStatus = 'open' | 'completed';
 
@@ -40,9 +33,8 @@ export class NoteService {
 
   readonly openNotes = computed(() => this._notes().filter((n) => n.status === 'open'));
   readonly completedNotes = computed(() => this._notes().filter((n) => n.status === 'completed'));
-  readonly inboxNotes = computed(() =>
-    this._notes().filter((n) => !n.anchors || n.anchors.length === 0),
-  );
+  /** Notes without file or symbol anchors; task links live on TaskItem.linkedNoteIds. */
+  readonly inboxNotes = computed(() => this._notes().filter((note) => note.anchors.length === 0));
 
   get(id: string): NoteItem | undefined {
     return this._notes().find((n) => n.id === id);

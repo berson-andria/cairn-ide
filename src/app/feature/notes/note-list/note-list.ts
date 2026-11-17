@@ -8,6 +8,7 @@ import { TabStore } from '../../../core/store/tab.store';
 import { EditorCommands } from '../../editor/editor.commands';
 import { Note } from '../note/note';
 import { NoteAnchor, NoteService } from '../note.service';
+import { TaskService } from '../../tasks/task.service';
 
 export type NoteFilter = 'all' | 'open' | 'inbox' | 'completed';
 
@@ -30,6 +31,7 @@ export type NoteFilter = 'all' | 'open' | 'inbox' | 'completed';
 })
 export class NoteList {
   readonly noteService = inject(NoteService);
+  private readonly taskService = inject(TaskService);
   readonly layoutService = inject(LayoutService);
   private readonly tabStore = inject(TabStore, { optional: true });
   private readonly editorCommands = inject(EditorCommands, { optional: true });
@@ -45,6 +47,18 @@ export class NoteList {
   };
 
   readonly currentFilterLabel = computed(() => this.filterLabels[this.activeFilter()]);
+  readonly linkedNoteIds = computed(
+    () => new Set(this.taskService.tasks().flatMap((task) => task.linkedNoteIds ?? [])),
+  );
+  isNoteLinkedToTask(noteId: string): boolean {
+    return this.linkedNoteIds().has(noteId);
+  }
+  readonly filteredInboxNotes = computed(() => {
+    const linked = this.linkedNoteIds();
+    return this.noteService
+      .notes()
+      .filter((note) => (!note.anchors || note.anchors.length === 0) && !linked.has(note.id));
+  });
 
   readonly filteredNotes = computed(() => {
     const filter = this.activeFilter();
@@ -55,7 +69,7 @@ export class NoteList {
       case 'open':
         return list.filter((n) => n.status === 'open');
       case 'inbox':
-        return list.filter((n) => !n.anchors || n.anchors.length === 0);
+        return this.filteredInboxNotes();
       case 'completed':
         return list.filter((n) => n.status === 'completed');
     }
@@ -63,7 +77,7 @@ export class NoteList {
 
   readonly allCount = computed(() => this.noteService.notes().length);
   readonly openCount = computed(() => this.noteService.openNotes().length);
-  readonly inboxCount = computed(() => this.noteService.inboxNotes().length);
+  readonly inboxCount = computed(() => this.filteredInboxNotes().length);
   readonly completedCount = computed(() => this.noteService.completedNotes().length);
 
   selectNote(id: string): void {
@@ -93,13 +107,15 @@ export class NoteList {
     this.selectedNoteId.set(newNote.id);
   }
 
+  deleteNote(id: string): void {
+    this.taskService.removeLinkedNote(id);
+    this.noteService.delete(id);
+    this.tabStore?.closeTab(id);
+  }
+
   onAnchorClick(anchor: NoteAnchor): void {
-    if (anchor.kind === 'task') {
-      this.tabStore?.openTask(anchor.id, anchor.title);
-    } else if (anchor.kind === 'ast') {
-      if (this.editorCommands) {
-        void this.editorCommands.openPath(anchor.path);
-      }
+    if (this.editorCommands) {
+      void this.editorCommands.openPath(anchor.path);
     }
   }
 }

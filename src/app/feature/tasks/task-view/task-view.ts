@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { TaskService, type TaskItem } from '../task.service';
-import { NoteAnchor, NoteService } from '../../notes/note.service';
+import { NoteService } from '../../notes/note.service';
 import { LayoutService } from '../../../core/services/layout.service';
 
 @Component({
@@ -57,16 +57,6 @@ export class TaskView {
       this.taskService.setAnchor(task.id, { kind: 'file', path: selected.path });
     } else if (selected.kind === 'note') {
       this.taskService.addLinkedNote(task.id, selected.id);
-      const note = this.noteService.get(selected.id);
-      if (note) {
-        const anchor: NoteAnchor = {
-          kind: 'task',
-          id: task.id,
-          label: task.id,
-          title: task.title,
-        };
-        this.noteService.addAnchor(note.id, anchor);
-      }
     }
   }
 

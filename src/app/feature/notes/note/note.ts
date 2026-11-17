@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  inject,
   input,
   output,
 } from '@angular/core';
@@ -13,9 +12,7 @@ import {
   NoteAnchor,
   NoteItem,
   NoteStatus,
-  TaskAnchor,
 } from '../note.service';
-import { NoteService } from '../note.service';
 
 @Component({
   selector: 'note, note-item',
@@ -47,16 +44,7 @@ import { NoteService } from '../note.service';
         @if (displayAnchors().length > 0) {
           <div class="note-card__anchors">
             @for (anch of displayAnchors(); track $index) {
-              @if (anch.kind === 'task') {
-                <button
-                  type="button"
-                  class="chip chip--task"
-                  [title]="anch.title ? anch.title : anch.label"
-                  (click)="onAnchorClick($event, anch)"
-                >
-                  <span class="chip__label">{{ anch.label }}</span>
-                </button>
-              } @else if (anch.kind === 'ast') {
+              @if (anch.kind === 'ast') {
                 <button
                   type="button"
                   class="chip chip--ast"
@@ -69,6 +57,8 @@ import { NoteService } from '../note.service';
               }
             }
           </div>
+        } @else if (linkedToTask()) {
+          <span class="note-card__linked">Linked to task</span>
         } @else {
           <span class="note-card__inbox">Inbox</span>
         }
@@ -173,6 +163,11 @@ import { NoteService } from '../note.service';
       color: var(--color-text-muted);
     }
 
+    .note-card__linked {
+      font-size: var(--font-size-label);
+      color: var(--color-text-secondary);
+    }
+
     .note-card__completed-badge {
       font-size: var(--font-size-micro);
       color: var(--color-text-faint);
@@ -239,17 +234,17 @@ import { NoteService } from '../note.service';
   `,
 })
 export class Note {
-  private readonly noteService = inject(NoteService);
   note = input<NoteItem>();
   content = input<string>('');
   type = input<string>('');
   status = input<NoteStatus>('open');
   anchors = input<NoteAnchor[]>([]);
   selected = input<boolean>(false);
+  linkedToTask = input(false);
 
   select = output<void>();
+  noteDeleted = output<string>();
   anchorClick = output<NoteAnchor>();
-  taskClick = output<TaskAnchor>();
   astClick = output<AstAnchor>();
 
   displayContent = computed(() => this.note()?.content ?? this.content());
@@ -285,16 +280,12 @@ export class Note {
   deleteNote(event: MouseEvent): void {
     event.stopPropagation();
     const note = this.note();
-    if (note) this.noteService.delete(note.id);
+    if (note) this.noteDeleted.emit(note.id);
   }
 
   onAnchorClick(event: MouseEvent, anchor: NoteAnchor): void {
     event.stopPropagation();
     this.anchorClick.emit(anchor);
-    if (anchor.kind === 'task') {
-      this.taskClick.emit(anchor);
-    } else {
-      this.astClick.emit(anchor);
-    }
+    this.astClick.emit(anchor);
   }
 }
