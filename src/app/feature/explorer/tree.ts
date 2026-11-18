@@ -33,7 +33,7 @@ import { LayoutService } from '../../core/services/layout.service';
   selector: 'file-tree',
   templateUrl: './tree.html',
   styleUrl: './tree.scss',
-  imports: [FileNode, FolderNode, EmptyExplorer, NewNode, CommonModule, NgIcon],
+  imports: [FileNode, FolderNode, EmptyExplorer, NewNode, CommonModule, NgIcon, CommonModule],
   providers: [
     provideIcons({
       lucideFilePlus2,

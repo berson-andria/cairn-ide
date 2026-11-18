@@ -15,14 +15,10 @@
   min-height: 0;
   min-width: 0;
 }
+.icon-btn ng-icon {
+  font-size: 15px;
+}
 
-// ---------------------------------------------------------------------------
-// Title bar: [start] [ search ] [end] on a 3-column grid.
-// - the two outer columns are equal (1fr) but never narrower than their content,
-// - the search column is up to 460px and is the one that shrinks on narrow windows.
-// (The bar's 16px left padding is part of the design, so the search sits 8px
-// right of the window centre.)
-// ---------------------------------------------------------------------------
 .title-bar {
   display: grid;
   grid-template-columns: 1fr minmax(0, 460px) 1fr;
@@ -51,14 +47,6 @@
 .title-bar__menu {
   margin-left: var(--space-10);
   margin-right: var(--space-6);
-  padding: 3px var(--space-10);
-  border-radius: var(--radius-chip);
-  background: var(--color-surface-hover);
-  color: var(--color-text-primary);
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5em;
 }
 
 .title-bar__project {

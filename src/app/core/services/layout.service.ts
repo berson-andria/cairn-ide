@@ -8,28 +8,24 @@ import { NodeStore } from '../store/node.store';
 import { samePath } from './file-system/external-watcher.utils';
 import { Settings } from '../../feature/setting/settings';
 
-export type RailSection = 'Work' | 'Files' | 'Notes' | 'Review';
+export type RailSection = 'Work' | 'Files' | 'Notes' | 'Changes' | 'Review';
 export type Toolkit = 'Terminal' | 'Git' | 'Log' | 'Problems';
 
 @Injectable({
   providedIn: 'root',
 })
 export class LayoutService {
-  readonly activeRail = signal<RailSection | null>('Work');
+  readonly activeRail = signal<RailSection>('Files');
   readonly activeToolkit = signal<Toolkit>('Problems');
   readonly dialogService = inject(DialogService);
   private readonly picker = inject(PickerService);
   private readonly nodeStore = inject(NodeStore);
 
   readonly isBottomPanelCollapsed = signal(false);
-  readonly isGitChangeDisplayed = signal(false);
+  readonly isLefPanelCollapsed = signal(false);
 
   toggleRailSection(section: RailSection) {
-    this.activeRail.update((v) => (v === section ? null : section));
-  }
-
-  toggleGitChange() {
-    this.isGitChangeDisplayed.update((v) => !v);
+    this.activeRail.set(section);
   }
 
   openGitBranch() {

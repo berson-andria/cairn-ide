@@ -19,6 +19,7 @@ import {
   lucideChevronRight,
   lucideUnlink,
   lucideCloudUpload,
+  lucideSearch,
 } from '@ng-icons/lucide';
 
 import { DiagnosticsService } from '../../../core/services/diagnostics.service';
@@ -31,6 +32,8 @@ import { ResizeHandle } from '../../../shared/components/resize-handle/resize-ha
 import { convertToDaysAndHours } from '../../../shared/utils/utils';
 import { Terminal } from '../../../feature/terminal/terminal';
 import { GitGraph } from '../../../feature/git/features/graph/graph';
+import { GitService } from '../../../feature/git/services/git.service';
+import { GitClient } from '../../../feature/git/services/git-client.service';
 
 @Component({
   selector: 'bottom-panel',
@@ -54,12 +57,15 @@ import { GitGraph } from '../../../feature/git/features/graph/graph';
       lucideChevronRight,
       lucideUnlink,
       lucideCloudUpload,
+      lucideSearch,
     }),
   ],
 })
 export class BottomPanel {
   protected readonly layoutService = inject(LayoutService);
   protected readonly nodeStore = inject(NodeStore);
+  private readonly client = inject(GitClient);
+  protected readonly git = inject(GitService);
   protected readonly height = signal<number | null>(null);
   protected readonly minHeight = 100;
 
@@ -73,6 +79,8 @@ export class BottomPanel {
   filterProblems = signal('');
   branchFilter = signal('');
   newBranch = signal('');
+  readonly query = signal('');
+  readonly scope = signal<'all' | 'head'>('all');
 
   convertToDaysAndHours = convertToDaysAndHours;
   constructor() {
@@ -90,6 +98,13 @@ export class BottomPanel {
 
   protected createNewSession(): void {
     void this.terminals.create(this.nodeStore.rootPath());
+  }
+
+  protected toggleScope() {
+    this.scope.update((s) => (s === 'all' ? 'head' : 'all'));
+  }
+  protected fetch() {
+    return this.client.fetch();
   }
 
   protected onFilterProblems(event: Event): void {

@@ -7,8 +7,6 @@ import { Directive, ElementRef, Input, OnChanges, Renderer2, SimpleChanges } fro
 export class BadgeDirective implements OnChanges {
   @Input('appBadge') badgeContent: string | number | null | undefined = '';
 
-  //   @Input() badgeColor: string = '#4960f7';
-
   private badgeElement: HTMLElement | null = null;
 
   constructor(

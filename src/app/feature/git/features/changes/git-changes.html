@@ -1,8 +1,7 @@
 <div class="git-change-container">
   <div class="header">
     <div class="title">
-      <span>Git Changes</span>
-      <span class="notif-action">{{ gitChangesCount() }}</span>
+      <span>Changes</span>
     </div>
     <div class="btn-group">
       <button
@@ -256,15 +255,6 @@
           </div>
         </div>
       </ng-template>
-      <button
-        class="icon-btn"
-        title="Close Git Change"
-        aria-label="Close Git Change"
-        style="margin-left: var(--space-8)"
-        (click)="layout.toggleGitChange()"
-      >
-        <ng-icon name="lucideX"></ng-icon>
-      </button>
     </div>
   </div>
   @if (nodeStore.rootPath()) {

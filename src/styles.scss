@@ -192,27 +192,17 @@ button:disabled {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  .rail__body {
-    display: none;
-  }
 }
 .rail-section--header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-6) var(--space-4);
-  border-top: 1px solid var(--color-divider);
   font-size: var(--font-size-ui);
-  color: var(--color-text-secondary);
+  margin-left: var(--space-6);
   cursor: pointer;
-  &:hover {
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-  }
   .icon-btn.active {
     background: var(--color-surface-hover);
     color: var(--color-text-primary);
-    // outline: 1px solid var(--color-border-strong);
   }
 }
 .rail-section--active {
@@ -220,10 +210,6 @@ button:disabled {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  .rail-section--header {
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-  }
   .icon-btn.active {
     background: var(--color-surface-hover);
     color: var(--color-text-primary);
@@ -236,7 +222,6 @@ button:disabled {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    padding-left: var(--space-9);
   }
 }
 .rail-section__title {
@@ -312,8 +297,9 @@ ng-icon {
     text-align: left;
     padding: var(--space-4) var(--space-8);
     border-radius: var(--space-4);
-    &:hover {
-      background-color: var(--color-surface-raised-hover);
+    &:hover,
+    &.active {
+      background-color: var(--color-surface-raised-hover) !important;
     }
   }
 }
@@ -399,4 +385,16 @@ ng-icon {
 }
 .git-blame-inline {
   color: color-mix(in srgb, var(--color-text-faint) 50%, transparent) !important;
+}
+
+.custom-app-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: var(--font-size-micro);
+  padding: var(--space-2) var(--space-4);
+  border-radius: 50%;
+  aspect-ratio: 1/1;
+  background: var(--color-attention);
+  color: var(--color-text-on-action);
 }

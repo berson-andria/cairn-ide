@@ -30,9 +30,11 @@ import {
   lucideGitCommitHorizontal,
   lucideGitGraph,
   lucideOctagonX,
+  lucidePanelLeft,
   lucidePlus,
   lucideRefreshCcw,
   lucideSettings2,
+  lucideTextAlignJustify,
 } from '@ng-icons/lucide';
 import { DiagnosticsService } from '../../core/services/diagnostics.service';
 import { LspBridgeService } from '../../core/services/lsp/lsp-bridge.service';
@@ -55,6 +57,8 @@ import { ChatHistory } from '../../feature/chat/component/history/chat-history';
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [
     provideIcons({
+      lucideTextAlignJustify,
+      lucidePanelLeft,
       lucidePlus,
       lucideChevronDown,
       lucideChevronRight,

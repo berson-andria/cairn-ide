@@ -13,7 +13,6 @@ import {
 } from '@angular/core';
 import { NodeStore } from '../../../../core/store/node.store';
 import { CommitDetails, CommitFile, GraphCommit } from '../../parser/log.parser';
-import { GitClient } from '../../services/git-client.service';
 import { GitService } from '../../services/git.service';
 import { NoOpenFolder } from '../no-git/no-git-folder';
 import { NoRepository } from '../no-git/no-repository';
@@ -58,7 +57,6 @@ const PALETTE = [
 export class GitGraph {
   /** Read-only state (signals). */
   protected readonly git = inject(GitService);
-  private readonly client = inject(GitClient);
   protected readonly nodeStore = inject(NodeStore);
   protected readonly layoutService = inject(LayoutService);
   protected readonly gitDiff = inject(GitDiffService);
@@ -66,10 +64,10 @@ export class GitGraph {
 
   /** Commits per page. More are loaded when you scroll near the end. */
   readonly pageSize = input(200);
+  readonly scope = input.required<'all' | 'head'>();
+  readonly query = input.required<string>();
 
   protected readonly rowHeight = ROW_H;
-  protected readonly scope = signal<'all' | 'head'>('all');
-  protected readonly query = signal('');
   protected readonly selected = signal<string | null>(null);
   protected readonly loading = signal(false);
   protected readonly done = signal(false);
@@ -225,14 +223,7 @@ export class GitGraph {
     this.selected.set(hash);
   }
 
-  protected toggleScope() {
-    this.scope.update((s) => (s === 'all' ? 'head' : 'all'));
-  }
-
   /** Notices, credentials and the busy flag are handled by the fetch pipeline. */
-  protected fetch() {
-    return this.client.fetch();
-  }
 
   protected onKey(event: KeyboardEvent) {
     if (event.target instanceof HTMLInputElement) return; // typing in the search box

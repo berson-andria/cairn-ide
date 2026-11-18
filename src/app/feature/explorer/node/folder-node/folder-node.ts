@@ -102,13 +102,13 @@ export class FolderNode {
   get lineIndentStyle() {
     return {
       left: `${this.level() * this.indentMultiplier + 10}px`,
-      'z-index': `${this.layout.isGitChangeDisplayed() ? 0 : this.maxZIndex() - this.level() - 1}`,
+      'z-index': `${this.maxZIndex() - this.level() - 1}`,
     };
   }
   get stickyStyles() {
     return {
       top: `${this.level() * this.rowHeight()}px`,
-      'z-index': `${this.layout.isGitChangeDisplayed() ? 0 : this.maxZIndex() - this.level()}`,
+      'z-index': `${this.maxZIndex() - this.level()}`,
     };
   }
 }

@@ -53,291 +53,25 @@
           <span style="margin-left: 0.25em">New Session</span>
         </button>
       }
-      <!-- @if (layoutService.isToolkitActive('Git')) {
-        <div class="git-actions">
-          <button
-            class="icon-btn"
-            title="Refresh"
-            aria-label="Refresh source control"
-            (click)="git.refresh()"
-          >
-            <ng-icon name="lucideRotateCcw " />
+      @if (layoutService.isToolkitActive('Git')) {
+        <div class="toolbar">
+          <label class="input-form">
+            <input
+              type="search"
+              placeholder="Search commits..."
+              aria-label="Search commits"
+              [value]="query()"
+              (input)="query.set($any($event.target).value)"
+            />
+          </label>
+          <button type="button" class="tool" (click)="toggleScope()">
+            {{ scope() === 'all' ? 'All branches' : 'Current branch' }}
           </button>
-          @if (needsPublish()) {
-            <button
-              class="icon-btn notif"
-              title="Publish branch"
-              aria-label="Publish branch"
-              (click)="publishBranch()"
-            >
-              <ng-icon name="lucideCloudUpload" />
-            </button>
-          }
-          @if (git.status() && (git.status()!.ahead || git.status()!.behind)) {
-            <button
-              class="icon-btn notif"
-              title="Sync changes"
-              aria-label="Sync changes"
-              [disabled]="!git.status()?.upstream"
-              (click)="sync()"
-            >
-              <ng-icon name="lucideRefreshCcw" />
-              <span class="hint" style="margin-left: var(--space-6)">
-                {{ git.status()!.behind }}↓ {{ git.status()!.ahead }}↑
-              </span>
-            </button>
-          }
-          <button
-            class="icon-btn"
-            title="More actions"
-            aria-label="More source control actions"
-            [appMenu]="action"
-            [menuPosition]="['right', 'top']"
-          >
-            <ng-icon name="lucideEllipsis" />
+          <button type="button" class="tool" [disabled]="git.busy()" (click)="fetch()">
+            Fetch
           </button>
-          <ng-template #action>
-            <div class="menu actions-menu" role="menu">
-              @if (conflictFiles().length) {
-                <div class="menu-item-group">
-                  <button
-                    class="menu-item menu-btn-danger"
-                    role="menuitem"
-                    (click)="runAction(git.mergeAbort.bind(git), 'Merge aborted.')"
-                  >
-                    Abort merge
-                  </button>
-                </div>
-              }
-              <div class="menu-item-group">
-                <button class="menu-item" role="menuitem" (click)="pull()">Pull</button>
-                <button
-                  class="menu-item"
-                  role="menuitem"
-                  (click)="runAction(git.push.bind(git), 'Pushed.')"
-                >
-                  Push
-                </button>
-                <button class="menu-item" role="menuitem" (click)="clone()">Clone</button>
-                <button class="menu-item" role="menuitem" (click)="checkoutTo()">
-                  Checkout to ...
-                </button>
-                <button
-                  class="menu-item"
-                  role="menuitem"
-                  (click)="runAction(git.fetch.bind(git), 'Fetched.')"
-                >
-                  Fetch
-                </button>
-              </div>
-              <div class="menu-item-group">
-                <button
-                  class="menu-item menu-accordion-btn"
-                  [appMenu]="commitMenu"
-                  [menuPosition]="['left', 'center']"
-                >
-                  <span>Commit</span> <ng-icon name="lucideChevronRight" />
-                </button>
-                <ng-template #commitMenu>
-                  <div class="menu">
-                    <div class="menu-item-group">
-                      <button class="menu-item" role="menuitem" (click)="commit('staged')">
-                        Commit
-                      </button>
-                      <button class="menu-item" role="menuitem" (click)="commit('staged')">
-                        Commit Staged
-                      </button>
-                      <button class="menu-item" role="menuitem" (click)="commit('all')">
-                        Commit All
-                      </button>
-                    </div>
-                    <div class="menu-item-group">
-                      <button class="menu-item" role="menuitem" (click)="commit('amend')">
-                        Amend Commit
-                      </button>
-                      <button class="menu-item" role="menuitem" (click)="undoLastCommit()">
-                        Undo Last Commit
-                      </button>
-                    </div>
-                  </div>
-                </ng-template>
-
-                <button
-                  class="menu-item menu-accordion-btn"
-                  [appMenu]="changes"
-                  [menuPosition]="['left', 'center']"
-                >
-                  <span>Changes</span> <ng-icon name="lucideChevronRight" />
-                </button>
-                <ng-template #changes>
-                  <div class="menu">
-                    <div class="menu-item-group">
-                      <button
-                        class="menu-item"
-                        role="menuitem"
-                        (click)="runAction(git.stageAll.bind(git), 'Staged.')"
-                      >
-                        Stage All
-                      </button>
-                      <button
-                        class="menu-item"
-                        role="menuitem"
-                        (click)="runAction(git.unstageAll.bind(git), 'Unstaged.')"
-                      >
-                        Unstage All
-                      </button>
-                    </div>
-                    <div class="menu-item-group">
-                      <button
-                        class="menu-item menu-btn-danger"
-                        role="menuitem"
-                        (click)="discardAll()"
-                      >
-                        Discard All changes ...
-                      </button>
-                    </div>
-                  </div>
-                </ng-template>
-                <button
-                  class="menu-item menu-accordion-btn"
-                  [appMenu]="pull_push"
-                  [menuPosition]="['left', 'center']"
-                >
-                  <span>Pull, Push</span> <ng-icon name="lucideChevronRight" />
-                </button>
-                <ng-template #pull_push>
-                  <div class="menu">
-                    <div class="menu-item-group">
-                      <button class="menu-item" role="menuitem" (click)="sync()">Sync</button>
-                    </div>
-                    <div class="menu-item-group">
-                      <button class="menu-item" role="menuitem" (click)="pullFrom()">
-                        Pull From
-                      </button>
-                      <button class="menu-item" role="menuitem" (click)="pullRebase()">
-                        Pull (Rebase)
-                      </button>
-                      <button class="menu-item" role="menuitem" (click)="pushTo()">Push to</button>
-                      <button class="menu-item" role="menuitem" (click)="pushForce()">
-                        Push Force
-                      </button>
-                    </div>
-                  </div>
-                </ng-template>
-                <button
-                  class="menu-item menu-accordion-btn"
-                  [appMenu]="branch"
-                  [menuPosition]="['left', 'center']"
-                >
-                  <span>Branch</span> <ng-icon name="lucideChevronRight" />
-                </button>
-                <ng-template #branch>
-                  <div class="menu">
-                    <div class="menu-item-group">
-                      <button class="menu-item" role="menuitem" (click)="mergeBranch()">
-                        Merge Branch
-                      </button>
-                      <button class="menu-item" role="menuitem" (click)="rebaseBranch()">
-                        Rebase Branch
-                      </button>
-                    </div>
-                    <div class="menu-item-group">
-                      <button class="menu-item" role="menuitem" (click)="createBranch()">
-                        Create Branch...
-                      </button>
-                      <button class="menu-item" role="menuitem" (click)="createBranch(true)">
-                        Create Branch From...
-                      </button>
-                      <button class="menu-item" role="menuitem" (click)="checkoutDetached()">
-                        Checkout Detached
-                      </button>
-                    </div>
-                    <div class="menu-item-group">
-                      <button class="menu-item" role="menuitem" (click)="renameBranch()">
-                        Rename Branch...
-                      </button>
-                      <button
-                        class="menu-item menu-btn-danger"
-                        role="menuitem"
-                        (click)="deleteBranch()"
-                      >
-                        Delete Branch...
-                      </button>
-                      <button
-                        class="menu-item menu-btn-danger"
-                        role="menuitem"
-                        (click)="deleteRemoteBranch()"
-                      >
-                        Delete Remote Branch...
-                      </button>
-                    </div>
-                    <div class="menu-item-group">
-                      <button class="menu-item" role="menuitem" (click)="publishBranch()">
-                        Publish Branch...
-                      </button>
-                    </div>
-                  </div>
-                </ng-template>
-                <button
-                  class="menu-item menu-accordion-btn"
-                  [appMenu]="stash"
-                  [menuPosition]="['left', 'center']"
-                >
-                  <span>Stash</span> <ng-icon name="lucideChevronRight" />
-                </button>
-                <ng-template #stash>
-                  <div class="menu">
-                    <div class="menu-item-group">
-                      <button class="menu-item" role="menuitem" (click)="stashChanges()">
-                        Stash Changes
-                      </button>
-                      <button class="menu-item" role="menuitem" (click)="stashChanges('all', true)">
-                        Stash Including Untracked
-                      </button>
-                    </div>
-                    <div class="menu-item-group">
-                      <button class="menu-item" role="menuitem" (click)="stashLatest('apply')">
-                        Apply Latest Stash
-                      </button>
-                      <button class="menu-item" role="menuitem" (click)="stashLatest('pop')">
-                        Pop Latest Stash
-                      </button>
-                      <button class="menu-item" role="menuitem" (click)="stashPick('apply')">
-                        Apply Stash...
-                      </button>
-                      <button class="menu-item" role="menuitem" (click)="stashPick('pop')">
-                        Pop Stash...
-                      </button>
-                    </div>
-                    <div class="menu-item-group">
-                      <button
-                        class="menu-item menu-btn-danger"
-                        role="menuitem"
-                        (click)="stashPick('drop')"
-                      >
-                        Drop Stash...
-                      </button>
-                      <button
-                        class="menu-item menu-btn-danger"
-                        role="menuitem"
-                        (click)="dropAllStashes()"
-                      >
-                        Drop All Stashes
-                      </button>
-                    </div>
-                  </div>
-                </ng-template>
-              </div>
-              <div class="menu-item-group">
-                <button class="menu-item" role="menuitem" (click)="addRemote()">Add Remote</button>
-                <button class="menu-item" role="menuitem" (click)="removeRemote()">
-                  Remove Remote
-                </button>
-              </div>
-            </div>
-          </ng-template>
         </div>
-      } -->
+      }
       @if (layoutService.isToolkitActive('Problems')) {
         <div class="problem__filter input-form">
           <input
@@ -371,7 +105,7 @@
     } -->
   }
   @case ('Git') {
-    <git-graph></git-graph>
+    <git-graph [query]="query()" [scope]="scope()"></git-graph>
   }
   @case ('Problems') {
     <app-problems [filter]="filterProblems()"></app-problems>

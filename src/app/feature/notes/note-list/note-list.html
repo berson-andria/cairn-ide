@@ -1,112 +1,104 @@
 <div class="rail-section" [class.rail-section--active]="layoutService.isRailSectionActive('Notes')">
-  <div class="rail-section--header" (click)="layoutService.toggleRailSection('Notes')">
-    <span class="rail-section__title">
-      @if (layoutService.isRailSectionActive('Notes')) {
-        <ng-icon name="bootstrapChevronDown" />
-      } @else {
-        <ng-icon name="bootstrapChevronRight" />
-      }
-      Notes
-    </span>
-    <span class="rail-section__meta rail-section__meta--attention">{{ openCount() }}</span>
-  </div>
   <div class="rail__body">
     @if (!nodeStore.rootPath()) {
       <div class="empty-state__description">Open a folder to use tasks and notes</div>
     } @else {
-    @if (noteService.errors().length) {
-      <details class="muted"><summary>{{ noteService.errors().length }} files could not be loaded</summary>@for (error of noteService.errors(); track $index) { <div>{{ error.message }}</div> }</details>
-    }
-    <!-- Input for new note -->
-    <div class="note-input-wrapper">
-      <input
-        #noteInput
-        aria-label="New note"
-        placeholder="New note, Enter to save"
-        class="note-input"
-        (keydown.enter)="addNote(noteInput.value); noteInput.value = ''"
-      />
-    </div>
-
-    <!-- Filter dropdown trigger -->
-    <div class="note-filter-bar">
-      <button
-        type="button"
-        class="filter-menu-btn"
-        [appMenu]="filterMenu"
-        [menuPosition]="['left', 'bottom']"
-        aria-label="Filter notes"
-      >
-        <span class="filter-menu-btn__label">{{ currentFilterLabel() }}</span>
-        <span class="filter-menu-btn__count">({{ filteredNotes().length }})</span>
-        <ng-icon name="lucideChevronDown" class="filter-menu-btn__icon" />
-      </button>
-
-      <ng-template #filterMenu>
-        <div class="menu note-filter-menu" role="menu">
-          <div class="menu-item-group">
-            <button
-              type="button"
-              class="menu-item"
-              [class.menu-item--active]="activeFilter() === 'all'"
-              role="menuitem"
-              (click)="setFilter('all')"
-            >
-              <span>All notes</span>
-              <span class="menu-item__count">{{ allCount() }}</span>
-            </button>
-            <button
-              type="button"
-              class="menu-item"
-              [class.menu-item--active]="activeFilter() === 'open'"
-              role="menuitem"
-              (click)="setFilter('open')"
-            >
-              <span>Open</span>
-              <span class="menu-item__count">{{ openCount() }}</span>
-            </button>
-            <button
-              type="button"
-              class="menu-item"
-              [class.menu-item--active]="activeFilter() === 'inbox'"
-              role="menuitem"
-              (click)="setFilter('inbox')"
-            >
-              <span>Inbox / No anchors</span>
-              <span class="menu-item__count">{{ inboxCount() }}</span>
-            </button>
-            <button
-              type="button"
-              class="menu-item"
-              [class.menu-item--active]="activeFilter() === 'completed'"
-              role="menuitem"
-              (click)="setFilter('completed')"
-            >
-              <span>Completed</span>
-              <span class="menu-item__count">{{ completedCount() }}</span>
-            </button>
-          </div>
-        </div>
-      </ng-template>
-    </div>
-
-    <!-- Scrolling note list -->
-    <div class="scrolling-el note-list-container">
-      @for (item of filteredNotes(); track item.id) {
-        <note
-          [note]="item"
-          [selected]="selectedNoteId() === item.id"
-          [linkedToTask]="isNoteLinkedToTask(item.id)"
-          (select)="selectNote(item.id)"
-          (noteDeleted)="deleteNote($event)"
-          (anchorClick)="onAnchorClick($event)"
-        />
-      } @empty {
-        <div class="empty-notes-hint">
-          No notes match this filter
-        </div>
+      @if (noteService.errors().length) {
+        <details class="muted">
+          <summary>{{ noteService.errors().length }} files could not be loaded</summary>
+          @for (error of noteService.errors(); track $index) {
+            <div>{{ error.message }}</div>
+          }
+        </details>
       }
-    </div>
+      <!-- Input for new note -->
+      <div class="note-input-wrapper">
+        <input
+          #noteInput
+          aria-label="New note"
+          placeholder="New note, Enter to save"
+          class="note-input"
+          (keydown.enter)="addNote(noteInput.value); noteInput.value = ''"
+        />
+      </div>
+
+      <!-- Filter dropdown trigger -->
+      <div class="note-filter-bar">
+        <button
+          type="button"
+          class="filter-menu-btn"
+          [appMenu]="filterMenu"
+          [menuPosition]="['left', 'bottom']"
+          aria-label="Filter notes"
+        >
+          <span class="filter-menu-btn__label">{{ currentFilterLabel() }}</span>
+          <span class="filter-menu-btn__count">({{ filteredNotes().length }})</span>
+          <ng-icon name="lucideChevronDown" class="filter-menu-btn__icon" />
+        </button>
+
+        <ng-template #filterMenu>
+          <div class="menu note-filter-menu" role="menu">
+            <div class="menu-item-group">
+              <button
+                type="button"
+                class="menu-item"
+                [class.menu-item--active]="activeFilter() === 'all'"
+                role="menuitem"
+                (click)="setFilter('all')"
+              >
+                <span>All notes</span>
+                <span class="menu-item__count">{{ allCount() }}</span>
+              </button>
+              <button
+                type="button"
+                class="menu-item"
+                [class.menu-item--active]="activeFilter() === 'open'"
+                role="menuitem"
+                (click)="setFilter('open')"
+              >
+                <span>Open</span>
+                <span class="menu-item__count">{{ openCount() }}</span>
+              </button>
+              <button
+                type="button"
+                class="menu-item"
+                [class.menu-item--active]="activeFilter() === 'inbox'"
+                role="menuitem"
+                (click)="setFilter('inbox')"
+              >
+                <span>Inbox / No anchors</span>
+                <span class="menu-item__count">{{ inboxCount() }}</span>
+              </button>
+              <button
+                type="button"
+                class="menu-item"
+                [class.menu-item--active]="activeFilter() === 'completed'"
+                role="menuitem"
+                (click)="setFilter('completed')"
+              >
+                <span>Completed</span>
+                <span class="menu-item__count">{{ completedCount() }}</span>
+              </button>
+            </div>
+          </div>
+        </ng-template>
+      </div>
+
+      <!-- Scrolling note list -->
+      <div class="scrolling-el note-list-container">
+        @for (item of filteredNotes(); track item.id) {
+          <note
+            [note]="item"
+            [selected]="selectedNoteId() === item.id"
+            [linkedToTask]="isNoteLinkedToTask(item.id)"
+            (select)="selectNote(item.id)"
+            (noteDeleted)="deleteNote($event)"
+            (anchorClick)="onAnchorClick($event)"
+          />
+        } @empty {
+          <div class="empty-notes-hint">No notes match this filter</div>
+        }
+      </div>
     }
   </div>
 </div>

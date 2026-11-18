@@ -1,49 +1,18 @@
 <div class="graph">
   @if (nodeStore.rootPath()) {
     @if (git.isRepo()) {
-      <div class="toolbar">
-        <label class="search">
-          <span aria-hidden="true">⌕</span>
-          <input
-            type="search"
-            placeholder="Search commits"
-            aria-label="Search commits"
-            [value]="query()"
-            (input)="query.set($any($event.target).value)"
-          />
-        </label>
-        <button type="button" class="tool" (click)="toggleScope()">
-          {{ scope() === 'all' ? 'All branches' : 'Current branch' }}
-        </button>
-        <button type="button" class="tool" [disabled]="git.busy()" (click)="fetch()">Fetch</button>
-      </div>
-
-      <!-- Debug legend: branch -> color. Remove once the colors are right. -->
-      <div
-        style="
-          display: flex;
-          gap: 10px;
-          padding: var(--space-4) var(--space-8);
-          margin-bottom: var(--space-4);
-          flex-wrap: wrap;
-          font-size: 11px;
-          border-bottom: 1px solid var(--color-border);
-        "
-      >
-        @for (b of legend(); track b.name) {
-          <span><span [style.color]="b.color">●</span> {{ b.name }}</span>
-        }
-      </div>
-
       <div class="body">
         <div class="list">
           @if (uncommitted() > 0 && !filtering()) {
             <div class="row working">
               <span class="lane-spacer" [style.width.px]="graphWidth()"></span>
-              <span class="subject">Uncommitted changes</span>
+              <span class="sub">Uncommitted changes</span>
               <span class="muted">{{ uncommitted() }} files</span>
-              <span class="grow"></span>
-              <button type="button" class="tool" (click)="layoutService.toggleGitChange()">
+              <button
+                type="button"
+                class="tool"
+                (click)="layoutService.toggleRailSection('Changes')"
+              >
                 Open changes
               </button>
             </div>
@@ -127,7 +96,7 @@
             </span>
             @if (details(); as d) {
               @if (d.message !== c.subject) {
-                <pre class="message">{{ d.message }}</pre>
+                <pre class="message scrolling-el">{{ d.message }}</pre>
               }
               <div class="files-head">{{ d.files.length }} files</div>
               <div class="files-list scrolling-el">

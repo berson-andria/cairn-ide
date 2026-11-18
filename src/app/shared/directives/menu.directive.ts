@@ -52,6 +52,7 @@ const VIEWPORT_MARGIN = 8;
     '(click)': 'toggle()',
     'aria-haspopup': 'menu',
     '[attr.aria-expanded]': 'isOpen()',
+    '[class.active]': 'isOpen()',
   },
 })
 export class MenuDirective {
@@ -66,6 +67,8 @@ export class MenuDirective {
 
   readonly opened = output<void>();
   readonly closed = output<void>();
+  /** Emits the current open state whenever the menu opens or closes. */
+  readonly openChange = output<boolean>();
 
   readonly isOpen = signal(false);
 
@@ -120,6 +123,7 @@ export class MenuDirective {
     this.isOpen.set(true);
     this.listen();
     this.opened.emit();
+    this.openChange.emit(true);
   }
 
   close(): void {
@@ -141,7 +145,10 @@ export class MenuDirective {
     this.panel = null;
 
     this.isOpen.set(false);
-    if (!this.destroyed) this.closed.emit(); // emitting on a destroyed output is NG0953
+    if (!this.destroyed) {
+      this.closed.emit(); // emitting on a destroyed output is NG0953
+      this.openChange.emit(false);
+    }
   }
 
   /** Closes this menu and every menu it was opened from (after picking an item). */

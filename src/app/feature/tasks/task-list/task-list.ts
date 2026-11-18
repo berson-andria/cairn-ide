@@ -19,15 +19,7 @@ import { NodeStore } from '../../../core/store/node.store';
       [class.rail-section--active]="layoutService.isRailSectionActive('Work')"
     >
       <div class="rail-section--header" (click)="layoutService.toggleRailSection('Work')">
-        <span class="rail-section__title">
-          @if (layoutService.isRailSectionActive('Work')) {
-            <ng-icon name="bootstrapChevronDown" />
-          } @else {
-            <ng-icon name="bootstrapChevronRight" />
-          }
-          Work
-        </span>
-        <span class="rail-section__meta">{{ tasks().length }}</span>
+        <span class="rail-section__title"> Tasks ● {{ tasks().length }}</span>
         @if (tasks().length > 0) {
           <button
             class="icon-btn"
@@ -44,31 +36,36 @@ import { NodeStore } from '../../../core/store/node.store';
         @if (!nodeStore.rootPath()) {
           <div class="empty-state__description">Open a folder to use tasks and notes</div>
         } @else {
-        @if (taskService.errors().length) {
-          <details class="muted"><summary>{{ taskService.errors().length }} files could not be loaded</summary>@for (error of taskService.errors(); track $index) { <div>{{ error.message }}</div> }</details>
-        }
-        @if (tasks().length === 0) {
-          <empty-task-list />
-        } @else {
-          <div class="task-groups scrolling-el">
-            @for (status of statuses; track status) {
-              @let group = tasksByStatus()[status];
-              @if (group.length) {
-                <div class="task-group-label">
-                  <span>{{ statusLabel(status) }}</span
-                  ><span>{{ group.length }}</span>
-                </div>
-                @for (item of group; track item.id) {
-                  <app-task
-                    [task]="item"
-                    [selected]="selectedTaskId() === item.id"
-                    (taskSelected)="select($event)"
-                  />
+          @if (taskService.errors().length) {
+            <details class="muted">
+              <summary>{{ taskService.errors().length }} files could not be loaded</summary>
+              @for (error of taskService.errors(); track $index) {
+                <div>{{ error.message }}</div>
+              }
+            </details>
+          }
+          @if (tasks().length === 0) {
+            <empty-task-list />
+          } @else {
+            <div class="task-groups scrolling-el">
+              @for (status of statuses; track status) {
+                @let group = tasksByStatus()[status];
+                @if (group.length) {
+                  <div class="task-group-label">
+                    <span>{{ statusLabel(status) }}</span
+                    ><span>{{ group.length }}</span>
+                  </div>
+                  @for (item of group; track item.id) {
+                    <app-task
+                      [task]="item"
+                      [selected]="selectedTaskId() === item.id"
+                      (taskSelected)="select($event)"
+                    />
+                  }
                 }
               }
-            }
-          </div>
-        }
+            </div>
+          }
         }
       </div>
     </div>
@@ -105,7 +102,14 @@ export class TaskList {
   readonly tasks = this.taskService.tasks;
   readonly taskSelected = output<TaskItem>();
   readonly selectedTaskId = this.taskService.selectedTaskId;
-  readonly statuses: TaskStatus[] = ['running', 'ready', 'blocked', 'needs_review', 'failed', 'completed'];
+  readonly statuses: TaskStatus[] = [
+    'running',
+    'ready',
+    'blocked',
+    'needs_review',
+    'failed',
+    'completed',
+  ];
   readonly tasksByStatus = computed(() => {
     const groups: Record<TaskStatus, TaskItem[]> = {
       ready: [],

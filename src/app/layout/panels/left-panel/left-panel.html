@@ -5,13 +5,83 @@
   [max]="maxWidth"
   (sizeChange)="width.set($event)"
 />
+<div class="views">
+  <button
+    class="icon-btn"
+    (click)="layout.toggleRailSection('Files')"
+    [class.active]="layout.activeRail() === 'Files'"
+    [class.dirty]="tabStore.dirtyCount() > 0"
+  >
+    <ng-icon name="lucideFolders"></ng-icon>
+    @if (tabStore.dirtyCount() > 0) {
+      <span class="badge">{{ tabStore.dirtyCount() }}</span>
+    }
+  </button>
+  <button
+    class="icon-btn"
+    (click)="layout.toggleRailSection('Changes')"
+    [class.active]="layout.activeRail() === 'Changes'"
+    [class.dirty]="gitChangesCount() > 0"
+  >
+    <ng-icon name="lucideFolderGit2"></ng-icon>
+    @if (gitChangesCount() > 0) {
+      <span class="badge">{{ gitChangesCount() }}</span>
+    }
+  </button>
+  <button
+    class="icon-btn"
+    (click)="layout.toggleRailSection('Work')"
+    [class.active]="layout.activeRail() === 'Work'"
+  >
+    <ng-icon name="lucideListChecks"></ng-icon>
+  </button>
+  <button
+    class="icon-btn"
+    (click)="layout.toggleRailSection('Notes')"
+    [class.active]="layout.activeRail() === 'Notes'"
+  >
+    <ng-icon name="lucideNotebookPen"></ng-icon>
+  </button>
+  <button
+    class="icon-btn"
+    (click)="layout.toggleRailSection('Review')"
+    [class.active]="layout.activeRail() === 'Review'"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="lucide lucide-circle-fading-check preview-icon"
+    >
+      <path d="M12 2a10 10 0 017.38 16.75" />
+      <path d="m16 9-5.5 5.5L8 12" />
+      <path d="M2.5 8.875a10 10 0 00-.5 3" />
+      <path d="M2.83 16a10 10 0 002.43 3.4" />
+      <path d="M4.636 5.235a10 10 0 01.891-.857" />
+      <path d="M8.644 21.42a10 10 0 007.631-.38" />
+    </svg>
+  </button>
+</div>
 <div class="rail-section-container">
-  <file-tree />
-  <task-list />
-  <note-list />
-  <review-list />
-  @if (layout.isGitChangeDisplayed()) {
-    <git-changes></git-changes>
+  @switch (layout.activeRail()) {
+    @case ('Files') {
+      <file-tree />
+    }
+    @case ('Changes') {
+      <git-changes />
+    }
+    @case ('Work') {
+      <task-list />
+    }
+    @case ('Notes') {
+      <note-list />
+    }
+    @case ('Review') {
+      <review-list />
+    }
   }
 </div>
-<div class="rail__hint">Ctrl+1 Work · 2 Files · 3 Notes · 4 Review</div>

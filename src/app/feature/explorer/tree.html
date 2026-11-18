@@ -1,14 +1,7 @@
 <div class="rail-section" [class.rail-section--active]="layoutService.isRailSectionActive('Files')">
-  <div class="rail-section--header" (click)="layoutService.toggleRailSection('Files')">
-    <span class="rail-section__title">
-      @if (layoutService.isRailSectionActive('Files')) {
-        <ng-icon name="bootstrapChevronDown" />
-      } @else {
-        <ng-icon name="bootstrapChevronRight" />
-      }
-      Files
-    </span>
+  <div class="rail-section--header">
     @if (nodeStore.rootName()) {
+      <span class="rail-section__title"> {{ nodeStore.rootName() | titlecase }} </span>
       <div class="btn-group">
         <button class="icon-btn" (click)="$event.stopPropagation(); addNode('file')">
           <ng-icon name="lucideFilePlus2" />

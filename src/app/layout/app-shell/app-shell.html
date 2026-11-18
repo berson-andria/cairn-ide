@@ -6,15 +6,13 @@
   <div class="title-bar__start" data-tauri-drag-region>
     <img src="assets/icon.png" alt="" width="24px" />
     <button
-      class="title-bar__menu"
+      class="title-bar__menu icon-btn"
       type="button"
       aria-label="Cairn menu"
       [appMenu]="main_menu"
       [menuPosition]="['left', 'bottom']"
     >
-      <ng-icon name="lucideFolderRoot " style="font-size: 14px" />
-      <span>{{ project() }}</span>
-      <ng-icon name="lucideChevronDown" />
+      <ng-icon name="lucideTextAlignJustify" />
     </button>
     <ng-template #main_menu>
       <div class="menu actions-menu" role="menu">
@@ -74,7 +72,9 @@
         </div>
       </div>
     </ng-template>
-
+    <button class="icon-btn">
+      <ng-icon name="lucidePanelLeft" />
+    </button>
     <button class="icon-btn" type="button" aria-label="Back">
       <svg
         width="16"
@@ -142,9 +142,6 @@
         </div>
       </div>
     </ng-template>
-    <button class="icon-btn" style="margin-right: var(--space-10)">
-      <ng-icon name="lucideFolderTree" />
-    </button>
 
     <button
       class="icon-btn"
@@ -152,21 +149,6 @@
       aria-label="Settings"
       (click)="layoutService.openSettingDialog()"
     >
-      <!-- <svg
-        width="16"
-        height="16"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        aria-hidden="true"
-      >
-        <path d="M2 4h12M2 8h12M2 12h12" />
-        <circle class="title-bar__knob" cx="10" cy="4" r="1.6" />
-        <circle class="title-bar__knob" cx="5" cy="8" r="1.6" />
-        <circle class="title-bar__knob" cx="11" cy="12" r="1.6" />
-      </svg> -->
       <ng-icon name="lucideSettings2" />
     </button>
 
@@ -232,21 +214,21 @@
 <footer class="status-bar">
   <div class="status-bar__group">
     <div class="git-btn-group">
-      <button
+      <!-- <button
         class="status-bar__item status-bar__item--strong"
-        [class.is-active]="layoutService.isGitChangeDisplayed()"
+        [class.is-active]="layoutService.activeRail() === 'Changes'"
         type="button"
         aria-label="Toggle Git Changes"
         title="Toggle Git Changes"
         [class.notif]="gitChangesCount() > 0"
-        (click)="layoutService.toggleGitChange()"
+        (click)="layoutService.toggleRailSection('Changes')"
       >
         <ng-icon name="lucideGitCommitHorizontal" />
         @if (gitChangesCount() > 0) {
           <span>{{ gitChangesCount() }}</span>
         }
         <span>Changes</span>
-      </button>
+      </button> -->
       <button
         class="status-bar__item status-bar__item--strong"
         type="button"
