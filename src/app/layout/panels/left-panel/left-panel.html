@@ -12,7 +12,7 @@
     [class.active]="layout.activeRail() === 'Files'"
     [class.dirty]="tabStore.dirtyCount() > 0"
   >
-    <ng-icon name="lucideFolders"></ng-icon>
+    <ng-icon name="lucideFiles"></ng-icon>
     @if (tabStore.dirtyCount() > 0) {
       <span class="badge">{{ tabStore.dirtyCount() }}</span>
     }
@@ -23,7 +23,7 @@
     [class.active]="layout.activeRail() === 'Changes'"
     [class.dirty]="gitChangesCount() > 0"
   >
-    <ng-icon name="lucideFolderGit2"></ng-icon>
+    <ng-icon name="lucideGitMerge"></ng-icon>
     @if (gitChangesCount() > 0) {
       <span class="badge">{{ gitChangesCount() }}</span>
     }

@@ -14,34 +14,17 @@ import { LayoutService } from '../../../core/services/layout.service';
 import { GitChanges } from '../../../feature/git/features/changes/git-changes';
 import { TaskList } from '../../../feature/tasks/task-list/task-list';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import {
-  lucideFolderGit2,
-  lucideFolders,
-  lucideListChecks,
-  lucideNotebookPen,
-} from '@ng-icons/lucide';
+import { lucideFiles, lucideListChecks, lucideNotebookPen, lucideGitMerge } from '@ng-icons/lucide';
 import { TabStore } from '../../../core/store/tab.store';
 import { GitService } from '../../../feature/git/services/git.service';
-import { BadgeDirective } from '../../../shared/directives/badge.directive';
 
 @Component({
   selector: 'left-panel',
   standalone: true,
-  imports: [
-    ResizeHandle,
-    TaskList,
-    FileTree,
-    NoteList,
-    ReviewList,
-    GitChanges,
-    NgIcon,
-    BadgeDirective,
-  ],
+  imports: [ResizeHandle, TaskList, FileTree, NoteList, ReviewList, GitChanges, NgIcon],
   templateUrl: './left-panel.html',
   styleUrl: './left-panel.scss',
-  providers: [
-    provideIcons({ lucideFolders, lucideFolderGit2, lucideListChecks, lucideNotebookPen }),
-  ],
+  providers: [provideIcons({ lucideFiles, lucideGitMerge, lucideListChecks, lucideNotebookPen })],
   host: { '[style.width.px]': 'width()' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
