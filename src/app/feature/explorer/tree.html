@@ -1,7 +1,7 @@
 <div class="rail-section" [class.rail-section--active]="layoutService.isRailSectionActive('Files')">
   <div class="rail-section--header">
     @if (nodeStore.rootName()) {
-      <span class="rail-section__title"> {{ nodeStore.rootName() | titlecase }} </span>
+      <span class="rail-section__title"> Explorer </span>
       <div class="btn-group">
         <button class="icon-btn" (click)="$event.stopPropagation(); addNode('file')">
           <ng-icon name="lucideFilePlus2" />

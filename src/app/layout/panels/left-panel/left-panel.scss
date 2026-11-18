@@ -11,6 +11,13 @@
   background: var(--color-surface-panel);
   border-right: 1px solid var(--color-divider);
   color: var(--color-text-secondary);
+  &.collapsed {
+    height: 0;
+    width: 0 !important;
+    padding: 0;
+    margin: 0;
+    border: 0;
+  }
 }
 .views {
   width: 98%;

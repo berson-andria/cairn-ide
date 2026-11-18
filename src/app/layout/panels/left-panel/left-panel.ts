@@ -25,7 +25,10 @@ import { GitService } from '../../../feature/git/services/git.service';
   templateUrl: './left-panel.html',
   styleUrl: './left-panel.scss',
   providers: [provideIcons({ lucideFiles, lucideGitMerge, lucideListChecks, lucideNotebookPen })],
-  host: { '[style.width.px]': 'width()' },
+  host: {
+    '[style.width.px]': 'width()',
+    '[class.collapsed]': 'layout.isLefPanelCollapsed()',
+  },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LeftPanel {

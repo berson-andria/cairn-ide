@@ -25,7 +25,13 @@ export class LayoutService {
   readonly isLefPanelCollapsed = signal(false);
 
   toggleRailSection(section: RailSection) {
+    if (!this.isLefPanelCollapsed()) {
+      this.isLefPanelCollapsed.set(true);
+    }
     this.activeRail.set(section);
+  }
+  toggleLeftPanel() {
+    this.isLefPanelCollapsed.update((v) => !v);
   }
 
   openGitBranch() {
