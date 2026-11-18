@@ -77,7 +77,7 @@ pub async fn get_files(path: Vec<String>) -> Result<Vec<FileNode>, String> {
 }
 
 #[tauri::command]
-pub fn read_text_file(path: String) -> Result<String, String> {
+pub async fn read_text_file(path: String) -> Result<String, String> {
     let file = File::open(&path).map_err(|e| e.to_string())?;
     let mut reader = BufReader::new(file);
     let mut content = String::new();
@@ -100,7 +100,7 @@ pub async fn create_fs_node(
 }
 
 #[tauri::command]
-pub fn workspace_search(
+pub async fn workspace_search(
     dir_path: String,
     search_term: String,
     on_match: Channel<FileSearchResult>, // Tauri v2 Channel for streaming

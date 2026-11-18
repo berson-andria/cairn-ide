@@ -14,6 +14,7 @@ use super::tree;
 use crate::types::codemap::{
     Extracted, IndexProgress, IndexStats, Link, MissingLanguage, Symbol, TreeNode,
 };
+use tauri_plugin_log::log::info;
 
 /// Source files bigger than this are generated or minified: listed, but not parsed.
 const MAX_PARSE_BYTES: u64 = 1_000_000;
@@ -40,7 +41,9 @@ impl CodeMapService {
         &mut self,
         on_progress: &dyn Fn(IndexProgress),
     ) -> Result<IndexStats, String> {
+        let started = std::time::Instant::now();
         let files = self.collect_files();
+        info!("codemap walk completed in {:?} ({} files)", started.elapsed(), files.len());
         let total = files.len();
         let mut stats = IndexStats {
             scanned: total,
@@ -51,6 +54,7 @@ impl CodeMapService {
         let mut present = HashSet::new();
         let mut extractor = Extractor::new();
 
+        let parse_started = std::time::Instant::now();
         for (i, rel_path) in files.iter().enumerate() {
             if i % 25 == 0 {
                 on_progress(IndexProgress { done: i, total });
@@ -65,6 +69,7 @@ impl CodeMapService {
         stats.removed = self.store.retain_files(&present)?;
         stats.symbols = self.store.symbol_count()?;
         self.store.save()?;
+        info!("codemap parse/index completed in {:?}", parse_started.elapsed());
 
         on_progress(IndexProgress { done: total, total });
         Ok(stats)

@@ -176,9 +176,19 @@ fn run_search(
     Ok(grouped_results)
 }
 #[tauri::command]
-pub fn search_files(
-    root_path: &str,
-    query: &str,
+pub async fn search_files(
+    root_path: String,
+    query: String,
+    excluded_folders: Vec<String>,
+) -> Result<Vec<FileNameSearchResult>, String> {
+    tauri::async_runtime::spawn_blocking(move || search_files_blocking(root_path, query, excluded_folders))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn search_files_blocking(
+    root_path: String,
+    query: String,
     excluded_folders: Vec<String>,
 ) -> Result<Vec<FileNameSearchResult>, String> {
     let base_path = PathBuf::from(root_path);

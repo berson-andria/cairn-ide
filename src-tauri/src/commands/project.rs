@@ -5,7 +5,7 @@ use crate::services::{
 use tauri::{AppHandle, State};
 
 #[tauri::command]
-pub fn project_open(
+pub async fn project_open(
     path: String,
     app: AppHandle,
     state: State<'_, ProjectState>,
@@ -22,7 +22,7 @@ pub fn project_open_impl(
         .map(|p| p.to_string_lossy().into_owned())
 }
 #[tauri::command]
-pub fn project_close(state: State<'_, ProjectState>) -> Result<(), ServiceError> {
+pub async fn project_close(state: State<'_, ProjectState>) -> Result<(), ServiceError> {
     project_close_impl(&state)
 }
 pub fn project_close_impl(state: &ProjectState) -> Result<(), ServiceError> {
