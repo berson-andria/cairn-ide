@@ -4,7 +4,7 @@
 -->
 <header class="title-bar" data-tauri-drag-region>
   <div class="title-bar__start" data-tauri-drag-region>
-    <img src="assets/icon.png" alt="" width="24px" />
+    <!-- <img src="assets/icon.png" alt="" width="24px" /> -->
     <button
       class="title-bar__menu icon-btn"
       type="button"
@@ -105,6 +105,9 @@
         <path d="M6 3l5 5-5 5" />
       </svg>
     </button>
+    <h3 style="margin: 0; margin-left: 1em; text-wrap: nowrap">
+      {{ nodeStore.rootName() | titlecase }}
+    </h3>
   </div>
 
   <button
@@ -214,21 +217,6 @@
 <footer class="status-bar">
   <div class="status-bar__group">
     <div class="git-btn-group">
-      <!-- <button
-        class="status-bar__item status-bar__item--strong"
-        [class.is-active]="layoutService.activeRail() === 'Changes'"
-        type="button"
-        aria-label="Toggle Git Changes"
-        title="Toggle Git Changes"
-        [class.notif]="gitChangesCount() > 0"
-        (click)="layoutService.toggleRailSection('Changes')"
-      >
-        <ng-icon name="lucideGitCommitHorizontal" />
-        @if (gitChangesCount() > 0) {
-          <span>{{ gitChangesCount() }}</span>
-        }
-        <span>Changes</span>
-      </button> -->
       <button
         class="status-bar__item status-bar__item--strong"
         type="button"
@@ -271,7 +259,6 @@
         (click)="toggleToolkit('Git')"
       >
         <ng-icon name="lucideGitGraph" />
-        <span>Graph</span>
       </button>
     </div>
 
