@@ -3,7 +3,6 @@ import { TauriBridgeService } from '../tauri/tauri-bridge.service';
 import { FileNode, Node } from '../../store/node.state';
 import {
   stat,
-  watch,
   writeTextFile,
   rename,
   remove,
@@ -14,42 +13,17 @@ import {
 } from '@tauri-apps/plugin-fs';
 import { ask, message, MessageDialogResult } from '@tauri-apps/plugin-dialog';
 
-export type FileSystemWatcherCallback = (event: {
-  type: 'create' | 'modify' | 'remove' | 'rename' | any;
-  paths: string[];
-}) => void;
-
 @Injectable({
   providedIn: 'root',
 })
 export class FileSystemService {
   tauri = inject(TauriBridgeService);
-  private unwatchFn: (() => void) | null = null;
-
-  async startWorkspaceWatcher(
-    absoluteRootPath: string,
-    onEvent: FileSystemWatcherCallback,
-  ): Promise<void> {
-    if (this.unwatchFn) {
-      this.unwatchFn();
-      this.unwatchFn = null;
-    }
-
-    try {
-      this.unwatchFn = await watch(absoluteRootPath, (event) => onEvent(event as any), {
-        recursive: true,
-        delayMs: 300,
-      });
-    } catch (err) {
-      console.error(`Failed to start the file watcher for path: ${absoluteRootPath}`, err);
-    }
+  startWorkspaceWatcher(absoluteRootPath: string): Promise<void> {
+    return this.tauri.invokeCommand<void>('watch_start', { path: absoluteRootPath });
   }
 
-  stopWorkspaceWatcher(): void {
-    if (this.unwatchFn) {
-      this.unwatchFn();
-      this.unwatchFn = null;
-    }
+  stopWorkspaceWatcher(): Promise<void> {
+    return this.tauri.invokeCommand<void>('watch_stop');
   }
 
   async renamePath(from: string, to: string): Promise<void> {

@@ -461,6 +461,7 @@ dependencies = [
  "ignore",
  "keyring",
  "lazy_static",
+ "notify",
  "portable-pty",
  "rayon",
  "serde",

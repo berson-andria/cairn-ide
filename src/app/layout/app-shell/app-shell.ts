@@ -124,6 +124,7 @@ export class AppShell {
       const root = this.nodeStore.rootPath();
 
       if (root) untracked(() => void this.watcher.start(root));
+      else untracked(() => void this.watcher.stop());
     });
   }
   async ngOnInit() {

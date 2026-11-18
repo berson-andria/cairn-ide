@@ -344,16 +344,20 @@ impl CodeMapService {
 /// The workspace's ignore rules (`.gitignore` and `.git/info/exclude` at the root), read fresh on each call.
 /// Used for watcher paths, which do not go through the walker. Nested `.gitignore` files are not read here.
 impl CodeMapService {
-    fn gitignore(&self) -> Gitignore {
-        let mut builder = GitignoreBuilder::new(&self.root);
-        let _ = builder.add(self.root.join(".gitignore")); // a missing file is fine
-        let _ = builder.add(self.root.join(".git/info/exclude"));
-        builder.build().unwrap_or_else(|_| Gitignore::empty())
+    pub(crate) fn gitignore(&self) -> Gitignore {
+        watcher_ignore(&self.root)
     }
 }
 
+pub(crate) fn watcher_ignore(root: &Path) -> Gitignore {
+    let mut builder = GitignoreBuilder::new(root);
+    let _ = builder.add(root.join(".gitignore")); // a missing file is fine
+    let _ = builder.add(root.join(".git/info/exclude"));
+    builder.build().unwrap_or_else(|_| Gitignore::empty())
+}
+
 /// Same rules as the walk: hidden (a `.something` part anywhere in the path) or matched by the ignore rules.
-fn is_ignored(gitignore: &Gitignore, rel: &Path, is_dir: bool) -> bool {
+pub(crate) fn is_ignored(gitignore: &Gitignore, rel: &Path, is_dir: bool) -> bool {
     rel.components()
         .any(|c| c.as_os_str().to_string_lossy().starts_with('.'))
         || gitignore

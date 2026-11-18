@@ -11,3 +11,4 @@ pub mod pty;
 pub mod search;
 pub mod secrets;
 pub mod tasks;
+pub mod watcher;

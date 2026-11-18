@@ -27,6 +27,7 @@ pub fn run() {
         .manage(commands::lsp::LspState::default())
         .manage(commands::pty::PtyState::default())
         .manage(commands::codemap::CodeMapState::default())
+        .manage(services::watcher::WorkspaceWatcher::default())
         .manage(services::project::ProjectState::default())
         .setup(|app| {
             // Local server that git / ssh questions (password, passphrase, host key) are sent to.
@@ -64,6 +65,8 @@ pub fn run() {
             commands::pty::pty_resize,
             commands::pty::pty_kill,
             commands::codemap::codemap_open,
+            commands::watcher::watch_start,
+            commands::watcher::watch_stop,
             commands::project::project_open,
             commands::project::project_close,
             commands::tasks::task_list,

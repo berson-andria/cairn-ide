@@ -7,6 +7,7 @@ import { NodeStore } from '../../store/node.store';
 import { TabStore } from '../../store/tab.store';
 import { fsEvents$ } from './fs-events';
 import { CodeMapService } from '../codemap/codemap.service';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 
 @Injectable({ providedIn: 'root' })
 export class WorkspaceWatcherService {
@@ -26,16 +27,68 @@ export class WorkspaceWatcherService {
   private codemapReady: Promise<void> = Promise.resolve();
   /** Files with a "reload?" dialog open, so one outside edit asks only once. */
   private readonly openConflicts = new Set<string>();
+  private unlistenChanged?: UnlistenFn;
+  private unlistenError?: UnlistenFn;
+  private startGeneration = 0;
 
   /** Starts watching `rootPath`. If FileSystemService can stop the previous watcher, do that first. */
   async start(rootPath: string): Promise<void> {
-    await this.fileService.startWorkspaceWatcher(rootPath, (event) => this.enqueue(event));
+    const generation = ++this.startGeneration;
+    void this.attachWatcher(rootPath, generation);
     this.codemapReady = this.codemap.open(rootPath).then(
       () => undefined,
       (error) => {
         console.error('Could not open the code map for this workspace:', error);
       },
     );
+  }
+
+  async stop(): Promise<void> {
+    ++this.startGeneration;
+    this.unlistenChanged?.();
+    this.unlistenChanged = undefined;
+    this.unlistenError?.();
+    this.unlistenError = undefined;
+    await this.fileService.stopWorkspaceWatcher().catch((error) => console.error('Could not stop the workspace watcher:', error));
+  }
+
+  private async attachWatcher(rootPath: string, generation: number): Promise<void> {
+    try {
+      const changed = await listen<{ events: { kind: string; paths: string[] }[]; overflow: boolean }>('fs:changed', ({ payload }) => {
+        if (generation !== this.startGeneration) return;
+        if (payload.overflow) {
+          this.enqueueOverflow(rootPath);
+          return;
+        }
+        for (const event of payload.events) {
+          const type = event.kind === 'create' ? { create: { kind: 'any' } }
+            : event.kind === 'remove' ? { remove: { kind: 'any' } }
+              : event.kind === 'modify' ? { modify: { kind: 'data' } }
+                : event.kind === 'rename' ? { modify: { kind: 'rename', mode: event.paths.length > 1 ? 'both' : 'any' } }
+                  : 'other';
+          this.enqueue({ type, paths: event.paths });
+        }
+      });
+      const watchError = await listen<{ message: string }>('fs:watch-error', ({ payload }) => console.error('Workspace watcher error:', payload.message));
+      if (generation !== this.startGeneration) {
+        changed(); watchError(); return;
+      }
+      this.unlistenChanged?.(); this.unlistenError?.();
+      this.unlistenChanged = changed;
+      this.unlistenError = watchError;
+      await this.fileService.startWorkspaceWatcher(rootPath);
+    } catch (error) {
+      console.error(`Failed to start the file watcher for path: ${rootPath}`, error);
+    }
+  }
+
+  private enqueueOverflow(rootPath: string): void {
+    fsEvents$.next();
+    this.queue = this.queue.then(async () => {
+      await this.nodes.loadFolder(rootPath);
+      this.codemapReady = this.codemap.open(rootPath).then(() => undefined, (error) => console.error('Could not reopen the code map after watcher overflow:', error));
+      await this.codemapReady;
+    }).catch((error) => console.error('Filesystem overflow refresh failed:', error));
   }
 
   private enqueue(event: { type: unknown; paths: string[] }) {
@@ -81,6 +134,8 @@ export class WorkspaceWatcherService {
         if (second) await this.onRename(first, second);
         else if (mode === 'from') this.nodes.applyRemoved(first);
         else if (mode === 'to') await this.nodes.applyCreated(first);
+        else if (await this.fileService.pathExists(first)) await this.nodes.applyCreated(first);
+        else this.nodes.applyRemoved(first);
         break;
     }
   }

@@ -5,3 +5,4 @@ pub mod project;
 pub mod service_error;
 pub mod storage;
 pub mod task_service;
+pub mod watcher;
