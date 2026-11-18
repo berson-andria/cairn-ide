@@ -1,87 +1,92 @@
-@if (activeTab()) {
-  <div class="tabs">
-    <div
-      class="opened-tabs"
-      cdkDropList
-      cdkDropListOrientation="horizontal"
-      (cdkDropListDropped)="onTabDrop($event)"
-      #strip
-      [class.is-overflowing]="overflowing()"
-      [class.at-end]="atEnd()"
-      (scroll)="measure()"
-      (wheel)="onTabsWheel($event, strip)"
-    >
-      @for (tab of tabs(); track tab.id) {
-        <div
-          class="editor-tab"
-          [class.tab--active]="tab.active"
-          [class.is-dirty]="tab.dirty"
-          [class.is-diff]="tab.kind === 'diff'"
-          [attr.data-tab-id]="tab.id"
-          cdkDrag
-          cdkDragLockAxis="x"
-          [title]="tab.tooltip"
-          (click)="openTab(tab.id)"
-        >
-          <file-icon [name]="tab.kind === 'diff' ? tab.iconFileName! : tab.label" [type]="'file'" />
-          <span [style.color]="statusStyle(tab)">
-            <span>{{ tab.label }}</span>
-            <span class="git-letter" style="margin-left: var(--space-6)">{{
-              fileBadge(tab)?.letter
-            }}</span>
-          </span>
-          <button class="icon-btn" (click)="$event.stopPropagation(); closeTab(tab.id)">
-            <ng-icon name="lucideX"></ng-icon>
+<div id="main-panel">
+  @if (activeTab()) {
+    <div class="tabs">
+      <div
+        class="opened-tabs"
+        cdkDropList
+        cdkDropListOrientation="horizontal"
+        (cdkDropListDropped)="onTabDrop($event)"
+        #strip
+        [class.is-overflowing]="overflowing()"
+        [class.at-end]="atEnd()"
+        (scroll)="measure()"
+        (wheel)="onTabsWheel($event, strip)"
+      >
+        @for (tab of tabs(); track tab.id) {
+          <div
+            class="editor-tab"
+            [class.tab--active]="tab.active"
+            [class.is-dirty]="tab.dirty"
+            [class.is-diff]="tab.kind === 'diff'"
+            [attr.data-tab-id]="tab.id"
+            cdkDrag
+            cdkDragLockAxis="x"
+            [title]="tab.tooltip"
+            (click)="openTab(tab.id)"
+          >
+            <file-icon
+              [name]="tab.kind === 'diff' ? tab.iconFileName! : tab.label"
+              [type]="'file'"
+            />
+            <span [style.color]="statusStyle(tab)">
+              <span>{{ tab.label }}</span>
+              <span class="git-letter" style="margin-left: var(--space-6)">{{
+                fileBadge(tab)?.letter
+              }}</span>
+            </span>
+            <button class="icon-btn" (click)="$event.stopPropagation(); closeTab(tab.id)">
+              <ng-icon name="lucideX"></ng-icon>
+            </button>
+          </div>
+        }
+      </div>
+      <div class="unsaved-control">
+        @if (dirtyFileCount()) {
+          <button class="icon-btn notif-action" title="Highlight Unsaved Files">
+            <span>{{ dirtyFileCount() }} </span><ng-icon name="lucideFileWarning "></ng-icon>
           </button>
-        </div>
-      }
-    </div>
-    <div class="unsaved-control">
-      @if (dirtyFileCount()) {
-        <button class="icon-btn notif-action" title="Highlight Unsaved Files">
-          <span>{{ dirtyFileCount() }} </span><ng-icon name="lucideFileWarning "></ng-icon>
-        </button>
-      }
+        }
 
-      @if (gitChangesCount() > 0) {
-        <button
-          class="icon-btn notif-action"
-          type="button"
-          aria-label="Open Git"
-          (click)="toggleToolkit('Git')"
-        >
-          <span>{{ gitChangesCount() }}</span>
-          <ng-icon name="lucideGitBranch " />
-        </button>
-      }
+        @if (gitChangesCount() > 0) {
+          <button
+            class="icon-btn notif-action"
+            type="button"
+            aria-label="Open Git"
+            (click)="toggleToolkit('Git')"
+          >
+            <span>{{ gitChangesCount() }}</span>
+            <ng-icon name="lucideGitBranch " />
+          </button>
+        }
+      </div>
     </div>
-  </div>
-}
-<div class="workspace-content">
-  @if (nodeStore.rootPath()) {
-    @if (!activeTab()) {
-      <empty-workspace />
-    } @else {
-      @switch (activeTab()?.kind) {
-        @case ('task') {
-          <app-task-view [taskId]="activeTab()?.id" />
-        }
-        @case ('review') {
-          <p>task review view</p>
-        }
-        @case ('note') {
-          <note-view [noteId]="activeTab()?.id" />
-        }
-        @case ('chat') {
-          <app-chat [chatId]="activeTab()!.id" />
-        }
-        @default {
-          <text-editor />
+  }
+  <div class="workspace-content">
+    @if (nodeStore.rootPath()) {
+      @if (!activeTab()) {
+        <empty-workspace />
+      } @else {
+        @switch (activeTab()?.kind) {
+          @case ('task') {
+            <app-task-view [taskId]="activeTab()?.id" />
+          }
+          @case ('review') {
+            <p>task review view</p>
+          }
+          @case ('note') {
+            <note-view [noteId]="activeTab()?.id" />
+          }
+          @case ('chat') {
+            <app-chat [chatId]="activeTab()!.id" />
+          }
+          @default {
+            <text-editor />
+          }
         }
       }
+    } @else {
+      <no-folder />
     }
-  } @else {
-    <no-folder />
-  }
+  </div>
 </div>
 <bottom-panel id="bottom-panel" />

@@ -17,11 +17,22 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideFiles, lucideListChecks, lucideNotebookPen, lucideGitMerge } from '@ng-icons/lucide';
 import { TabStore } from '../../../core/store/tab.store';
 import { GitService } from '../../../feature/git/services/git.service';
+import { EmptyExplorer } from '../../../feature/explorer/empty-explorer';
+import { NodeStore } from '../../../core/store/node.store';
 
 @Component({
   selector: 'left-panel',
   standalone: true,
-  imports: [ResizeHandle, TaskList, FileTree, NoteList, ReviewList, GitChanges, NgIcon],
+  imports: [
+    ResizeHandle,
+    TaskList,
+    FileTree,
+    NoteList,
+    ReviewList,
+    GitChanges,
+    EmptyExplorer,
+    NgIcon,
+  ],
   templateUrl: './left-panel.html',
   styleUrl: './left-panel.scss',
   providers: [provideIcons({ lucideFiles, lucideGitMerge, lucideListChecks, lucideNotebookPen })],
@@ -32,6 +43,7 @@ import { GitService } from '../../../feature/git/services/git.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LeftPanel {
+  protected readonly nodeStore = inject(NodeStore);
   protected readonly layout = inject(LayoutService);
   protected readonly width = signal<number | null>(null);
   protected readonly minWidth = 200;

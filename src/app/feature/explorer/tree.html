@@ -1,6 +1,6 @@
 <div class="rail-section" [class.rail-section--active]="layoutService.isRailSectionActive('Files')">
-  <div class="rail-section--header">
-    @if (nodeStore.rootName()) {
+  @if (nodeStore.rootName()) {
+    <div class="rail-section--header">
       <span class="rail-section__title"> Explorer </span>
       <div class="btn-group">
         <button class="icon-btn" (click)="$event.stopPropagation(); addNode('file')">
@@ -16,21 +16,19 @@
           <ng-icon name="bootstrapArrowsCollapse" />
         </button>
       </div>
-    }
-  </div>
-  <div class="rail__body">
-    <div
-      class="container"
-      #treeArea
-      tabindex="-1"
-      (click)="handleAreaClick($event, treeArea, placeholder)"
-      (focusin)="keys.setContext('explorerFocus', true)"
-      (focusout)="onFocusOut($event, treeArea)"
-      (dragover)="onRootDragOver($event)"
-      (drop)="onRootDrop($event)"
-    >
-      <div class="content tree-node scrolling-el">
-        @if (nodeStore.rootName()) {
+    </div>
+    <div class="rail__body">
+      <div
+        class="container"
+        #treeArea
+        tabindex="-1"
+        (click)="handleAreaClick($event, treeArea, placeholder)"
+        (focusin)="keys.setContext('explorerFocus', true)"
+        (focusout)="onFocusOut($event, treeArea)"
+        (dragover)="onRootDragOver($event)"
+        (drop)="onRootDrop($event)"
+      >
+        <div class="content tree-node scrolling-el">
           @if (nodeStore.rootInlineCreation() == 'folder') {
             <new-node
               [display]="nodeStore.rootInlineCreation() == 'folder'"
@@ -51,13 +49,9 @@
           @for (child of childFiles(); track child.id) {
             <file-node [nodeId]="child.id" [level]="0"></file-node>
           }
-        } @else {
-          <div class="empty-project">
-            <empty-explorer />
-          </div>
-        }
-        <div class="placeholder" #placeholder></div>
+          <div class="placeholder" #placeholder></div>
+        </div>
       </div>
     </div>
-  </div>
+  }
 </div>

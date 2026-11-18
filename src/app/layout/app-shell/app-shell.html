@@ -2,7 +2,7 @@
   data-tauri-drag-region does not cascade: it is set on the bar and on each
   non-interactive zone/text. Buttons do not carry it, so they stay clickable.
 -->
-<header class="title-bar" data-tauri-drag-region>
+<header class="title-bar" id="app-shell-header" data-tauri-drag-region>
   <div class="title-bar__start" data-tauri-drag-region>
     <!-- <img src="assets/icon.png" alt="" width="24px" /> -->
     <button
@@ -214,54 +214,55 @@
   <main-panel />
 </div>
 
-<footer class="status-bar">
+<footer class="status-bar" id="app-shell-footer">
   <div class="status-bar__group">
-    <div class="git-btn-group">
-      <button
-        class="status-bar__item status-bar__item--strong"
-        type="button"
-        aria-label="Switch Branch"
-        title="Switch Branch"
-        (click)="layoutService.openGitBranch()"
-      >
-        <ng-icon name="lucideGitBranch " />
-        <span>{{ currentBranch() }}</span>
-      </button>
-      @if (needsPublish()) {
+    @if (nodeStore.rootPath()) {
+      <div class="git-btn-group">
         <button
-          class="icon-btn notif"
-          title="Publish branch"
-          aria-label="Publish branch"
-          (click)="publishBranch()"
+          class="status-bar__item status-bar__item--strong"
+          type="button"
+          aria-label="Switch Branch"
+          title="Switch Branch"
+          (click)="layoutService.openGitBranch()"
         >
-          <ng-icon name="lucideCloudUpload" />
+          <ng-icon name="lucideGitBranch " />
+          <span>{{ currentBranch() }}</span>
         </button>
-      }
-      @if (git.status() && (git.status()!.ahead || git.status()!.behind)) {
+        @if (needsPublish()) {
+          <button
+            class="icon-btn notif"
+            title="Publish branch"
+            aria-label="Publish branch"
+            (click)="publishBranch()"
+          >
+            <ng-icon name="lucideCloudUpload" />
+          </button>
+        }
+        @if (git.status() && (git.status()!.ahead || git.status()!.behind)) {
+          <button
+            class="icon-btn notif"
+            title="Sync changes"
+            aria-label="Sync changes"
+            [disabled]="!git.status()?.upstream"
+            (click)="gitClient.sync()"
+          >
+            <ng-icon name="lucideRefreshCcw" />
+            <span class="hint" style="margin-left: var(--space-6)">
+              {{ git.status()!.behind }}↓ {{ git.status()!.ahead }}↑
+            </span>
+          </button>
+        }
         <button
-          class="icon-btn notif"
-          title="Sync changes"
-          aria-label="Sync changes"
-          [disabled]="!git.status()?.upstream"
-          (click)="gitClient.sync()"
+          class="status-bar__item status-bar__item--strong"
+          type="button"
+          aria-label="Open Git Graph"
+          title="Open Git Graph"
+          (click)="toggleToolkit('Git')"
         >
-          <ng-icon name="lucideRefreshCcw" />
-          <span class="hint" style="margin-left: var(--space-6)">
-            {{ git.status()!.behind }}↓ {{ git.status()!.ahead }}↑
-          </span>
+          <ng-icon name="lucideGitGraph" />
         </button>
-      }
-      <button
-        class="status-bar__item status-bar__item--strong"
-        type="button"
-        aria-label="Open Git Graph"
-        title="Open Git Graph"
-        (click)="toggleToolkit('Git')"
-      >
-        <ng-icon name="lucideGitGraph" />
-      </button>
-    </div>
-
+      </div>
+    }
     <button
       class="status-bar_item status-bar__item--strong"
       style="display: flex; align-items: center; gap: var(--space-6)"

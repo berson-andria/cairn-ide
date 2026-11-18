@@ -10,6 +10,7 @@ import { Task } from '../task/task';
 import { TabStore } from '../../../core/store/tab.store';
 import { NewTask } from '../new/new-task';
 import { NodeStore } from '../../../core/store/node.store';
+import { EmptyExplorer } from '../../explorer/empty-explorer';
 
 @Component({
   selector: 'task-list',
@@ -18,24 +19,22 @@ import { NodeStore } from '../../../core/store/node.store';
       class="rail-section"
       [class.rail-section--active]="layoutService.isRailSectionActive('Work')"
     >
-      <div class="rail-section--header" (click)="layoutService.toggleRailSection('Work')">
-        <span class="rail-section__title"> Tasks ● {{ tasks().length }}</span>
-        @if (tasks().length > 0) {
-          <button
-            class="icon-btn"
-            type="button"
-            aria-label="Create new task"
-            title="Create new task"
-            (click)="$event.stopPropagation(); createTask()"
-          >
-            <ng-icon name="lucidePlus" />
-          </button>
-        }
-      </div>
-      <div class="rail__body">
-        @if (!nodeStore.rootPath()) {
-          <div class="empty-state__description">Open a folder to use tasks and notes</div>
-        } @else {
+      @if (nodeStore.rootPath()) {
+        <div class="rail-section--header" (click)="layoutService.toggleRailSection('Work')">
+          <span class="rail-section__title"> Tasks ● {{ tasks().length }}</span>
+          @if (tasks().length > 0) {
+            <button
+              class="icon-btn"
+              type="button"
+              aria-label="Create new task"
+              title="Create new task"
+              (click)="$event.stopPropagation(); createTask()"
+            >
+              <ng-icon name="lucidePlus" />
+            </button>
+          }
+        </div>
+        <div class="rail__body">
           @if (taskService.errors().length) {
             <details class="muted">
               <summary>{{ taskService.errors().length }} files could not be loaded</summary>
@@ -66,13 +65,17 @@ import { NodeStore } from '../../../core/store/node.store';
               }
             </div>
           }
-        }
-      </div>
+        </div>
+      }
     </div>
   `,
   styles: `
     :host {
+      width: 100%;
+      height: 100%;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
     .task-groups {
       flex: 1;

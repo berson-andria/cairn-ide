@@ -14,10 +14,10 @@
   color: var(--color-text-secondary);
   &.collapsed {
     height: 0 !important;
-    width: 0;
-    padding: 0;
-    margin: 0;
-    border: 0;
+    width: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
   }
 }
 .tab {

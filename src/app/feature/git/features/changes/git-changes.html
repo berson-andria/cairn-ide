@@ -1,263 +1,293 @@
 <div class="git-change-container">
-  <div class="header">
-    <div class="title">
-      <span>Changes</span>
-    </div>
-    <div class="btn-group">
-      <button
-        class="icon-btn"
-        title="Open Git Graph"
-        aria-label="Open Git Graph"
-        (click)="toggleToolkit('Git')"
-      >
-        <ng-icon name="lucideGitGraph" />
-      </button>
-      <button
-        class="icon-btn"
-        title="Refresh"
-        aria-label="Refresh source control"
-        (click)="git.refresh()"
-      >
-        <ng-icon name="lucideRotateCcw " />
-      </button>
-      <button
-        class="icon-btn"
-        title="More actions"
-        aria-label="More source control actions"
-        [appMenu]="action"
-        [menuPosition]="['left', 'bottom']"
-      >
-        <ng-icon name="lucideEllipsis" />
-      </button>
-      <ng-template #action>
-        <div class="menu actions-menu" role="menu">
-          @if (conflictFiles().length) {
+  @if (nodeStore.rootPath()) {
+    <div class="header">
+      <div class="title">
+        <span>Changes</span>
+      </div>
+      <div class="btn-group">
+        <button
+          class="icon-btn"
+          title="Open Git Graph"
+          aria-label="Open Git Graph"
+          (click)="toggleToolkit('Git')"
+        >
+          <ng-icon name="lucideGitGraph" />
+        </button>
+        <button
+          class="icon-btn"
+          title="Refresh"
+          aria-label="Refresh source control"
+          (click)="git.refresh()"
+        >
+          <ng-icon name="lucideRotateCcw " />
+        </button>
+        <button
+          class="icon-btn"
+          title="More actions"
+          aria-label="More source control actions"
+          [appMenu]="action"
+          [menuPosition]="['left', 'bottom']"
+        >
+          <ng-icon name="lucideEllipsis" />
+        </button>
+        <ng-template #action>
+          <div class="menu actions-menu" role="menu">
+            @if (conflictFiles().length) {
+              <div class="menu-item-group">
+                <button
+                  class="menu-item menu-btn-danger"
+                  role="menuitem"
+                  (click)="gitClient.abort()"
+                >
+                  Abort merge
+                </button>
+              </div>
+            }
             <div class="menu-item-group">
-              <button class="menu-item menu-btn-danger" role="menuitem" (click)="gitClient.abort()">
-                Abort merge
+              <button class="menu-item" role="menuitem" (click)="pull()">Pull</button>
+              <button class="menu-item" role="menuitem" (click)="gitClient.push()">Push</button>
+              <button class="menu-item" role="menuitem" (click)="gitClient.cloneRepo('')">
+                Clone
+              </button>
+              <button class="menu-item" role="menuitem" (click)="gitClient.checkoutTo()">
+                Checkout to ...
+              </button>
+              <button class="menu-item" role="menuitem" (click)="gitClient.fetch()">Fetch</button>
+            </div>
+            <div class="menu-item-group">
+              <button
+                class="menu-item menu-accordion-btn"
+                [appMenu]="commitMenu"
+                [menuPosition]="['left', 'center']"
+              >
+                <span>Commit</span> <ng-icon name="lucideChevronRight" />
+              </button>
+              <ng-template #commitMenu>
+                <div class="menu">
+                  <div class="menu-item-group">
+                    <button class="menu-item" role="menuitem" (click)="gitClient.commit('staged')">
+                      Commit
+                    </button>
+                    <button class="menu-item" role="menuitem" (click)="gitClient.commit('staged')">
+                      Commit Staged
+                    </button>
+                    <button class="menu-item" role="menuitem" (click)="gitClient.commit('all')">
+                      Commit All
+                    </button>
+                  </div>
+                  <div class="menu-item-group">
+                    <button class="menu-item" role="menuitem" (click)="gitClient.commit('amend')">
+                      Amend Commit
+                    </button>
+                    <button class="menu-item" role="menuitem" (click)="gitClient.undoLastCommit()">
+                      Undo Last Commit
+                    </button>
+                  </div>
+                </div>
+              </ng-template>
+
+              <button
+                class="menu-item menu-accordion-btn"
+                [appMenu]="changes"
+                [menuPosition]="['left', 'center']"
+              >
+                <span>Changes</span> <ng-icon name="lucideChevronRight" />
+              </button>
+              <ng-template #changes>
+                <div class="menu">
+                  <div class="menu-item-group">
+                    <button class="menu-item" role="menuitem" (click)="gitClient.stageAll()">
+                      Stage All
+                    </button>
+                    <button class="menu-item" role="menuitem" (click)="gitClient.unstageAll()">
+                      Unstage All
+                    </button>
+                  </div>
+                  <div class="menu-item-group">
+                    <button
+                      class="menu-item menu-btn-danger"
+                      role="menuitem"
+                      (click)="discardAll()"
+                    >
+                      Discard All changes ...
+                    </button>
+                  </div>
+                </div>
+              </ng-template>
+              <button
+                class="menu-item menu-accordion-btn"
+                [appMenu]="pull_push"
+                [menuPosition]="['left', 'center']"
+              >
+                <span>Pull, Push</span> <ng-icon name="lucideChevronRight" />
+              </button>
+              <ng-template #pull_push>
+                <div class="menu">
+                  <div class="menu-item-group">
+                    <button class="menu-item" role="menuitem" (click)="gitClient.sync()">
+                      Sync
+                    </button>
+                  </div>
+                  <div class="menu-item-group">
+                    <button class="menu-item" role="menuitem" (click)="gitClient.pullFrom()">
+                      Pull From
+                    </button>
+                    <button class="menu-item" role="menuitem" (click)="gitClient.pullRebase()">
+                      Pull (Rebase)
+                    </button>
+                    <button class="menu-item" role="menuitem" (click)="gitClient.pushTo()">
+                      Push to
+                    </button>
+                    <button
+                      class="menu-item"
+                      role="menuitem"
+                      (click)="gitClient.push({ force: true })"
+                    >
+                      Push Force
+                    </button>
+                  </div>
+                </div>
+              </ng-template>
+              <button
+                class="menu-item menu-accordion-btn"
+                [appMenu]="branch"
+                [menuPosition]="['left', 'center']"
+              >
+                <span>Branch</span> <ng-icon name="lucideChevronRight" />
+              </button>
+              <ng-template #branch>
+                <div class="menu">
+                  <div class="menu-item-group">
+                    <button class="menu-item" role="menuitem" (click)="gitClient.mergeBranch()">
+                      Merge Branch
+                    </button>
+                    <button class="menu-item" role="menuitem" (click)="gitClient.rebaseBranch()">
+                      Rebase Branch
+                    </button>
+                  </div>
+                  <div class="menu-item-group">
+                    <button class="menu-item" role="menuitem" (click)="gitClient.createBranch()">
+                      Create Branch...
+                    </button>
+                    <button
+                      class="menu-item"
+                      role="menuitem"
+                      (click)="gitClient.createBranch(true)"
+                    >
+                      Create Branch From...
+                    </button>
+                    <button
+                      class="menu-item"
+                      role="menuitem"
+                      (click)="gitClient.checkoutDetached()"
+                    >
+                      Checkout Detached
+                    </button>
+                  </div>
+                  <div class="menu-item-group">
+                    <button class="menu-item" role="menuitem" (click)="gitClient.renameBranch()">
+                      Rename Branch...
+                    </button>
+                    <button
+                      class="menu-item menu-btn-danger"
+                      role="menuitem"
+                      (click)="gitClient.deleteBranch()"
+                    >
+                      Delete Branch...
+                    </button>
+                    <button
+                      class="menu-item menu-btn-danger"
+                      role="menuitem"
+                      (click)="gitClient.deleteRemoteBranch()"
+                    >
+                      Delete Remote Branch...
+                    </button>
+                  </div>
+                  <div class="menu-item-group">
+                    <button class="menu-item" role="menuitem" (click)="gitClient.publishBranch()">
+                      Publish Branch...
+                    </button>
+                  </div>
+                </div>
+              </ng-template>
+              <button
+                class="menu-item menu-accordion-btn"
+                [appMenu]="stash"
+                [menuPosition]="['left', 'center']"
+              >
+                <span>Stash</span> <ng-icon name="lucideChevronRight" />
+              </button>
+              <ng-template #stash>
+                <div class="menu">
+                  <div class="menu-item-group">
+                    <button class="menu-item" role="menuitem" (click)="gitClient.stash()">
+                      Stash Changes
+                    </button>
+                    <button
+                      class="menu-item"
+                      role="menuitem"
+                      (click)="gitClient.stash('all', true)"
+                    >
+                      Stash Including Untracked
+                    </button>
+                  </div>
+                  <div class="menu-item-group">
+                    <button
+                      class="menu-item"
+                      role="menuitem"
+                      (click)="gitClient.stashLatest('apply')"
+                    >
+                      Apply Latest Stash
+                    </button>
+                    <button
+                      class="menu-item"
+                      role="menuitem"
+                      (click)="gitClient.stashLatest('pop')"
+                    >
+                      Pop Latest Stash
+                    </button>
+                    <button
+                      class="menu-item"
+                      role="menuitem"
+                      (click)="gitClient.stashPick('apply')"
+                    >
+                      Apply Stash...
+                    </button>
+                    <button class="menu-item" role="menuitem" (click)="gitClient.stashPick('pop')">
+                      Pop Stash...
+                    </button>
+                  </div>
+                  <div class="menu-item-group">
+                    <button
+                      class="menu-item menu-btn-danger"
+                      role="menuitem"
+                      (click)="gitClient.stashPick('drop')"
+                    >
+                      Drop Stash...
+                    </button>
+                    <button
+                      class="menu-item menu-btn-danger"
+                      role="menuitem"
+                      (click)="gitClient.dropAllStashes()"
+                    >
+                      Drop All Stashes
+                    </button>
+                  </div>
+                </div>
+              </ng-template>
+            </div>
+            <div class="menu-item-group">
+              <button class="menu-item" role="menuitem" (click)="gitClient.addRemote()">
+                Add Remote
+              </button>
+              <button class="menu-item" role="menuitem" (click)="gitClient.removeRemote()">
+                Remove Remote
               </button>
             </div>
-          }
-          <div class="menu-item-group">
-            <button class="menu-item" role="menuitem" (click)="pull()">Pull</button>
-            <button class="menu-item" role="menuitem" (click)="gitClient.push()">Push</button>
-            <button class="menu-item" role="menuitem" (click)="gitClient.cloneRepo('')">
-              Clone
-            </button>
-            <button class="menu-item" role="menuitem" (click)="gitClient.checkoutTo()">
-              Checkout to ...
-            </button>
-            <button class="menu-item" role="menuitem" (click)="gitClient.fetch()">Fetch</button>
           </div>
-          <div class="menu-item-group">
-            <button
-              class="menu-item menu-accordion-btn"
-              [appMenu]="commitMenu"
-              [menuPosition]="['left', 'center']"
-            >
-              <span>Commit</span> <ng-icon name="lucideChevronRight" />
-            </button>
-            <ng-template #commitMenu>
-              <div class="menu">
-                <div class="menu-item-group">
-                  <button class="menu-item" role="menuitem" (click)="gitClient.commit('staged')">
-                    Commit
-                  </button>
-                  <button class="menu-item" role="menuitem" (click)="gitClient.commit('staged')">
-                    Commit Staged
-                  </button>
-                  <button class="menu-item" role="menuitem" (click)="gitClient.commit('all')">
-                    Commit All
-                  </button>
-                </div>
-                <div class="menu-item-group">
-                  <button class="menu-item" role="menuitem" (click)="gitClient.commit('amend')">
-                    Amend Commit
-                  </button>
-                  <button class="menu-item" role="menuitem" (click)="gitClient.undoLastCommit()">
-                    Undo Last Commit
-                  </button>
-                </div>
-              </div>
-            </ng-template>
-
-            <button
-              class="menu-item menu-accordion-btn"
-              [appMenu]="changes"
-              [menuPosition]="['left', 'center']"
-            >
-              <span>Changes</span> <ng-icon name="lucideChevronRight" />
-            </button>
-            <ng-template #changes>
-              <div class="menu">
-                <div class="menu-item-group">
-                  <button class="menu-item" role="menuitem" (click)="gitClient.stageAll()">
-                    Stage All
-                  </button>
-                  <button class="menu-item" role="menuitem" (click)="gitClient.unstageAll()">
-                    Unstage All
-                  </button>
-                </div>
-                <div class="menu-item-group">
-                  <button class="menu-item menu-btn-danger" role="menuitem" (click)="discardAll()">
-                    Discard All changes ...
-                  </button>
-                </div>
-              </div>
-            </ng-template>
-            <button
-              class="menu-item menu-accordion-btn"
-              [appMenu]="pull_push"
-              [menuPosition]="['left', 'center']"
-            >
-              <span>Pull, Push</span> <ng-icon name="lucideChevronRight" />
-            </button>
-            <ng-template #pull_push>
-              <div class="menu">
-                <div class="menu-item-group">
-                  <button class="menu-item" role="menuitem" (click)="gitClient.sync()">Sync</button>
-                </div>
-                <div class="menu-item-group">
-                  <button class="menu-item" role="menuitem" (click)="gitClient.pullFrom()">
-                    Pull From
-                  </button>
-                  <button class="menu-item" role="menuitem" (click)="gitClient.pullRebase()">
-                    Pull (Rebase)
-                  </button>
-                  <button class="menu-item" role="menuitem" (click)="gitClient.pushTo()">
-                    Push to
-                  </button>
-                  <button
-                    class="menu-item"
-                    role="menuitem"
-                    (click)="gitClient.push({ force: true })"
-                  >
-                    Push Force
-                  </button>
-                </div>
-              </div>
-            </ng-template>
-            <button
-              class="menu-item menu-accordion-btn"
-              [appMenu]="branch"
-              [menuPosition]="['left', 'center']"
-            >
-              <span>Branch</span> <ng-icon name="lucideChevronRight" />
-            </button>
-            <ng-template #branch>
-              <div class="menu">
-                <div class="menu-item-group">
-                  <button class="menu-item" role="menuitem" (click)="gitClient.mergeBranch()">
-                    Merge Branch
-                  </button>
-                  <button class="menu-item" role="menuitem" (click)="gitClient.rebaseBranch()">
-                    Rebase Branch
-                  </button>
-                </div>
-                <div class="menu-item-group">
-                  <button class="menu-item" role="menuitem" (click)="gitClient.createBranch()">
-                    Create Branch...
-                  </button>
-                  <button class="menu-item" role="menuitem" (click)="gitClient.createBranch(true)">
-                    Create Branch From...
-                  </button>
-                  <button class="menu-item" role="menuitem" (click)="gitClient.checkoutDetached()">
-                    Checkout Detached
-                  </button>
-                </div>
-                <div class="menu-item-group">
-                  <button class="menu-item" role="menuitem" (click)="gitClient.renameBranch()">
-                    Rename Branch...
-                  </button>
-                  <button
-                    class="menu-item menu-btn-danger"
-                    role="menuitem"
-                    (click)="gitClient.deleteBranch()"
-                  >
-                    Delete Branch...
-                  </button>
-                  <button
-                    class="menu-item menu-btn-danger"
-                    role="menuitem"
-                    (click)="gitClient.deleteRemoteBranch()"
-                  >
-                    Delete Remote Branch...
-                  </button>
-                </div>
-                <div class="menu-item-group">
-                  <button class="menu-item" role="menuitem" (click)="gitClient.publishBranch()">
-                    Publish Branch...
-                  </button>
-                </div>
-              </div>
-            </ng-template>
-            <button
-              class="menu-item menu-accordion-btn"
-              [appMenu]="stash"
-              [menuPosition]="['left', 'center']"
-            >
-              <span>Stash</span> <ng-icon name="lucideChevronRight" />
-            </button>
-            <ng-template #stash>
-              <div class="menu">
-                <div class="menu-item-group">
-                  <button class="menu-item" role="menuitem" (click)="gitClient.stash()">
-                    Stash Changes
-                  </button>
-                  <button class="menu-item" role="menuitem" (click)="gitClient.stash('all', true)">
-                    Stash Including Untracked
-                  </button>
-                </div>
-                <div class="menu-item-group">
-                  <button
-                    class="menu-item"
-                    role="menuitem"
-                    (click)="gitClient.stashLatest('apply')"
-                  >
-                    Apply Latest Stash
-                  </button>
-                  <button class="menu-item" role="menuitem" (click)="gitClient.stashLatest('pop')">
-                    Pop Latest Stash
-                  </button>
-                  <button class="menu-item" role="menuitem" (click)="gitClient.stashPick('apply')">
-                    Apply Stash...
-                  </button>
-                  <button class="menu-item" role="menuitem" (click)="gitClient.stashPick('pop')">
-                    Pop Stash...
-                  </button>
-                </div>
-                <div class="menu-item-group">
-                  <button
-                    class="menu-item menu-btn-danger"
-                    role="menuitem"
-                    (click)="gitClient.stashPick('drop')"
-                  >
-                    Drop Stash...
-                  </button>
-                  <button
-                    class="menu-item menu-btn-danger"
-                    role="menuitem"
-                    (click)="gitClient.dropAllStashes()"
-                  >
-                    Drop All Stashes
-                  </button>
-                </div>
-              </div>
-            </ng-template>
-          </div>
-          <div class="menu-item-group">
-            <button class="menu-item" role="menuitem" (click)="gitClient.addRemote()">
-              Add Remote
-            </button>
-            <button class="menu-item" role="menuitem" (click)="gitClient.removeRemote()">
-              Remove Remote
-            </button>
-          </div>
-        </div>
-      </ng-template>
+        </ng-template>
+      </div>
     </div>
-  </div>
-  @if (nodeStore.rootPath()) {
     @if (git.isRepo()) {
       <div class="input-container">
         <div class="input-form">
@@ -523,7 +553,5 @@
     } @else {
       <git-no-repository />
     }
-  } @else {
-    <git-no-folder />
   }
 </div>

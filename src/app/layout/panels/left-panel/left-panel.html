@@ -67,21 +67,25 @@
   </button>
 </div>
 <div class="rail-section-container">
-  @switch (layout.activeRail()) {
-    @case ('Files') {
-      <file-tree />
+  @if (nodeStore.rootPath()) {
+    @switch (layout.activeRail()) {
+      @case ('Files') {
+        <file-tree />
+      }
+      @case ('Changes') {
+        <git-changes />
+      }
+      @case ('Work') {
+        <task-list />
+      }
+      @case ('Notes') {
+        <note-list />
+      }
+      @case ('Review') {
+        <review-list />
+      }
     }
-    @case ('Changes') {
-      <git-changes />
-    }
-    @case ('Work') {
-      <task-list />
-    }
-    @case ('Notes') {
-      <note-list />
-    }
-    @case ('Review') {
-      <review-list />
-    }
+  } @else {
+    <empty-explorer />
   }
 </div>

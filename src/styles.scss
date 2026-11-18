@@ -31,17 +31,38 @@ body {
   user-select: none;
 }
 .md-ui {
+  #app-shell {
+    &-header,
+    &-footer {
+      border: none !important;
+    }
+  }
   #left-panel,
-  #bottom-panel {
+  #bottom-panel,
+  #main-panel {
     margin: 1px !important;
-    border-radius: var(--radius-panel) !important;
+    border-radius: var(--radius-control) !important;
     border: 1px solid var(--color-border) !important;
   }
   #left-panel {
-    height: calc(100% - 2px);
+    height: calc(100% - 1px);
+    &.collapsed {
+      height: 0 !important;
+      width: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+    }
   }
   #bottom-panel {
-    width: calc(100% - 2px);
+    width: calc(100% - 1px);
+    &.collapsed {
+      height: 0 !important;
+      width: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+    }
   }
 }
 .file-icon {
