@@ -30,6 +30,8 @@ const ALLOWED_SUBCOMMANDS: &[&str] = &[
     "ls-files",
     "cat-file",
     "check-ref-format", //
+    "symbolic-ref",     // only read-only HEAD / remote HEAD lookups, see `validate`
+    "show-ref",         // only read-only local branch existence checks, see `validate`
     "add",
     "restore",
     "reset",
@@ -47,7 +49,7 @@ const ALLOWED_SUBCOMMANDS: &[&str] = &[
     "init",
     "clone",  //
     "clean",  // only in the exact form `clean -f -- <paths>`, see `validate`
-    "config", // only reading/setting user.name and user.email, see `validate`
+    "config", // only reading init.defaultBranch / user identity and setting identity, see `validate`
     "blame",  // only `blame --porcelain [--contents -] -- <path>`, see `validate`
     "rebase", // only `rebase <branch>` / --abort / --continue / --skip, see `validate`
 ];
@@ -110,19 +112,49 @@ fn validate(args: &[String], stdin: Option<&str>) -> Result<(), String> {
         // Only the author identity may be read or set. Config can name programs git runs
         // (core.sshCommand, aliases, hooks path...), so everything else stays off limits.
         "config" => {
-            let key_ok = |i: usize| {
+            let identity_key_ok = |i: usize| {
                 matches!(
                     args.get(i).map(String::as_str),
                     Some("user.name") | Some("user.email")
                 )
             };
-            let read = args.len() == 3 && args[1] == "--get" && key_ok(2);
+            let read = args.len() == 3
+                && args[1] == "--get"
+                && (identity_key_ok(2)
+                    || args.get(2).map(String::as_str) == Some("init.defaultBranch"));
             let write = args.len() == 4
                 && (args[1] == "--global" || args[1] == "--local")
-                && key_ok(2)
+                && identity_key_ok(2)
                 && !args[3].starts_with('-');
             if !(read || write) {
-                return Err("Only reading or setting user.name and user.email is allowed.".into());
+                return Err(
+                    "Only reading init.defaultBranch or reading/setting user identity is allowed."
+                        .into(),
+                );
+            }
+        }
+        // These are used only to identify the primary branch. Keep their exact read-only
+        // shapes: symbolic-ref also has mutating modes, and arbitrary ref inspection is unnecessary.
+        "symbolic-ref" => {
+            let target = args.get(3).map(String::as_str).unwrap_or("");
+            let allowed_target = target == "HEAD"
+                || (target.starts_with("refs/remotes/") && target.ends_with("/HEAD"));
+            if args.len() != 4 || args[1] != "--quiet" || args[2] != "--short" || !allowed_target {
+                return Err(
+                    "Only read-only symbolic-ref lookups for HEAD or a remote HEAD are allowed."
+                        .into(),
+                );
+            }
+        }
+        "show-ref" => {
+            let target = args.get(4).map(String::as_str).unwrap_or("");
+            if args.len() != 5
+                || args[1] != "--verify"
+                || args[2] != "--quiet"
+                || !target.starts_with("refs/heads/")
+                || target.len() == "refs/heads/".len()
+            {
+                return Err("Only local branch existence checks are allowed.".into());
             }
         }
         // Exactly two shapes. `--contents <file>` would let git read an arbitrary file, so only `--contents -`

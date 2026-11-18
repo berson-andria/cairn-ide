@@ -24,13 +24,13 @@ import {
 import { DiagnosticsService } from '../../../core/services/diagnostics.service';
 import { LayoutService } from '../../../core/services/layout.service';
 import { NodeStore } from '../../../core/store/node.store';
-import { GitGraph } from '../../../feature/git/features/graph/graph';
 import { OutputPanel } from '../../../feature/output/output';
 import { Problems } from '../../../feature/problems/problems';
 import { TerminalService } from '../../../feature/terminal/terminal.service';
 import { ResizeHandle } from '../../../shared/components/resize-handle/resize-handle';
 import { convertToDaysAndHours } from '../../../shared/utils/utils';
 import { Terminal } from '../../../feature/terminal/terminal';
+import { GitGraph } from '../../../feature/git/features/graph/graph';
 
 @Component({
   selector: 'bottom-panel',

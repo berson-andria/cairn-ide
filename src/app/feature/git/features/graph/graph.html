@@ -18,6 +18,23 @@
         <button type="button" class="tool" [disabled]="git.busy()" (click)="fetch()">Fetch</button>
       </div>
 
+      <!-- Debug legend: branch -> color. Remove once the colors are right. -->
+      <div
+        style="
+          display: flex;
+          gap: 10px;
+          padding: var(--space-4) var(--space-8);
+          margin-bottom: var(--space-4);
+          flex-wrap: wrap;
+          font-size: 11px;
+          border-bottom: 1px solid var(--color-border);
+        "
+      >
+        @for (b of legend(); track b.name) {
+          <span><span [style.color]="b.color">●</span> {{ b.name }}</span>
+        }
+      </div>
+
       <div class="body">
         <div class="list">
           @if (uncommitted() > 0 && !filtering()) {
@@ -26,7 +43,9 @@
               <span class="subject">Uncommitted changes</span>
               <span class="muted">{{ uncommitted() }} files</span>
               <span class="grow"></span>
-              <button type="button" class="tool" (click)="openChanges.emit()">Open changes</button>
+              <button type="button" class="tool" (click)="layoutService.toggleGitChange()">
+                Open changes
+              </button>
             </div>
           }
 
@@ -35,7 +54,7 @@
           }
 
           <cdk-virtual-scroll-viewport
-            class="viewport"
+            class="viewport scrolling-el"
             role="listbox"
             aria-label="Commits"
             [itemSize]="rowHeight"
@@ -57,22 +76,29 @@
                   aria-hidden="true"
                 >
                   @for (seg of row.segments; track $index) {
-                    <path [attr.d]="seg.d" [style.stroke]="color(seg.color)" />
+                    <path [attr.d]="seg.d" [style.stroke]="color(seg.branch)" />
                   }
                   <circle
                     [attr.cx]="x(row.col)"
                     [attr.cy]="rowHeight / 2"
                     [attr.r]="isHead(row) ? 5 : 4"
-                    [style.stroke]="color(row.color)"
-                    [style.fill]="row.merge ? 'var(--graph-bg)' : color(row.color)"
+                    [style.stroke]="color(row.branch)"
+                    [style.fill]="row.merge ? 'var(--graph-bg)' : color(row.branch)"
                   />
                 </svg>
               }
               <span class="subject">{{ row.commit.subject }}</span>
               @for (ref of row.commit.refs; track ref.name) {
-                <span class="ref" [attr.data-kind]="ref.kind" [class.current]="ref.current">{{
-                  ref.name
-                }}</span>
+                <span
+                  class="ref"
+                  [attr.data-kind]="ref.kind"
+                  [class.current]="ref.current"
+                  [class.branch]="isBranch(ref) && !row.bare.includes(ref.name)"
+                  [style.--ref-color]="
+                    isBranch(ref) && !row.bare.includes(ref.name) ? color(ref.name) : null
+                  "
+                  >{{ ref.name }}</span
+                >
               }
               <span class="grow"></span>
               <span class="muted author">{{ row.commit.author }}</span>
@@ -90,28 +116,37 @@
 
         @if (selectedCommit(); as c) {
           <aside class="details" aria-label="Commit details">
-            <h3>{{ c.subject }}</h3>
-            <p class="muted">
+            <div class="header">
+              <h3>{{ c.subject }}</h3>
+              <button class="icon-btn" (click)="selected.set(null)">
+                <ng-icon name="lucideX"></ng-icon>
+              </button>
+            </div>
+            <span class="muted">
               <code>{{ c.shortHash }}</code> · {{ c.author }} · {{ ago(c.date) }}
-            </p>
+            </span>
             @if (details(); as d) {
               @if (d.message !== c.subject) {
                 <pre class="message">{{ d.message }}</pre>
               }
               <div class="files-head">{{ d.files.length }} files</div>
-              @for (file of d.files; track file.path) {
-                <button
-                  type="button"
-                  class="file"
-                  (click)="openCommitFile.emit({ hash: c.hash, file })"
-                >
-                  <span class="status">{{ file.status }}</span>
-                  <span class="path">{{ file.path }}</span>
-                  @if (file.origPath) {
-                    <span class="muted">from {{ file.origPath }}</span>
-                  }
-                </button>
-              }
+              <div class="files-list scrolling-el">
+                @for (file of d.files; track file.path) {
+                  <button type="button" class="file" (click)="openDiff(c.hash, file)">
+                    <file-icon [name]="fileName(file.path)" [type]="'file'" class="file-icon" />
+                    <span class="label">
+                      <span class="file-name">{{ fileName(file.path) }}</span>
+                      <span class="file-path">{{ file.path }}</span>
+                      @if (file.origPath) {
+                        <span class="file-path">from {{ file.origPath }}</span>
+                      }
+                    </span>
+                    <span class="status" [style]="statusStyle(statusLetter(file.status))">
+                      {{ statusLetter(file.status) }}
+                    </span>
+                  </button>
+                }
+              </div>
             } @else {
               <p class="muted">Loading files…</p>
             }

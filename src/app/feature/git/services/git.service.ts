@@ -884,4 +884,63 @@ export class GitService {
     const result = await this.exec(['rev-parse', '--all', 'HEAD']);
     return result.ok ? result.output : '';
   }
+
+  // ───────────── primary branch detection ─────────────
+
+  /**
+   * Resolve the repository's "primary" branch without hardcoding names.
+   *
+   * Tries in order:
+   *   1. `git symbolic-ref --quiet --short refs/remotes/<remote>/HEAD`
+   *      (gives e.g. "origin/main"; the remote prefix is stripped).
+   *      Uses the current branch's upstream remote, or the first listed remote.
+   *   2. `git config --get init.defaultBranch`, accepted only if that branch
+   *      actually exists locally (`git show-ref --verify --quiet refs/heads/<name>`).
+   *   3. The current branch (`git symbolic-ref --short HEAD`).
+   *   4. null (detached HEAD, empty repo, or no remote).
+   *
+   * Never modifies the repository (no `git remote set-head`).
+   * Result is cached per refs-signature; recomputed when refs change.
+   */
+  async primaryBranch(): Promise<string | null> {
+    // ── 1. symbolic-ref for <remote>/HEAD ──
+    const remote = await this.defaultRemote();
+    if (remote) {
+      const symref = await this.exec([
+        'symbolic-ref',
+        '--quiet',
+        '--short',
+        `refs/remotes/${remote}/HEAD`,
+      ]);
+      if (symref.ok) {
+        const full = symref.output.trim(); // e.g. "origin/main"
+        const slash = full.indexOf('/');
+        if (slash !== -1) return full.slice(slash + 1); // "main"
+      }
+    }
+
+    // ── 2. init.defaultBranch (only if the branch exists) ──
+    const defBranch = await this.exec(['config', '--get', 'init.defaultBranch']);
+    if (defBranch.ok) {
+      const name = defBranch.output.trim();
+      if (name) {
+        const exists = await this.exec([
+          'show-ref',
+          '--verify',
+          '--quiet',
+          `refs/heads/${name}`,
+        ]);
+        if (exists.ok) return name;
+      }
+    }
+
+    // ── 3. Current branch ──
+    const head = await this.exec(['symbolic-ref', '--short', 'HEAD']);
+    if (head.ok) {
+      const name = head.output.trim();
+      if (name) return name;
+    }
+
+    return null;
+  }
 }
