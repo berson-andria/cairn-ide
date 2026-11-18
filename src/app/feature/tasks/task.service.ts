@@ -1,336 +1,56 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { TaskStore } from '../../core/store/task.store';
+import { WorkApiService, type ApiError } from '../../core/services/tauri/work-api.service';
+import { NoticeManager } from '../../core/services/notification/notification.service';
 
-export type TaskStatus = 'ready' | 'running' | 'blocked' | 'completed';
+export type TaskStatus = 'ready' | 'running' | 'blocked' | 'needs_review' | 'completed' | 'failed';
+export interface TaskAnchor { kind: 'file' | 'function' | 'ast'; path: string; label?: string; lineNumber?: number; }
+export interface SubTask { id: string; title: string; description?: string; status: TaskStatus; createdAt: number; updatedAt?: number; }
+export interface NewSubTask { title: string; description?: string; }
+export interface SubTaskPatch { title?: string; description?: string | null; status?: TaskStatus; }
+export interface NewTask { title: string; description?: string | null; anchor?: TaskAnchor | null; linkedNoteIds?: string[] | null; subTasks?: NewSubTask[] | null; dependsOn?: string | null; acceptanceCriteria?: string | null; branch?: string | null; }
+export interface TaskPatch { title?: string; description?: string | null; }
+export interface TaskItem { id: string; title: string; description?: string; anchor?: TaskAnchor; linkedNoteIds?: string[]; subTasks?: SubTask[]; dependsOn?: string; status: TaskStatus; createdAt: number; updatedAt?: number; acceptanceCriteria?: string; branch?: string; schemaVersion: number; rev: number; }
 
-export interface TaskAnchor {
-  kind: 'file' | 'function' | 'ast';
-  path: string; // file path
-  label?: string; // function or AST symbol name
-  lineNumber?: number; // optional line number for precise location
-}
-
-export interface SubTask {
-  id: string;
-  title: string;
-  description?: string;
-  status: TaskStatus;
-  createdAt: number;
-  updatedAt?: number;
-}
-
-export interface TaskItem {
-  id: string; // UUID generated
-  title: string;
-  description?: string;
-  anchor?: TaskAnchor;
-  linkedNoteIds?: string[];
-  subTasks?: SubTask[];
-  dependsOn?: string; // task ID this task depends on
-  status: TaskStatus;
-  createdAt: number;
-  updatedAt?: number;
-  acceptanceCriteria?: string; // runnable check (test, lint, type check)
-  branch?: string; // git branch if task is being worked on
-}
-
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable({ providedIn: 'root' })
 export class TaskService {
-  private readonly _tasks = signal<TaskItem[]>([]);
-
-  /** Read-only signal access to all tasks */
-  readonly tasks = this._tasks.asReadonly();
-
-  /** The task currently shown by the task workspace. */
-  readonly selectedTaskId = signal<string | null>(this._tasks()[0]?.id ?? null);
-  readonly selectedTask = computed(() => {
-    const id = this.selectedTaskId();
-    return id ? (this.get(id) ?? null) : null;
-  });
-
-  select(id: string | null): void {
-    this.selectedTaskId.set(id && this.get(id) ? id : null);
-  }
-
-  readonly readyTasks = computed(() => this._tasks().filter((t) => t.status === 'ready'));
-
-  readonly runningTasks = computed(() => this._tasks().filter((t) => t.status === 'running'));
-
-  readonly blockedTasks = computed(() => this._tasks().filter((t) => t.status === 'blocked'));
-
-  readonly completedTasks = computed(() => this._tasks().filter((t) => t.status === 'completed'));
-
-  /**
-   * Tasks that have no dependencies or whose dependencies are completed
-   */
-  readonly availableTasks = computed(() =>
-    this._tasks().filter((t) => {
-      if (t.status === 'completed') return false;
-      if (!t.dependsOn) return true;
-      const dependency = this.get(t.dependsOn);
-      return dependency?.status === 'completed';
-    }),
-  );
-
-  /**
-   * Get a single task by ID
-   */
-  get(id: string): TaskItem | undefined {
-    return this._tasks().find((t) => t.id === id);
-  }
-
-  /**
-   * Add a new task
-   */
-  add(data: {
-    title: string;
-    description?: string;
-    anchor?: TaskAnchor;
-    subTasks?: SubTask[];
-    dependsOn?: string;
-    status?: TaskStatus;
-    acceptanceCriteria?: string;
-    branch?: string;
-  }): TaskItem {
-    const newTask: TaskItem = {
-      id: crypto.randomUUID(),
-      title: data.title,
-      description: data.description,
-      anchor: data.anchor,
-      subTasks: data.subTasks,
-      dependsOn: data.dependsOn,
-      status: this._computeInitialStatus(data.status, data.dependsOn),
-      acceptanceCriteria: data.acceptanceCriteria,
-      branch: data.branch,
-      createdAt: Date.now(),
-    };
-    this._tasks.update((list) => [newTask, ...list]);
-    return newTask;
-  }
-
-  /**
-   * Edit an existing task
-   */
-  edit(id: string, updates: Partial<Omit<TaskItem, 'id' | 'createdAt'>>): void {
-    this._tasks.update((list) =>
-      list.map((task) => {
-        if (task.id !== id) return task;
-
-        const updated = { ...task, ...updates, updatedAt: Date.now() };
-
-        // Auto-update status to blocked if dependsOn is set and not completed
-        if (updates.dependsOn !== undefined) {
-          const dep = this.get(updates.dependsOn);
-          if (dep && dep.status !== 'completed') {
-            updated.status = 'blocked';
-          }
-        }
-
-        return updated;
-      }),
-    );
-  }
-
-  /**
-   * Delete a task
-   */
-  delete(id: string): void {
-    const wasSelected = this.selectedTaskId() === id;
-    this._tasks.update((list) => list.filter((t) => t.id !== id));
-    if (wasSelected) this.selectedTaskId.set(this._tasks()[0]?.id ?? null);
-  }
-
-  /**
-   * Set task status
-   */
-  setStatus(id: string, status: TaskStatus): void {
-    this.edit(id, { status });
-
-    // Update dependent tasks when this task completes
-    if (status === 'completed') {
-      this._unblockDependentTasks(id);
-    }
-  }
-
-  /**
-   * Set task anchor
-   */
-  setAnchor(id: string, anchor: TaskAnchor | null): void {
-    this.edit(id, { anchor: anchor ?? undefined });
-  }
-
-  addLinkedNote(id: string, noteId: string): void {
-    const task = this.get(id);
-    if (!task || task.linkedNoteIds?.includes(noteId)) return;
-    this.edit(id, { linkedNoteIds: [...(task.linkedNoteIds ?? []), noteId] });
-  }
-
-  removeLinkedNote(noteId: string): void {
-    this._tasks.update((tasks) => {
-      const now = Date.now();
-      return tasks.map((task) => {
-        if (!task.linkedNoteIds?.includes(noteId)) return task;
-        const linkedNoteIds = task.linkedNoteIds.filter((id) => id !== noteId);
-        return { ...task, linkedNoteIds, updatedAt: now };
-      });
-    });
-  }
-
-  /**
-   * Set task dependency
-   */
-  setDependency(id: string, dependsOn: string | null): void {
-    const task = this.get(id);
-    if (!task) return;
-
-    this.edit(id, { dependsOn: dependsOn ?? undefined });
-
-    // Update status based on dependency
-    if (dependsOn) {
-      const dep = this.get(dependsOn);
-      if (dep && dep.status !== 'completed') {
-        this.setStatus(id, 'blocked');
-      }
-    } else if (task.status === 'blocked') {
-      // Unblock if dependency is removed
-      this.setStatus(id, 'ready');
-    }
-  }
-
-  /**
-   * Add a subtask to an existing task
-   */
-  addSubTask(
-    taskId: string,
-    subTask: {
-      title: string;
-      description?: string;
-      status?: TaskStatus;
-    },
-  ): SubTask | undefined {
-    const task = this.get(taskId);
-    if (!task) return undefined;
-
-    const newSubTask: SubTask = {
-      id: crypto.randomUUID(),
-      title: subTask.title,
-      description: subTask.description,
-      status: subTask.status ?? 'ready',
-      createdAt: Date.now(),
-    };
-
-    const updatedSubTasks = [...(task.subTasks ?? []), newSubTask];
-    this.edit(taskId, { subTasks: updatedSubTasks });
-
-    return newSubTask;
-  }
-
-  /**
-   * Update a subtask
-   */
-  updateSubTask(
-    taskId: string,
-    subTaskId: string,
-    updates: Partial<Omit<SubTask, 'id' | 'createdAt'>>,
-  ): void {
-    const task = this.get(taskId);
-    if (!task?.subTasks) return;
-
-    const updatedSubTasks = task.subTasks.map((st) =>
-      st.id === subTaskId ? { ...st, ...updates, updatedAt: Date.now() } : st,
-    );
-
-    this.edit(taskId, { subTasks: updatedSubTasks });
-  }
-
-  /**
-   * Delete a subtask
-   */
-  deleteSubTask(taskId: string, subTaskId: string): void {
-    const task = this.get(taskId);
-    if (!task?.subTasks) return;
-
-    const updatedSubTasks = task.subTasks.filter((st) => st.id !== subTaskId);
-    this.edit(taskId, { subTasks: updatedSubTasks });
-  }
-
-  /**
-   * Get all tasks that depend on a specific task
-   */
-  getDependentTasks(taskId: string): TaskItem[] {
-    return this._tasks().filter((t) => t.dependsOn === taskId);
-  }
-
-  /**
-   * Check if a task can be started (ready or all dependencies completed)
-   */
-  canStart(id: string): boolean {
-    const task = this.get(id);
-    if (!task || task.status === 'completed') return false;
-
-    if (!task.dependsOn) return true;
-
-    const dep = this.get(task.dependsOn);
-    return dep?.status === 'completed';
-  }
-
-  /**
-   * Start a task (set to running if available)
-   */
-  start(id: string): boolean {
-    if (!this.canStart(id)) return false;
-    this.setStatus(id, 'running');
-    return true;
-  }
-
-  /**
-   * Complete a task
-   */
-  complete(id: string): void {
-    this.setStatus(id, 'completed');
-  }
-
-  /**
-   * Set acceptance criteria for a task
-   */
-  setAcceptanceCriteria(id: string, criteria: string | null): void {
-    this.edit(id, { acceptanceCriteria: criteria ?? undefined });
-  }
-
-  /**
-   * Set branch for a task
-   */
-  setBranch(id: string, branch: string | null): void {
-    this.edit(id, { branch: branch ?? undefined });
-  }
-
-  /**
-   * Private helper to compute initial status based on dependencies
-   */
-  private _computeInitialStatus(
-    requestedStatus: TaskStatus | undefined,
-    dependsOn: string | undefined,
-  ): TaskStatus {
-    if (requestedStatus) return requestedStatus;
-
-    if (dependsOn) {
-      const dep = this.get(dependsOn);
-      return dep?.status === 'completed' ? 'ready' : 'blocked';
-    }
-
-    return 'ready';
-  }
-
-  /**
-   * Private helper to unblock dependent tasks when a task completes
-   */
-  private _unblockDependentTasks(completedTaskId: string): void {
-    const dependents = this.getDependentTasks(completedTaskId);
-    dependents.forEach((task) => {
-      if (task.status === 'blocked') {
-        this.setStatus(task.id, 'ready');
-      }
-    });
-  }
+  private readonly store = inject(TaskStore);
+  private readonly api = inject(WorkApiService);
+  private readonly notices = inject(NoticeManager);
+  readonly records = this.store.records;
+  readonly errors = this.store.errors;
+  readonly loaded = this.store.loaded;
+  readonly tasks = computed(() => Object.values(this.records()));
+  readonly selectedTaskId = signal<string | null>(null);
+  readonly selectedTask = computed(() => this.get(this.selectedTaskId() ?? ''));
+  readonly readyTasks = computed(() => this.tasks().filter(t => t.status === 'ready'));
+  readonly runningTasks = computed(() => this.tasks().filter(t => t.status === 'running'));
+  readonly blockedTasks = computed(() => this.tasks().filter(t => t.status === 'blocked'));
+  readonly completedTasks = computed(() => this.tasks().filter(t => t.status === 'completed'));
+  readonly needsReviewTasks = computed(() => this.tasks().filter(t => t.status === 'needs_review'));
+  readonly failedTasks = computed(() => this.tasks().filter(t => t.status === 'failed'));
+  readonly availableTasks = computed(() => this.tasks().filter(t => t.status !== 'completed' && (!t.dependsOn || this.get(t.dependsOn)?.status === 'completed')));
+  private refreshPromise?: Promise<void>;
+  refresh(): Promise<void> { return this.refreshPromise ??= this.api.taskList().then(r => this.store.replace(r.records, r.errors)).catch(e => this.handleApiError(e as ApiError)).finally(() => this.refreshPromise = undefined); }
+  get(id: string): TaskItem | undefined { return this.records()[id]; }
+  select(id: string | null): void { this.selectedTaskId.set(id && this.get(id) ? id : null); }
+  canStart(id: string): boolean { const t=this.get(id); return !!t && t.status==='ready' && (!t.dependsOn || this.get(t.dependsOn)?.status==='completed'); }
+  getDependentTasks(id: string): TaskItem[] { return this.tasks().filter(t=>t.dependsOn===id); }
+  private async mutate(id: string, run: (rev: number) => Promise<TaskItem>): Promise<TaskItem | undefined> { const current=this.get(id); if(!current) return; try { return await run(current.rev); } catch(e) { await this.handleApiError(e as ApiError, id); return; } }
+  private async handleApiError(error: ApiError, id?: string): Promise<void> { if(error?.code==='StaleRev' && id) { try { this.store.upsert(await this.api.taskGet(id)); } catch {} } if(error?.code==='NoProject') return; this.notices.error(error?.code==='StaleRev' ? 'This changed elsewhere; try again.' : error?.message ?? String(error)); }
+  async add(data: NewTask): Promise<TaskItem | undefined> { try { return await this.api.taskCreate(data); } catch(e) { await this.handleApiError(e as ApiError); return; } }
+  edit(id: string, patch: TaskPatch): Promise<TaskItem | undefined> { return this.mutate(id, rev=>this.api.taskUpdate(id,patch,rev)); }
+  async delete(id: string): Promise<void> { try { await this.api.taskDelete(id); if(this.selectedTaskId()===id) this.select(this.tasks()[0]?.id ?? null); } catch(e) { await this.handleApiError(e as ApiError,id); } }
+  setStatus(id: string,status:TaskStatus):Promise<TaskItem|undefined>{return this.mutate(id,rev=>this.api.taskSetStatus(id,status,rev));}
+  start(id:string):Promise<TaskItem|undefined>{return this.mutate(id,rev=>this.api.taskStart(id,rev));}
+  complete(id:string):Promise<TaskItem|undefined>{return this.mutate(id,rev=>this.api.taskComplete(id,rev));}
+  setAnchor(id:string,anchor:TaskAnchor|null):Promise<TaskItem|undefined>{return this.mutate(id,rev=>this.api.taskSetAnchor(id,anchor,rev));}
+  addLinkedNote(id:string,noteId:string):Promise<TaskItem|undefined>{return this.mutate(id,rev=>this.api.taskLinkNote(id,noteId,rev));}
+  removeLinkedNote(taskId:string,noteId:string):Promise<TaskItem|undefined>{return this.mutate(taskId,rev=>this.api.taskUnlinkNote(taskId,noteId,rev));}
+  setDependency(id:string,dependsOn:string|null):Promise<TaskItem|undefined>{return this.mutate(id,rev=>this.api.taskSetDependency(id,dependsOn,rev));}
+  addSubTask(id:string,subtask:NewSubTask):Promise<TaskItem|undefined>{return this.mutate(id,rev=>this.api.taskAddSubtask(id,subtask,rev));}
+  updateSubTask(id:string,subId:string,patch:SubTaskPatch):Promise<TaskItem|undefined>{return this.mutate(id,rev=>this.api.taskUpdateSubtask(id,subId,patch,rev));}
+  deleteSubTask(id:string,subId:string):Promise<TaskItem|undefined>{return this.mutate(id,rev=>this.api.taskDeleteSubtask(id,subId,rev));}
+  setAcceptanceCriteria(id:string,value:string|null):Promise<TaskItem|undefined>{return this.mutate(id,rev=>this.api.taskSetAcceptanceCriteria(id,value,rev));}
+  setBranch(id:string,value:string|null):Promise<TaskItem|undefined>{return this.mutate(id,rev=>this.api.taskSetBranch(id,value,rev));}
 }

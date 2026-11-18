@@ -46,23 +46,19 @@ export class NewTask {
     if (selected?.kind === 'file') this.anchorPath.set(selected.path);
   }
 
-  createTask(): void {
+  async createTask(): Promise<void> {
     const title = this.title().trim();
     if (!title) return;
-    const task = this.taskService.add({
+    const task = await this.taskService.add({
       title,
       description: this.description().trim() || undefined,
       dependsOn: this.dependsOn() || undefined,
       anchor: this.anchorPath() ? { kind: 'file', path: this.anchorPath() } : undefined,
-      subTasks: this.subtasks().map((subtaskTitle) => ({
-        id: crypto.randomUUID(),
-        title: subtaskTitle,
-        status: 'ready',
-        createdAt: Date.now(),
-      })),
+      subTasks: this.subtasks().map((subtaskTitle) => ({ title: subtaskTitle })),
       acceptanceCriteria: this.acceptanceCriteria().trim() || undefined,
       branch: this.branch().trim() || undefined,
     });
+    if (!task) return;
     this.taskService.select(task.id);
     this.dialogRef?.close(task);
   }

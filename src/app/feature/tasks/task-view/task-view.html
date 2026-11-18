@@ -13,13 +13,13 @@
         <span class="status-pill" [class]="'status-pill status-pill--' + item.status">{{
           statusLabel(item.status)
         }}</span>
-        <span class="muted">›</span><span class="status-pill status-pill--future">Review</span>
-        <span class="muted">›</span><span class="status-pill status-pill--future">Done</span>
         <span class="status-line__action">
           <span class="muted">{{ availabilityLabel(item) }}</span>
-          <button class="btn-action run-button" [disabled]="!canStart()" (click)="startTask()">
-            {{ item.status === 'running' ? 'In progress' : 'Run task' }}
-          </button>
+          @if (item.status === 'ready') { <button class="btn-action run-button" [disabled]="!canStart()" (click)="startTask()">Start</button> }
+          @if (item.status === 'running' || item.status === 'needs_review') { <button class="btn-action run-button" (click)="completeTask()">Mark completed</button> }
+          @if (item.status === 'needs_review') { <button class="btn-action" (click)="setStatus('ready')">Send back</button> }
+          @if (item.status === 'failed') { <button class="btn-action" (click)="setStatus('ready')">Retry</button> }
+          @if (item.status === 'completed') { <button class="btn-action" (click)="setStatus('ready')">Reopen</button> }
         </span>
       </div>
 

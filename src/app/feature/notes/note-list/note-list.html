@@ -11,6 +11,12 @@
     <span class="rail-section__meta rail-section__meta--attention">{{ openCount() }}</span>
   </div>
   <div class="rail__body">
+    @if (!nodeStore.rootPath()) {
+      <div class="empty-state__description">Open a folder to use tasks and notes</div>
+    } @else {
+    @if (noteService.errors().length) {
+      <details class="muted"><summary>{{ noteService.errors().length }} files could not be loaded</summary>@for (error of noteService.errors(); track $index) { <div>{{ error.message }}</div> }</details>
+    }
     <!-- Input for new note -->
     <div class="note-input-wrapper">
       <input
@@ -101,5 +107,6 @@
         </div>
       }
     </div>
+    }
   </div>
 </div>

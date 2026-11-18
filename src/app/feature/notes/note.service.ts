@@ -1,109 +1,35 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject } from '@angular/core';
+import { NoteStore } from '../../core/store/note.store';
+import { WorkApiService, type ApiError } from '../../core/services/tauri/work-api.service';
+import { NoticeManager } from '../../core/services/notification/notification.service';
 
-export interface AstAnchor {
-  kind: 'ast';
-  id?: string;
-  label: string; // AST symbol name, e.g. 'AuthClient.refresh'
-  path: string; // file path for redirection
-  lost?: boolean; // true if the AST anchor was lost
-}
-
+export interface AstAnchor { kind:'ast'; id?:string; label:string; path:string; lost?:boolean; }
 export type NoteAnchor = AstAnchor;
+export type NoteStatus = 'open'|'completed';
+export interface NoteItem { id:string; content:string; type?:string; status:NoteStatus; anchors:NoteAnchor[]; createdAt:number; updatedAt?:number; schemaVersion:number; rev:number; }
+export interface NewNote { content:string; type?:string|null; anchors?:NoteAnchor[]; }
+export interface NotePatch { content?:string; type?:string|null; }
 
-export type NoteStatus = 'open' | 'completed';
-
-export interface NoteItem {
-  id: string;
-  content: string;
-  type?: string; // e.g. 'FEEDBACK', 'QUESTION'
-  status: NoteStatus;
-  anchors: NoteAnchor[];
-  createdAt: number;
-  updatedAt?: number;
-}
-
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable({providedIn:'root'})
 export class NoteService {
-  private readonly _notes = signal<NoteItem[]>([]);
-
-  /** Read-only signal access to all notes */
-  readonly notes = this._notes.asReadonly();
-
-  readonly openNotes = computed(() => this._notes().filter((n) => n.status === 'open'));
-  readonly completedNotes = computed(() => this._notes().filter((n) => n.status === 'completed'));
-  /** Notes without file or symbol anchors; task links live on TaskItem.linkedNoteIds. */
-  readonly inboxNotes = computed(() => this._notes().filter((note) => note.anchors.length === 0));
-
-  get(id: string): NoteItem | undefined {
-    return this._notes().find((n) => n.id === id);
-  }
-
-  add(data: {
-    content: string;
-    type?: string;
-    anchors?: NoteAnchor[];
-    status?: NoteStatus;
-  }): NoteItem {
-    const newNote: NoteItem = {
-      id: String(Date.now()),
-      content: data.content,
-      type: data.type,
-      status: data.status ?? 'open',
-      anchors: data.anchors ?? [],
-      createdAt: Date.now(),
-    };
-    this._notes.update((list) => [newNote, ...list]);
-    return newNote;
-  }
-
-  edit(id: string, updates: Partial<Omit<NoteItem, 'id' | 'createdAt'>>): void {
-    this._notes.update((list) =>
-      list.map((note) => (note.id === id ? { ...note, ...updates, updatedAt: Date.now() } : note)),
-    );
-  }
-
-  delete(id: string): void {
-    this._notes.update((list) => list.filter((n) => n.id !== id));
-  }
-
-  setAnchors(id: string, anchors: NoteAnchor[]): void {
-    this.edit(id, { anchors });
-  }
-
-  setAnchor(id: string, anchor: NoteAnchor | NoteAnchor[] | null): void {
-    if (!anchor) {
-      this.setAnchors(id, []);
-    } else if (Array.isArray(anchor)) {
-      this.setAnchors(id, anchor);
-    } else {
-      this.setAnchors(id, [anchor]);
-    }
-  }
-
-  addAnchor(id: string, anchor: NoteAnchor): void {
-    const note = this.get(id);
-    if (!note) return;
-    this.setAnchors(id, [...note.anchors, anchor]);
-  }
-
-  removeAnchor(id: string, index: number): void {
-    const note = this.get(id);
-    if (!note) return;
-    this.setAnchors(
-      id,
-      note.anchors.filter((_, i) => i !== index),
-    );
-  }
-
-  setStatus(id: string, status: NoteStatus): void {
-    this.edit(id, { status });
-  }
-
-  toggleStatus(id: string): void {
-    const current = this.get(id);
-    if (!current) return;
-    this.setStatus(id, current.status === 'open' ? 'completed' : 'open');
-  }
+  private readonly store=inject(NoteStore); private readonly api=inject(WorkApiService); private readonly notices=inject(NoticeManager);
+  readonly records=this.store.records; readonly errors=this.store.errors; readonly loaded=this.store.loaded;
+  readonly notes=computed(()=>Object.values(this.records()));
+  readonly openNotes=computed(()=>this.notes().filter(n=>n.status==='open'));
+  readonly completedNotes=computed(()=>this.notes().filter(n=>n.status==='completed'));
+  readonly inboxNotes=computed(()=>this.notes().filter(n=>!n.anchors.length));
+  private refreshPromise?:Promise<void>;
+  refresh():Promise<void>{return this.refreshPromise??=this.api.noteList().then(r=>this.store.replace(r.records,r.errors)).catch(e=>this.handleApiError(e)).finally(()=>this.refreshPromise=undefined);}
+  get(id:string):NoteItem|undefined{return this.records()[id];}
+  private async mutate(id:string,run:(rev:number)=>Promise<NoteItem>):Promise<NoteItem|undefined>{const n=this.get(id);if(!n)return;try{return await run(n.rev);}catch(e){await this.handleApiError(e as ApiError,id);return;}}
+  private async handleApiError(error:ApiError,id?:string):Promise<void>{if(error?.code==='StaleRev'&&id){try{this.store.upsert(await this.api.noteGet(id));}catch{}}if(error?.code!=='NoProject')this.notices.error(error?.code==='StaleRev'?'This changed elsewhere; try again.':error?.message??String(error));}
+  async add(data:NewNote):Promise<NoteItem|undefined>{try{return await this.api.noteCreate(data);}catch(e){await this.handleApiError(e as ApiError);return;}}
+  edit(id:string,patch:NotePatch):Promise<NoteItem|undefined>{return this.mutate(id,rev=>this.api.noteUpdate(id,patch,rev));}
+  async delete(id:string):Promise<void>{try{await this.api.noteDelete(id);}catch(e){await this.handleApiError(e as ApiError,id);}}
+  setAnchors(id:string,anchors:NoteAnchor[]):Promise<NoteItem|undefined>{return this.mutate(id,rev=>this.api.noteSetAnchors(id,anchors,rev));}
+  setAnchor(id:string,anchor:NoteAnchor|NoteAnchor[]|null):Promise<NoteItem|undefined>{return this.setAnchors(id,anchor===null?[]:Array.isArray(anchor)?anchor:[anchor]);}
+  async addAnchor(id:string,anchor:NoteAnchor):Promise<NoteItem|undefined>{const n=this.get(id);return n?this.setAnchors(id,[...n.anchors,anchor]):undefined;}
+  async removeAnchor(id:string,index:number):Promise<NoteItem|undefined>{return this.mutate(id,rev=>this.api.noteRemoveAnchor(id,index,rev));}
+  setStatus(id:string,status:NoteStatus):Promise<NoteItem|undefined>{return this.mutate(id,rev=>this.api.noteSetStatus(id,status,rev));}
+  toggleStatus(id:string):Promise<NoteItem|undefined>{return this.mutate(id,rev=>this.api.noteToggleStatus(id,rev));}
 }

@@ -9,6 +9,7 @@ import { TaskService, TaskItem, TaskStatus } from '../task.service';
 import { Task } from '../task/task';
 import { TabStore } from '../../../core/store/tab.store';
 import { NewTask } from '../new/new-task';
+import { NodeStore } from '../../../core/store/node.store';
 
 @Component({
   selector: 'task-list',
@@ -40,6 +41,12 @@ import { NewTask } from '../new/new-task';
         }
       </div>
       <div class="rail__body">
+        @if (!nodeStore.rootPath()) {
+          <div class="empty-state__description">Open a folder to use tasks and notes</div>
+        } @else {
+        @if (taskService.errors().length) {
+          <details class="muted"><summary>{{ taskService.errors().length }} files could not be loaded</summary>@for (error of taskService.errors(); track $index) { <div>{{ error.message }}</div> }</details>
+        }
         @if (tasks().length === 0) {
           <empty-task-list />
         } @else {
@@ -61,6 +68,7 @@ import { NewTask } from '../new/new-task';
               }
             }
           </div>
+        }
         }
       </div>
     </div>
@@ -91,18 +99,21 @@ import { NewTask } from '../new/new-task';
 export class TaskList {
   readonly layoutService = inject(LayoutService);
   private readonly dialogService = inject(DialogService);
-  private readonly taskService = inject(TaskService);
+  readonly taskService = inject(TaskService);
+  readonly nodeStore = inject(NodeStore);
   private readonly tabStore = inject(TabStore);
   readonly tasks = this.taskService.tasks;
   readonly taskSelected = output<TaskItem>();
   readonly selectedTaskId = this.taskService.selectedTaskId;
-  readonly statuses: TaskStatus[] = ['running', 'ready', 'blocked', 'completed'];
+  readonly statuses: TaskStatus[] = ['running', 'ready', 'blocked', 'needs_review', 'failed', 'completed'];
   readonly tasksByStatus = computed(() => {
     const groups: Record<TaskStatus, TaskItem[]> = {
       ready: [],
       running: [],
       blocked: [],
       completed: [],
+      needs_review: [],
+      failed: [],
     };
     for (const item of this.tasks()) groups[item.status].push(item);
     return groups;

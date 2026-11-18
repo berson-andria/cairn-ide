@@ -9,6 +9,7 @@ import { EditorCommands } from '../../editor/editor.commands';
 import { Note } from '../note/note';
 import { NoteAnchor, NoteService } from '../note.service';
 import { TaskService } from '../../tasks/task.service';
+import { NodeStore } from '../../../core/store/node.store';
 
 export type NoteFilter = 'all' | 'open' | 'inbox' | 'completed';
 
@@ -35,6 +36,7 @@ export class NoteList {
   readonly layoutService = inject(LayoutService);
   private readonly tabStore = inject(TabStore, { optional: true });
   private readonly editorCommands = inject(EditorCommands, { optional: true });
+  readonly nodeStore = inject(NodeStore);
 
   readonly activeFilter = signal<NoteFilter>('all');
   readonly selectedNoteId = signal<string>('1');
@@ -96,20 +98,18 @@ export class NoteList {
     this.activeFilter.set(filter);
   }
 
-  addNote(text: string): void {
+  async addNote(text: string): Promise<void> {
     const trimmed = text.trim();
     if (!trimmed) return;
-    const newNote = this.noteService.add({
+    const newNote = await this.noteService.add({
       content: trimmed,
-      status: 'open',
       anchors: [],
     });
-    this.selectedNoteId.set(newNote.id);
+    if (newNote) this.selectedNoteId.set(newNote.id);
   }
 
   deleteNote(id: string): void {
-    this.taskService.removeLinkedNote(id);
-    this.noteService.delete(id);
+    void this.noteService.delete(id);
     this.tabStore?.closeTab(id);
   }
 

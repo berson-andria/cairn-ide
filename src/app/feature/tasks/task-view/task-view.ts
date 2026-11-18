@@ -32,19 +32,29 @@ export class TaskView {
     return this.noteService.notes().filter((note) => ids.includes(note.id));
   });
 
-  updateTitle(title: string): void {
+  async updateTitle(title: string): Promise<void> {
     const task = this.task();
-    if (task && title.trim()) this.taskService.edit(task.id, { title: title.trim() });
+    if (task && title.trim()) await this.taskService.edit(task.id, { title: title.trim() });
   }
 
-  startTask(): void {
+  async startTask(): Promise<void> {
     const task = this.task();
-    if (task) this.taskService.start(task.id);
+    if (task) await this.taskService.start(task.id);
   }
 
-  updateDescription(description: string): void {
+  async setStatus(status: TaskItem['status']): Promise<void> {
     const task = this.task();
-    if (task) this.taskService.edit(task.id, { description });
+    if (task) await this.taskService.setStatus(task.id, status);
+  }
+
+  async completeTask(): Promise<void> {
+    const task = this.task();
+    if (task) await this.taskService.complete(task.id);
+  }
+
+  async updateDescription(description: string): Promise<void> {
+    const task = this.task();
+    if (task) await this.taskService.edit(task.id, { description });
     this.editingDescription.set(false);
   }
 
@@ -54,9 +64,9 @@ export class TaskView {
     const selected = await this.layoutService.openComponent({ kind: 'task', id: task.id });
     if (!selected) return;
     if (selected.kind === 'file') {
-      this.taskService.setAnchor(task.id, { kind: 'file', path: selected.path });
+      await this.taskService.setAnchor(task.id, { kind: 'file', path: selected.path });
     } else if (selected.kind === 'note') {
-      this.taskService.addLinkedNote(task.id, selected.id);
+      await this.taskService.addLinkedNote(task.id, selected.id);
     }
   }
 

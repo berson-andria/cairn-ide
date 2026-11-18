@@ -76,17 +76,17 @@ export class NoteView {
 
   readonly isCompleted = computed(() => this.activeNote()?.status === 'completed');
 
-  onContentChange(newContent: string): void {
+  async onContentChange(newContent: string): Promise<void> {
     const note = this.activeNote();
     if (!note) return;
-    this.noteService.edit(note.id, { content: newContent });
+    await this.noteService.edit(note.id, { content: newContent });
   }
 
-  setKind(kind: 'note' | 'feedback' | 'question'): void {
+  async setKind(kind: 'note' | 'feedback' | 'question'): Promise<void> {
     const note = this.activeNote();
     if (!note) return;
     const type = kind === 'note' ? undefined : kind.toUpperCase();
-    this.noteService.edit(note.id, { type });
+    await this.noteService.edit(note.id, { type });
   }
 
   onAnchorClick(anchor: NoteAnchor): void {
@@ -106,14 +106,15 @@ export class NoteView {
     }
   }
 
-  promoteToTask(): void {
+  async promoteToTask(): Promise<void> {
     const note = this.activeNote();
     if (!note) return;
-    const task = this.taskService.add({
+    const task = await this.taskService.add({
       title: note.content.substring(0, 40) || 'New task from note',
       description: note.content,
     });
-    this.taskService.addLinkedNote(task.id, note.id);
+    if (!task) return;
+    await this.taskService.addLinkedNote(task.id, note.id);
     this.tabStore?.openTask(task.id, task.title, task.id);
   }
 
@@ -125,26 +126,25 @@ export class NoteView {
 
     if (selected.kind === 'file') {
       const anchor: AstAnchor = { kind: 'ast', path: selected.path, label: selected.path.split(/[\\/]/).pop() ?? selected.path };
-      this.noteService.addAnchor(note.id, anchor);
+      await this.noteService.addAnchor(note.id, anchor);
     } else if (selected.kind === 'task') {
       const task = this.taskService.get(selected.id);
       if (!task) return;
-      this.taskService.addLinkedNote(task.id, note.id);
+      await this.taskService.addLinkedNote(task.id, note.id);
     }
   }
 
-  toggleResolve(): void {
+  async toggleResolve(): Promise<void> {
     const note = this.activeNote();
     if (!note) return;
-    this.noteService.toggleStatus(note.id);
+    await this.noteService.toggleStatus(note.id);
   }
 
-  deleteNote(): void {
+  async deleteNote(): Promise<void> {
     const note = this.activeNote();
     if (!note) return;
     const id = note.id;
-    this.taskService.removeLinkedNote(id);
-    this.noteService.delete(id);
+    await this.noteService.delete(id);
     if (this.tabStore) {
       this.tabStore.closeTab(id);
     }
