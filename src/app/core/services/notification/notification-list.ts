@@ -7,7 +7,7 @@ import { NoticeManager } from './notification.service';
  * and every report() anywhere in the app lands in the same list.
  */
 @Component({
-  selector: 'app-notice-list',
+  selector: 'notice-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     :host {

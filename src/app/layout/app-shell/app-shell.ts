@@ -47,11 +47,12 @@ import { Tab, TabStore } from '../../core/store/tab.store';
 import { GitClient } from '../../feature/git/services/git-client.service';
 import { ChatService } from '../../feature/chat/chat.service';
 import { ChatHistory } from '../../feature/chat/component/history/chat-history';
+import { NoticeList } from '../../core/services/notification/notification-list';
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [LeftPanel, MainPanel, ChatHistory, NgIcon, CommonModule, MenuDirective],
+  imports: [LeftPanel, MainPanel, ChatHistory, NgIcon, CommonModule, MenuDirective, NoticeList],
   templateUrl: './app-shell.html',
   styleUrl: './app-shell.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
