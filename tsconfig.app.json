@@ -8,4 +8,5 @@
     "types": []
   },
   "include": ["src/**/*.ts", "src/**/*.json"],
+  "exclude": ["src/**/*.spec.ts"]
 }
