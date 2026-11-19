@@ -26,14 +26,13 @@ import { KeybindingService } from '../../core/services/command/keybinding.servic
 import { InlineCreationMode } from '../../core/store/node.state';
 import { NodeStore } from '../../core/store/node.store';
 import { EditorCommands } from '../editor/editor.commands';
-import { EmptyExplorer } from './empty-explorer';
 import { LayoutService } from '../../core/services/layout.service';
 
 @Component({
   selector: 'file-tree',
   templateUrl: './tree.html',
   styleUrl: './tree.scss',
-  imports: [FileNode, FolderNode, EmptyExplorer, NewNode, CommonModule, NgIcon, CommonModule],
+  imports: [FileNode, FolderNode, NewNode, CommonModule, NgIcon, CommonModule],
   providers: [
     provideIcons({
       lucideFilePlus2,

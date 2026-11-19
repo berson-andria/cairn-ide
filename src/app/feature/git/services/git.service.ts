@@ -22,6 +22,7 @@ import {
   parseCommitDetails,
   parseGraphLog,
   parseLog,
+  parseStashFiles,
   parseStashes,
   STASH_FORMAT,
 } from '../parser/log.parser';
@@ -51,7 +52,7 @@ export interface GitIdentity {
   name: string;
   email: string;
 }
-export type StashScope = 'all' | 'staged' | 'unstaged';
+export type StashScope = 'all' | 'staged';
 
 export const ok = (output = ''): GitResult => ({ ok: true, output, error: '' });
 export const fail = (error: string): GitResult => ({ ok: false, output: '', error });
@@ -72,7 +73,7 @@ export interface GitBadge {
   staged: boolean;
 }
 
-const LETTERS: Record<GitChangeKind, string> = {
+export const LETTERS: Record<GitChangeKind, string> = {
   modified: 'M',
   added: 'A',
   deleted: 'D',
@@ -732,19 +733,24 @@ export class GitService {
   }
 
   // ───────────── stash ─────────────
+  // ───────────── stash ─────────────
 
-  /** Includes untracked files, so the working tree really ends up clean. */
   async stash(
-    message = '',
-    scope: StashScope = 'all',
-    includeUntracked = false,
+    opts: {
+      message?: string;
+      scope?: StashScope;
+      includeUntracked?: boolean;
+      keepIndex?: boolean;
+    } = {},
   ): Promise<GitResult> {
+    const { message = '', scope = 'all', includeUntracked = false, keepIndex = false } = opts;
     const args = ['stash', 'push'];
-    if (scope === 'staged') args.push('--staged'); // only what is in the index
-    if (scope === 'unstaged') args.push('--keep-index'); // see the note on unstaged below
-    // new untracked files count as unstaged changes; --staged can't be combined with them
-    if (scope !== 'staged' && (includeUntracked || scope === 'unstaged'))
-      args.push('--include-untracked');
+    if (scope === 'staged') {
+      args.push('--staged'); // can't be combined with --include-untracked or --keep-index
+    } else {
+      if (includeUntracked) args.push('--include-untracked');
+      if (keepIndex) args.push('--keep-index');
+    }
     if (message.trim()) args.push('-m', message.trim());
 
     const result = await this.mutate(args);
@@ -758,19 +764,37 @@ export class GitService {
     return result.ok ? parseStashes(result.output) : [];
   }
 
+  /** `stash show` accepts the commit hash directly, so no index lookup is needed. */
+  async stashFiles(hash: string): Promise<CommitFile[]> {
+    if (!/^[0-9a-f]{40,64}$/i.test(hash)) return [];
+    const base = ['stash', 'show', '--name-status', '-z'];
+    let result = await this.exec([...base, '--include-untracked', hash]);
+    if (!result.ok) result = await this.exec([...base, hash]); // Git < 2.32
+    return result.ok ? parseStashFiles(result.output) : [];
+  }
+
   /** Apply and remove. If applying conflicts, git keeps the stash so nothing is lost. */
-  stashPop(index = 0): Promise<GitResult> {
-    return this.mutate(['stash', 'pop', `stash@{${index}}`]);
+  stashPop(hash: string): Promise<GitResult> {
+    return this.stashRun('pop', hash);
   }
 
-  stashApply(index = 0): Promise<GitResult> {
-    return this.mutate(['stash', 'apply', `stash@{${index}}`]);
+  stashApply(hash: string): Promise<GitResult> {
+    return this.stashRun('apply', hash);
   }
 
-  stashDrop(index = 0): Promise<GitResult> {
-    return this.mutate(['stash', 'drop', `stash@{${index}}`]);
+  stashDrop(hash: string): Promise<GitResult> {
+    return this.stashRun('drop', hash);
   }
 
+  /**
+   * pop and drop only accept a stash@{n} ref, and n shifts whenever a stash is pushed or
+   * dropped (also from a terminal). So the hash is turned into today's ref right before running.
+   */
+  private async stashRun(verb: 'pop' | 'apply' | 'drop', hash: string): Promise<GitResult> {
+    const ref = (await this.stashes()).find((s) => s.hash === hash)?.ref;
+    if (!ref) return fail('That stash no longer exists. Refresh the list.');
+    return this.mutate(['stash', verb, ref]);
+  }
   // ───────────── repositories ─────────────
 
   /** Turns the open folder into a repository. */
@@ -924,12 +948,7 @@ export class GitService {
     if (defBranch.ok) {
       const name = defBranch.output.trim();
       if (name) {
-        const exists = await this.exec([
-          'show-ref',
-          '--verify',
-          '--quiet',
-          `refs/heads/${name}`,
-        ]);
+        const exists = await this.exec(['show-ref', '--verify', '--quiet', `refs/heads/${name}`]);
         if (exists.ok) return name;
       }
     }

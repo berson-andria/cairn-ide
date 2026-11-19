@@ -49,17 +49,32 @@ async function switchWith(
 ): Promise<GitResult> {
   if (strategy === 'force') return ctx.git.switchTo(branch, { force: true });
 
-  const before = (await ctx.git.stashes()).length;
-  const stashed = await ctx.git.stash(`Auto-stash before switching to ${branch.name}`, 'all', true);
+  const before = new Set((await ctx.git.stashes()).map((s) => s.hash));
+  const stashed = await ctx.git.stash({
+    message: `Auto-stash before switching to ${branch.name}`,
+    scope: 'all',
+    includeUntracked: true,
+  });
   if (!stashed.ok) return stashed;
-  const created = (await ctx.git.stashes()).length > before; // "No local changes to save" also succeeds
+  // "No local changes to save" also succeeds, so look for a stash that wasn't there before.
+  const created = (await ctx.git.stashes()).find((s) => !before.has(s.hash));
 
   const switched = await ctx.git.switchTo(branch);
   if (!switched.ok) {
-    if (created) await ctx.git.stashPop(0); // put everything back
+    if (created) {
+      const restored = await ctx.git.stashPop(created.hash); // put everything back
+      if (!restored.ok) {
+        return {
+          ...switched,
+          error:
+            `${switched.error}\n\nYour changes are safe in the stash "${created.message}", ` +
+            `but putting them back failed: ${restored.error}`,
+        };
+      }
+    }
     return switched;
   }
-  return strategy === 'migrate' && created ? ctx.git.stashPop(0) : switched;
+  return strategy === 'migrate' && created ? ctx.git.stashPop(created.hash) : switched;
 }
 
 export async function checkoutToPipeline(ctx: GitPipelineContext): Promise<void> {

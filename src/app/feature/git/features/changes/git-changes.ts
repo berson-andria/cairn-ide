@@ -1,9 +1,10 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { GitService } from '../../services/git.service';
 import { GitDiffService } from '../../services/git-diff.service';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideArchive,
   lucideArrowUp,
   lucideChevronDown,
   lucideChevronRight,
@@ -15,7 +16,6 @@ import {
   lucidePlus,
   lucideRotateCcw,
   lucideUndo,
-  lucideX,
 } from '@ng-icons/lucide';
 import { MenuDirective } from '../../../../shared/directives/menu.directive';
 import { EditorCommands } from '../../../editor/editor.commands';
@@ -23,17 +23,18 @@ import { GitUiFile, sideLetter, statusLabel, statusStyle } from '../../ui/git-ui
 import { getFileNameFromPath } from '../../../../shared/utils/node.utils';
 import { FileIcon } from '../../../../shared/components/file-icon';
 import { NodeStore } from '../../../../core/store/node.store';
-import { NoOpenFolder } from '../no-git/no-git-folder';
 import { NoRepository } from '../no-git/no-repository';
 import { LayoutService, Toolkit } from '../../../../core/services/layout.service';
 import { GitClient } from '../../services/git-client.service';
 import { CommitMode } from '../../client/commit.pipeline';
+import { GitStash } from '../../parser/log.parser';
+import { Stash } from '../stash/stash';
 
 @Component({
   selector: 'git-changes',
   templateUrl: './git-changes.html',
   styleUrl: './git-changes.scss',
-  imports: [FormsModule, NgIcon, MenuDirective, FileIcon, NoOpenFolder, NoRepository],
+  imports: [FormsModule, NgIcon, MenuDirective, FileIcon, NoRepository, Stash],
   providers: [
     provideIcons({
       lucideFileSymlink,
@@ -47,7 +48,7 @@ import { CommitMode } from '../../client/commit.pipeline';
       lucideChevronDown,
       lucideChevronRight,
       lucideGitGraph,
-      lucideX,
+      lucideArchive,
     }),
   ],
   standalone: true,
@@ -60,22 +61,31 @@ export class GitChanges {
   private readonly gitDiff = inject(GitDiffService);
   protected editorCommand = inject(EditorCommands);
 
+  protected readonly focusSection = signal<'changes' | 'stash' | null>('changes');
+
+  readonly stashList = signal<GitStash[]>([]);
+  readonly displayedSatshes = computed(() => {
+    return this.stashMessageFilter().trim().length
+      ? this.stashList().filter((stash) => stash.message.includes(this.stashMessageFilter()))
+      : this.stashList();
+  });
+
   // ───────────── what the template shows ─────────────
-  branchName = computed(() => {
+  protected branchName = computed(() => {
     const status = this.git.status();
     return status?.branch ?? (status?.detached ? 'detached HEAD' : 'no branch');
   });
 
-  ahead = computed(() => this.git.status()?.ahead ?? 0);
-  behind = computed(() => this.git.status()?.behind ?? 0);
-  hasUpstream = computed(() => !!this.git.status()?.upstream);
+  protected ahead = computed(() => this.git.status()?.ahead ?? 0);
+  protected behind = computed(() => this.git.status()?.behind ?? 0);
+  protected hasUpstream = computed(() => !!this.git.status()?.upstream);
 
-  stagedFiles = computed<GitUiFile[]>(() =>
+  protected stagedFiles = computed<GitUiFile[]>(() =>
     this.git
       .staged()
       .map((f) => ({ path: f.path, status: sideLetter(f.index), source: f, mode: 'staged' })),
   );
-  changedFiles = computed<GitUiFile[]>(() => {
+  protected changedFiles = computed<GitUiFile[]>(() => {
     return this.git.unstaged().map((f) => ({
       path: f.path,
       status: f.kind === 'untracked' ? 'U' : sideLetter(f.worktree),
@@ -83,10 +93,10 @@ export class GitChanges {
       mode: 'unstaged',
     }));
   });
-  conflictFiles = computed<GitUiFile[]>(() =>
+  protected conflictFiles = computed<GitUiFile[]>(() =>
     this.git.conflicts().map((f) => ({ path: f.path, status: '!', source: f, mode: 'unstaged' })),
   );
-  gitChangesCount = computed(() => {
+  protected gitChangesCount = computed(() => {
     const staged = this.git.staged();
     const unstaged = this.git.unstaged();
     return staged.length + unstaged.length;
@@ -94,12 +104,35 @@ export class GitChanges {
 
   readonly hasChanges = computed(() => this.stagedFiles().length + this.changedFiles().length > 0);
 
-  commitMessage = signal('');
-  stagedExpanded = true;
-  changesExpanded = true;
+  protected commitMessage = signal('');
+  protected stashMessageFilter = signal('');
+  protected stagedExpanded = true;
+  protected changesExpanded = true;
 
-  stagedOpen = true;
-  ChangesOpen = true;
+  protected stagedOpen = true;
+  protected ChangesOpen = true;
+
+  statusLabel = statusLabel;
+  statusClass = statusStyle;
+  getFileNameFromPath = getFileNameFromPath;
+
+  constructor() {
+    void this.loadStashes();
+  }
+
+  async loadStashes(): Promise<void> {
+    this.stashList.set(await this.git.stashes());
+  }
+
+  async filesInStash(stash: GitStash) {
+    return await this.git.stashFiles(stash.hash);
+  }
+
+  toggleFocusSection(section: 'changes' | 'stash') {
+    this.focusSection.update((v) => {
+      return v === section ? null : section;
+    });
+  }
 
   protected toggleToolkit(toolkit: Toolkit) {
     if (this.layout.activeToolkit() === toolkit) {
@@ -186,8 +219,4 @@ export class GitChanges {
   async pull() {
     await this.gitClient.pull();
   }
-
-  statusLabel = statusLabel;
-  statusClass = statusStyle;
-  getFileNameFromPath = getFileNameFromPath;
 }

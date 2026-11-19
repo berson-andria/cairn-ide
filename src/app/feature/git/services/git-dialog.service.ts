@@ -53,7 +53,9 @@ export class GitDialogService {
 
   // ───────────── presets: the menu items, one line each ─────────────
 
-  async cloneRepo(defaultDirectory: string): Promise<{ url: string; directory: string } | undefined> {
+  async cloneRepo(
+    defaultDirectory: string,
+  ): Promise<{ url: string; directory: string } | undefined> {
     const r = await this.form('Clone repository', {
       fields: [
         { key: 'url', label: 'Repository URL', placeholder: 'https://github.com/owner/repo.git' },
@@ -86,19 +88,21 @@ export class GitDialogService {
     return r?.['message'];
   }
 
-  async stashMessage(scope: StashScope = 'all', includeUntracked = false): Promise<string | undefined> {
-    const titles = {
+  async stashMessage(
+    scope: StashScope = 'all',
+    includeUntracked = false,
+    keepIndex = false,
+  ): Promise<string | undefined> {
+    const titles: Record<StashScope, string> = {
       all: 'Stash changes',
       staged: 'Stash staged changes',
-      unstaged: 'Stash unstaged changes',
     };
     const r = await this.form(
       includeUntracked && scope === 'all' ? 'Stash including untracked' : titles[scope],
       {
-        message:
-          scope === 'unstaged'
-            ? 'Your staged changes stay in place. The stash also holds a copy of them, so commit them before applying it back.'
-            : undefined,
+        message: keepIndex
+          ? 'Your staged changes stay in place. The stash also holds a copy of them, so commit them before applying it back.'
+          : undefined,
         fields: [{ key: 'message', label: 'Message (optional)', optional: true }],
         submitLabel: 'Stash',
       },
@@ -118,7 +122,11 @@ export class GitDialogService {
       initial: 'save',
       options: [
         { value: 'save', label: `Save All & ${Verb}` },
-        { value: 'skip', label: `${Verb} Without Saving`, hint: 'unsaved edits stay in the editor' },
+        {
+          value: 'skip',
+          label: `${Verb} Without Saving`,
+          hint: 'unsaved edits stay in the editor',
+        },
       ],
     })) as 'save' | 'skip' | undefined;
   }
@@ -136,7 +144,12 @@ export class GitDialogService {
     const r = await this.form(title, {
       message: options.message,
       fields: [
-        { key: 'name', label: 'Branch name', value: options.initial ?? '', validate: options.validate },
+        {
+          key: 'name',
+          label: 'Branch name',
+          value: options.initial ?? '',
+          validate: options.validate,
+        },
       ],
       submitLabel,
     });
@@ -194,7 +207,11 @@ export class GitDialogService {
 
   // ───────────── internals ─────────────
 
-  private async open<R>(component: Type<unknown>, title: string, data: unknown): Promise<R | undefined> {
+  private async open<R>(
+    component: Type<unknown>,
+    title: string,
+    data: unknown,
+  ): Promise<R | undefined> {
     const ref = this.dialog.open(component as any, { title, data });
     return (await firstValueFrom(ref.closed, { defaultValue: undefined })) as R | undefined;
   }

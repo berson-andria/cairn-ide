@@ -55,5 +55,5 @@ const COLORS: Record<GitUiStatus, { background: string; color: string }> = {
  * (This replaces `statusClass`, which returned a half-built CSS string that only worked when concatenated
  * into a style attribute, and had no entry for conflicts.)
  */
-export const statusStyle = (status: GitUiStatus): { background: string; color: string } =>
+export const statusStyle = (status: GitUiStatus | string): { background: string; color: string } =>
   COLORS[status] ?? COLORS.M;

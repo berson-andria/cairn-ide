@@ -27,25 +27,72 @@ export function parseLog(stdout: string): GitCommit[] {
 
 export interface GitStash {
   index: number;
-  /** "stash@{0}" */
+  /** "stash@{0}". Shifts whenever a stash is pushed or dropped. */
   ref: string;
+  /** Commit hash. This is the stable identity. */
+  hash: string;
+  /** Branch it was made on; null when detached. */
+  branch: string | null;
+  /** Message without the "On dev: " / "WIP on dev: " prefix. */
   message: string;
-  /** "3 hours ago" */
+  /** True for git's own "WIP on dev: abc1234 subject" message. */
+  auto: boolean;
+  /** Unix seconds. */
+  timestamp: number;
+  /** "3 hours ago" (drop later, format `timestamp` in the UI) */
   age: string;
 }
 
-export const STASH_FORMAT = '--format=%gd%x00%gs%x00%cr';
+export const STASH_FORMAT = '--format=%gd%x00%H%x00%gs%x00%ct%x00%cr';
+
+const STASH_SUBJECT = /^(WIP on|On) (\(no branch\)|[^:\s]+): (.*)$/;
 
 export function parseStashes(stdout: string): GitStash[] {
   const stashes: GitStash[] = [];
   for (const line of stdout.split(/\r?\n/)) {
     if (!line) continue;
-    const [ref, message, age] = line.split('\0');
-    const index = /stash@\{(\d+)\}/.exec(ref ?? '')?.[1];
+    const [ref = '', hash = '', subject = '', ct = '', age = ''] = line.split('\0');
+    const index = /^stash@\{(\d+)\}$/.exec(ref)?.[1];
     if (index === undefined) continue;
-    stashes.push({ index: Number(index), ref, message: message ?? '', age: age ?? '' });
+
+    const m = STASH_SUBJECT.exec(subject);
+    stashes.push({
+      index: Number(index),
+      ref,
+      hash,
+      branch: m && m[2] !== '(no branch)' ? m[2] : null,
+      message: m ? m[3] : subject,
+      auto: m?.[1] === 'WIP on',
+      timestamp: Number(ct) || 0,
+      age,
+    });
   }
   return stashes;
+}
+
+/** Parses `git stash show --name-status -z` output. */
+export function parseStashFiles(stdout: string): CommitFile[] {
+  const tokens = stdout.split('\0').filter(Boolean);
+  const files: CommitFile[] = [];
+  for (let i = 0; i < tokens.length; ) {
+    const letter = tokens[i]?.[0] ?? '';
+    const status = KIND_BY_LETTER[letter];
+    if (!status) {
+      i++;
+      continue;
+    }
+    if (letter === 'R' || letter === 'C') {
+      const origPath = tokens[i + 1];
+      const path = tokens[i + 2];
+      if (path !== undefined) files.push({ status, path, origPath });
+      i += 3;
+    } else {
+      const path = tokens[i + 1];
+      if (path !== undefined) files.push({ status, path });
+      i += 2;
+    }
+  }
+  return files;
 }
 
 // ───────────── commit details ─────────────

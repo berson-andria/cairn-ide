@@ -13,6 +13,8 @@ import {
   stashLatestPipeline,
   stashPickPipeline,
   dropAllStashesPipeline,
+  StashOptions,
+  stashActPipeline,
 } from '../client/stash.pipeline';
 import {
   switchToPipeline,
@@ -42,6 +44,7 @@ import {
 } from '../client/remote.pipeline';
 import { GitFileStatus } from '../parser/status.parser';
 import { NoticeManager } from '../../../core/services/notification/notification.service';
+import { GitStash } from '../parser/log.parser';
 
 /**
  * The ONLY git-related service a component injects for ACTIONS (commit, stash, branch, remote...).
@@ -71,8 +74,11 @@ export class GitClient {
   commit(mode: CommitMode, draft = ''): Promise<boolean> {
     return commitPipeline(this.ctx, mode, draft);
   }
-  stash(scope: StashScope = 'all', includeUntracked = false): Promise<boolean> {
-    return stashPipeline(this.ctx, scope, includeUntracked);
+  stash(options: StashOptions = {}): Promise<boolean> {
+    return stashPipeline(this.ctx, options);
+  }
+  stashAct(action: 'apply' | 'pop' | 'drop', stash: GitStash): Promise<boolean> {
+    return stashActPipeline(this.ctx, action, stash);
   }
   stashLatest(action: 'apply' | 'pop'): Promise<boolean> {
     return stashLatestPipeline(this.ctx, action);
