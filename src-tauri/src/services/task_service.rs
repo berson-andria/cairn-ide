@@ -66,6 +66,9 @@ pub struct TaskService {
     sink: Box<dyn EventSink>,
 }
 impl TaskService {
+    pub(crate) fn sink_project_reload(&self) {
+        self.sink.emit(ChangeEvent::ProjectReloaded);
+    }
     pub fn new(
         root: impl AsRef<Path>,
         lock: Arc<Mutex<()>>,
@@ -91,6 +94,36 @@ impl TaskService {
     }
     pub fn get(&self, id: &str) -> Result<TaskItem, ServiceError> {
         Ok(self.tasks.get(id)?)
+    }
+    pub(crate) fn reload_external(&self, id: &str) -> Result<bool, ServiceError> {
+        let path = self.tasks.path_for_reload(id)?;
+        let bytes = match std::fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                if self.tasks.is_own_write(id, None) {
+                    return Ok(false);
+                }
+                self.tasks.clear_own_write(id);
+                self.sink.emit(ChangeEvent::TaskDeleted(id.into()));
+                return Ok(true);
+            }
+            Err(e) => return Err(ServiceError::new(ServiceErrorCode::Io, e.to_string())),
+        };
+        let record: TaskItem = serde_json::from_slice(&bytes)
+            .map_err(|e| ServiceError::new(ServiceErrorCode::Corrupt, e.to_string()))?;
+        if record.id != id {
+            return Err(ServiceError::new(
+                ServiceErrorCode::Corrupt,
+                "record id does not match file name",
+            ));
+        }
+        if self.tasks.is_own_write(id, Some(&bytes)) {
+            return Ok(false);
+        }
+        self.tasks.clear_own_write(id);
+        self.sink.emit(ChangeEvent::TaskReloaded(record));
+        self.reconcile()?;
+        Ok(true)
     }
     fn emit_changed(&self, t: TaskItem) {
         self.sink.emit(ChangeEvent::TaskUpdated(t));
@@ -688,6 +721,39 @@ mod tests {
             NoteService::new(root, lock, sink.clone()),
             sink,
         )
+    }
+    #[test]
+    fn own_task_write_is_suppressed_and_same_rev_external_edit_reloads() {
+        let d = tempdir().unwrap();
+        let (s, _, sink) = services(d.path());
+        let created = s.create(TaskItem::new("before")).unwrap();
+        sink.take();
+        assert!(!s.reload_external(&created.id).unwrap());
+        assert!(sink.events().is_empty());
+        let mut edited = created.clone();
+        edited.title = "after".into();
+        std::fs::write(
+            d.path()
+                .join(".cairn/tasks")
+                .join(format!("{}.json", created.id)),
+            serde_json::to_vec_pretty(&edited).unwrap(),
+        )
+        .unwrap();
+        assert!(s.reload_external(&created.id).unwrap());
+        assert!(sink.events().iter().any(
+            |e| matches!(e,ChangeEvent::TaskReloaded(x) if x.title=="after" && x.rev==created.rev)
+        ));
+    }
+    #[test]
+    fn own_task_delete_is_suppressed() {
+        let d = tempdir().unwrap();
+        let (s, _, sink) = services(d.path());
+        let t = s.create(TaskItem::new("delete")).unwrap();
+        sink.take();
+        s.delete(&t.id).unwrap();
+        sink.take();
+        assert!(!s.reload_external(&t.id).unwrap());
+        assert!(sink.events().is_empty());
     }
     #[test]
     fn update_patch_cannot_change_other_fields() {

@@ -46,17 +46,6 @@ import { GitFileStatus } from '../parser/status.parser';
 import { NoticeManager } from '../../../core/services/notification/notification.service';
 import { GitStash } from '../parser/log.parser';
 
-/**
- * The ONLY git-related service a component injects for ACTIONS (commit, stash, branch, remote...).
- * Everything is a plain function in git-client/*.pipeline.ts; this class just wires the shared
- * context once and exposes one delegating line per method. Adding an action means one function
- * in a pipeline file and one line here - never a new @Injectable.
- *
- * For READ-ONLY state in templates (status(), busy(), staged(), branchList(), badgeFor(), ...),
- * components may still inject GitService directly - those are signals, not actions, and reading
- * them doesn't route through any pipeline. Only GitService's MUTATING methods should never be
- * called directly from a component; call the matching GitClient method instead.
- */
 @Injectable({ providedIn: 'root' })
 export class GitClient {
   private readonly tabStore = inject(TabStore);

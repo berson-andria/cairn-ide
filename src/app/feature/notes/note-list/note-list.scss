@@ -7,37 +7,9 @@
 .rail-section {
   height: 100%;
 }
-
-.note-input-wrapper {
-  padding: var(--space-4) var(--space-12) var(--space-8);
-  flex-shrink: 0;
+.input-container {
+  padding: var(--space-4) var(--space-10);
 }
-
-.note-input {
-  width: 100%;
-  box-sizing: border-box;
-  background: var(--color-surface-base);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  color: var(--color-text-primary);
-  font: inherit;
-  font-size: var(--font-size-ui);
-  padding: var(--space-8) var(--space-10);
-  outline: none;
-  transition:
-    border-color 0.15s ease,
-    background-color 0.15s ease;
-
-  &::placeholder {
-    color: var(--color-text-muted);
-  }
-
-  &:focus {
-    border-color: var(--color-focus);
-    outline: 1px solid var(--color-focus);
-  }
-}
-
 .note-filter-bar {
   padding: 0 var(--space-10) var(--space-8);
   display: flex;

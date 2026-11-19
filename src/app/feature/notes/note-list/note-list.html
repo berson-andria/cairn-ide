@@ -12,14 +12,15 @@
         </details>
       }
       <!-- Input for new note -->
-      <div class="note-input-wrapper">
-        <input
-          #noteInput
-          aria-label="New note"
-          placeholder="New note, Enter to save"
-          class="note-input"
-          (keydown.enter)="addNote(noteInput.value); noteInput.value = ''"
-        />
+      <div class="input-container">
+        <div class="input-form">
+          <input
+            #noteInput
+            aria-label="New note"
+            placeholder="New note, Enter to save"
+            (keydown.enter)="addNote(noteInput.value); noteInput.value = ''"
+          />
+        </div>
       </div>
 
       <!-- Filter dropdown trigger -->

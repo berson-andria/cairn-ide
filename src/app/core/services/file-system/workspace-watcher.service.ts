@@ -8,6 +8,7 @@ import { TabStore } from '../../store/tab.store';
 import { fsEvents$ } from './fs-events';
 import { CodeMapService } from '../codemap/codemap.service';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { NoticeManager } from '../notification/notification.service';
 
 @Injectable({ providedIn: 'root' })
 export class WorkspaceWatcherService {
@@ -16,6 +17,7 @@ export class WorkspaceWatcherService {
   private readonly tabs = inject(TabStore);
   private readonly editor = inject(EditorService);
   private readonly codemap = inject(CodeMapService);
+  private readonly notices = inject(NoticeManager);
 
   private readonly pendingCodeMapPaths = new Set<string>();
   private codeMapTimer: ReturnType<typeof setTimeout> | null = null;
@@ -34,6 +36,9 @@ export class WorkspaceWatcherService {
   /** Starts watching `rootPath`. If FileSystemService can stop the previous watcher, do that first. */
   async start(rootPath: string): Promise<void> {
     const generation = ++this.startGeneration;
+    if (this.codeMapTimer) clearTimeout(this.codeMapTimer);
+    this.codeMapTimer = null;
+    this.pendingCodeMapPaths.clear();
     void this.attachWatcher(rootPath, generation);
     this.codemapReady = this.codemap.open(rootPath).then(
       () => undefined,
@@ -49,6 +54,9 @@ export class WorkspaceWatcherService {
     this.unlistenChanged = undefined;
     this.unlistenError?.();
     this.unlistenError = undefined;
+    if (this.codeMapTimer) clearTimeout(this.codeMapTimer);
+    this.codeMapTimer = null;
+    this.pendingCodeMapPaths.clear();
     await this.fileService.stopWorkspaceWatcher().catch((error) => console.error('Could not stop the workspace watcher:', error));
   }
 
@@ -56,6 +64,7 @@ export class WorkspaceWatcherService {
     try {
       const changed = await listen<{ events: { kind: string; paths: string[] }[]; overflow: boolean }>('fs:changed', ({ payload }) => {
         if (generation !== this.startGeneration) return;
+        fsEvents$.next();
         if (payload.overflow) {
           this.enqueueOverflow(rootPath);
           return;
@@ -66,17 +75,24 @@ export class WorkspaceWatcherService {
               : event.kind === 'modify' ? { modify: { kind: 'data' } }
                 : event.kind === 'rename' ? { modify: { kind: 'rename', mode: event.paths.length > 1 ? 'both' : 'any' } }
                   : 'other';
-          this.enqueue({ type, paths: event.paths });
+          this.enqueue({ type, paths: event.paths }, generation);
         }
       });
-      const watchError = await listen<{ message: string }>('fs:watch-error', ({ payload }) => console.error('Workspace watcher error:', payload.message));
+      const watchError = await listen<{ message: string }>('fs:watch-error', ({ payload }) => {
+        console.error('Workspace watcher error:', payload.message);
+        this.notices.error('File watching is unavailable; changes made outside the app will not appear until you reopen the folder');
+      });
       if (generation !== this.startGeneration) {
         changed(); watchError(); return;
       }
       this.unlistenChanged?.(); this.unlistenError?.();
       this.unlistenChanged = changed;
       this.unlistenError = watchError;
-      await this.fileService.startWorkspaceWatcher(rootPath);
+      try { await this.fileService.startWorkspaceWatcher(rootPath); }
+      catch (error) {
+        if (generation === this.startGeneration) this.notices.error('File watching is unavailable; changes made outside the app will not appear until you reopen the folder');
+        throw error;
+      }
     } catch (error) {
       console.error(`Failed to start the file watcher for path: ${rootPath}`, error);
     }
@@ -91,16 +107,14 @@ export class WorkspaceWatcherService {
     }).catch((error) => console.error('Filesystem overflow refresh failed:', error));
   }
 
-  private enqueue(event: { type: unknown; paths: string[] }) {
-    // Notify all subscribers (like GitService) that a file system event occurred
-    fsEvents$.next();
-    if (classifyWatchEvent(event.type).action !== 'ignore') this.queueCodeMap(event.paths);
+  private enqueue(event: { type: unknown; paths: string[] }, generation: number) {
+    if (classifyWatchEvent(event.type).action !== 'ignore') this.queueCodeMap(event.paths, generation);
     this.queue = this.queue
-      .then(() => this.process(event))
+      .then(() => generation === this.startGeneration ? this.process(event) : undefined)
       .catch((err) => console.error('External watcher event failed', event, err));
   }
 
-  private queueCodeMap(paths: string[]) {
+  private queueCodeMap(paths: string[], generation: number) {
     for (const p of paths) this.pendingCodeMapPaths.add(p);
     if (this.codeMapTimer) clearTimeout(this.codeMapTimer);
     this.codeMapTimer = setTimeout(() => {
@@ -109,7 +123,7 @@ export class WorkspaceWatcherService {
       this.codeMapTimer = null;
       this.codeMapChain = this.codeMapChain
         .then(() => this.codemapReady)
-        .then(() => this.codemap.updateFiles(batch))
+        .then(() => generation === this.startGeneration ? this.codemap.updateFiles(batch) : undefined)
         .then(() => undefined)
         .catch((error) => console.error('Could not update the code map:', error));
     }, 400);

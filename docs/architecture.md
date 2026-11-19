@@ -25,13 +25,20 @@ what is decided but not built yet.
 | Path | Content | Git |
 |---|---|---|
 | `settings.json` | workspace settings (exists) | out of scope for now |
-| `tasks/<id>.json` | one task per file, subtasks inside | committed |
-| `notes/<id>.json` | one note per file | committed |
+| `tasks/<id>.json` | one task per file, subtasks inside | ignored by default |
+| `notes/<id>.json` | one note per file | ignored by default |
 | `workflows/` | project Python workflows | committed |
 | `cache/` | codemap cache (`cache/codemap.json`, exists) | ignored |
 | `runs/` | traces, model calls, logs | ignored |
 
-One file per item keeps git merges small. Writes are atomic (write temp file,
+Tasks and notes belong to the working tree, not to a branch: committed files
+would vanish and reappear on every checkout. The app creates `.cairn/.gitignore`
+(`cache/`, `runs/`, `tasks/`, `notes/`) only when it is missing and never edits
+it afterwards. Deleting the `tasks/` and `notes/` lines shares them through
+git. `task.branch` is metadata only. Ignored files are not backed up by git,
+and `git clean -fdx` removes them.
+
+One file per item keeps git merges small if they are shared. Writes are atomic (write temp file,
 then rename). Every record carries `schemaVersion` and `rev`.
 
 ## 3. Data model

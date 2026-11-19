@@ -70,9 +70,11 @@ pub enum Actor {
 pub enum ChangeEvent {
     TaskCreated(crate::types::task::TaskItem),
     TaskUpdated(crate::types::task::TaskItem),
+    TaskReloaded(crate::types::task::TaskItem),
     TaskDeleted(String),
     NoteCreated(crate::types::note::NoteItem),
     NoteUpdated(crate::types::note::NoteItem),
+    NoteReloaded(crate::types::note::NoteItem),
     NoteDeleted(String),
     ProjectReloaded,
 }

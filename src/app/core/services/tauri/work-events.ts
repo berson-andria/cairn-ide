@@ -4,13 +4,17 @@ import type { NoteItem } from '../../../feature/notes/note.service';
 
 export interface WorkEventHandlers {
   taskCreated(record: TaskItem): void; taskUpdated(record: TaskItem): void; taskDeleted(id: string): void;
+  taskReloaded(record: TaskItem): void;
   noteCreated(record: NoteItem): void; noteUpdated(record: NoteItem): void; noteDeleted(id: string): void; projectReloaded(): void;
+  noteReloaded(record: NoteItem): void;
 }
 export async function subscribeWorkEvents(handlers: WorkEventHandlers): Promise<UnlistenFn> {
   const unlisteners = await Promise.all([
     listen<TaskItem>('task:created', e => handlers.taskCreated(e.payload)), listen<TaskItem>('task:updated', e => handlers.taskUpdated(e.payload)),
+    listen<TaskItem>('task:reloaded', e => handlers.taskReloaded(e.payload)),
     listen<{id:string}>('task:deleted', e => handlers.taskDeleted(e.payload.id)), listen<NoteItem>('note:created', e => handlers.noteCreated(e.payload)),
     listen<NoteItem>('note:updated', e => handlers.noteUpdated(e.payload)), listen<{id:string}>('note:deleted', e => handlers.noteDeleted(e.payload.id)),
+    listen<NoteItem>('note:reloaded', e => handlers.noteReloaded(e.payload)),
     listen('project:reloaded', () => handlers.projectReloaded()),
   ]);
   return () => unlisteners.forEach(fn => fn());

@@ -61,6 +61,35 @@ impl NoteService {
     pub fn get(&self, id: &str) -> Result<NoteItem, ServiceError> {
         Ok(self.notes.get(id)?)
     }
+    pub(crate) fn reload_external(&self, id: &str) -> Result<bool, ServiceError> {
+        let path = self.notes.path_for_reload(id)?;
+        let bytes = match std::fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                if self.notes.is_own_write(id, None) {
+                    return Ok(false);
+                }
+                self.notes.clear_own_write(id);
+                self.sink.emit(ChangeEvent::NoteDeleted(id.into()));
+                return Ok(true);
+            }
+            Err(e) => return Err(ServiceError::new(ServiceErrorCode::Io, e.to_string())),
+        };
+        let record: NoteItem = serde_json::from_slice(&bytes)
+            .map_err(|e| ServiceError::new(ServiceErrorCode::Corrupt, e.to_string()))?;
+        if record.id != id {
+            return Err(ServiceError::new(
+                ServiceErrorCode::Corrupt,
+                "record id does not match file name",
+            ));
+        }
+        if self.notes.is_own_write(id, Some(&bytes)) {
+            return Ok(false);
+        }
+        self.notes.clear_own_write(id);
+        self.sink.emit(ChangeEvent::NoteReloaded(record));
+        Ok(true)
+    }
     pub fn create(&self, n: NoteItem) -> Result<NoteItem, ServiceError> {
         let _g = self.lock()?;
         let n = self.notes.create(n)?;

@@ -14,7 +14,7 @@ export class WorkSyncService {
   private readonly taskService=inject(TaskService); private readonly noteService=inject(NoteService); private readonly api=inject(WorkApiService); private readonly notices=inject(NoticeManager);
   private currentPath:string|null=null;
   constructor(){
-    void subscribeWorkEvents({taskCreated:r=>this.tasks.upsert(r),taskUpdated:r=>this.tasks.upsert(r),taskDeleted:id=>this.tasks.remove(id),noteCreated:r=>this.notes.upsert(r),noteUpdated:r=>this.notes.upsert(r),noteDeleted:id=>this.notes.remove(id),projectReloaded:()=>{void this.refresh();}}).catch(e=>console.error('Could not subscribe to task and note events',e));
+    void subscribeWorkEvents({taskCreated:r=>this.tasks.upsert(r),taskUpdated:r=>this.tasks.upsert(r),taskReloaded:r=>this.tasks.reload(r),taskDeleted:id=>this.tasks.remove(id),noteCreated:r=>this.notes.upsert(r),noteUpdated:r=>this.notes.upsert(r),noteReloaded:r=>this.notes.reload(r),noteDeleted:id=>this.notes.remove(id),projectReloaded:()=>{void this.refresh();}}).catch(e=>console.error('Could not subscribe to task and note events',e));
     effect(()=>{const path=this.nodes.rootPath();if(path===this.currentPath)return;this.currentPath=path;this.tasks.clear();this.notes.clear();void this.open(path);});
   }
   private async open(path:string|null):Promise<void>{try{if(!path){await this.api.projectClose();return;}await this.api.projectOpen(path);await this.refresh();}catch(e){this.notices.error((e as {message?:string})?.message??String(e));}}

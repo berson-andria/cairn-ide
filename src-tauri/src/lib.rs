@@ -30,6 +30,13 @@ pub fn run() {
         .manage(services::watcher::WorkspaceWatcher::default())
         .manage(services::project::ProjectState::default())
         .setup(|app| {
+            let handle = app.handle().clone();
+            app.state::<services::watcher::WorkspaceWatcher>()
+                .subscribe(move |root, paths| {
+                    handle
+                        .state::<services::project::ProjectState>()
+                        .reload_changed(&root, &paths);
+                });
             // Local server that git / ssh questions (password, passphrase, host key) are sent to.
             app.manage(commands::askpass::Askpass::start(app.handle().clone())?);
             Ok(())
