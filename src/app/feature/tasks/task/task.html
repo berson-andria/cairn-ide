@@ -1,26 +1,45 @@
-<button
-  class="task-row"
+<div
+  class="task-item"
   [class.task-row--selected]="selected()"
   (click)="taskSelected.emit(task())"
   [attr.aria-current]="selected() ? 'page' : null"
   [attr.aria-label]="task().title + ', ' + statusLabel(task().status)"
 >
-  <span
+  @switch (task().status) {
+    @case ('ready') {
+      <button class="play-btn">
+        <ng-icon name="lucidePlay" />
+      </button>
+    }
+    @case ('running') {
+      <button class="stop-btn">
+        <ng-icon name="lucideSquare" />
+      </button>
+    }
+    @case ('failed') {
+      <button class="replay-btn">
+        <ng-icon name="lucideRotateCcw" />
+      </button>
+    }
+    <!-- @case ('blocked') {} -->
+  }
+  <!-- <span
     class="task-status"
     [class]="'task-status task-status--' + task().status"
     aria-hidden="true"
-  ></span>
+  ></span> -->
   <span class="task-title">{{ task().title }}</span>
   @if (task().status === 'blocked') {
     <span class="chip task-id">{{ task().id.slice(0, 8) }}</span>
   }
-</button>
-<button
-  type="button"
-  class="icon-btn task-row__delete"
-  aria-label="Delete task"
-  title="Delete task"
-  (click)="deleteTask($event)"
->
-  <ng-icon name="lucideTrash" />
-</button>
+
+  <button
+    type="button"
+    class="icon-btn task-row__delete"
+    aria-label="Delete task"
+    title="Delete task"
+    (click)="deleteTask($event); $event.stopPropagation()"
+  >
+    <ng-icon name="lucideTrash" />
+  </button>
+</div>
