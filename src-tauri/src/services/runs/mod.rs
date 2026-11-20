@@ -322,6 +322,8 @@ impl ChildProcess for SystemChild {
 
 struct ManagerState {
     starting: bool,
+    cancel_requested: bool,
+    cancel_reason: Option<String>,
     active: Option<Arc<RunControl>>,
     last: Option<RunRecord>,
 }
@@ -358,11 +360,16 @@ struct StartingGuard {
 
 impl Drop for StartingGuard {
     fn drop(&mut self) {
-        self.inner
+        let mut state = self
+            .inner
             .state
             .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .starting = false;
+            .unwrap_or_else(|error| error.into_inner());
+        state.starting = false;
+        if state.active.is_none() {
+            state.cancel_requested = false;
+            state.cancel_reason = None;
+        }
     }
 }
 
@@ -428,6 +435,8 @@ impl RunManager {
             inner: Arc::new(ManagerInner {
                 state: Mutex::new(ManagerState {
                     starting: false,
+                    cancel_requested: false,
+                    cancel_reason: None,
                     active: None,
                     last: None,
                 }),
@@ -449,6 +458,27 @@ impl RunManager {
         workflow_name: Option<String>,
         sink: Arc<dyn EventSink>,
     ) -> Result<RunRecord, ServiceError> {
+        self.run_start_with_hooks(
+            projects,
+            task_id,
+            expected_rev,
+            workflow_name,
+            sink,
+            || Ok(()),
+            || {},
+        )
+    }
+
+    fn run_start_with_hooks(
+        &self,
+        projects: &ProjectState,
+        task_id: String,
+        expected_rev: u64,
+        workflow_name: Option<String>,
+        sink: Arc<dyn EventSink>,
+        after_spawn: impl FnOnce() -> Result<(), ServiceError>,
+        before_active: impl FnOnce(),
+    ) -> Result<RunRecord, ServiceError> {
         let project = projects.services()?;
         {
             let mut state = self.lock_state()?;
@@ -459,6 +489,8 @@ impl RunManager {
                 ));
             }
             state.starting = true;
+            state.cancel_requested = false;
+            state.cancel_reason = None;
         }
         let _starting = StartingGuard {
             inner: self.inner.clone(),
@@ -469,6 +501,8 @@ impl RunManager {
             expected_rev,
             workflow_name.unwrap_or_else(|| DEFAULT_WORKFLOW.into()),
             sink,
+            after_spawn,
+            before_active,
         )
     }
 
@@ -479,6 +513,8 @@ impl RunManager {
         expected_rev: u64,
         workflow_name: String,
         sink: Arc<dyn EventSink>,
+        after_spawn: impl FnOnce() -> Result<(), ServiceError>,
+        before_active: impl FnOnce(),
     ) -> Result<RunRecord, ServiceError> {
         let workflow = match self.inner.trust_data_dir.as_deref() {
             Some(data_dir) => workflows::resolve_in(&project.root, &workflow_name, Some(data_dir))?,
@@ -519,12 +555,6 @@ impl RunManager {
             );
             return Err(ServiceError::new(ServiceErrorCode::Io, error.to_string()));
         }
-        sink.emit(ChangeEvent::RunStarted {
-            run_id: run_id.clone(),
-            task_id: task_id.clone(),
-            workflow: workflow_name.clone(),
-        });
-
         let Some(sdk_dir) = sdk_dir(
             cfg!(debug_assertions),
             &self.inner.manifest_dir,
@@ -571,9 +601,20 @@ impl RunManager {
                 ));
             }
         };
+        if let Err(error) = after_spawn() {
+            return Err(self.fail_spawned_child(
+                child.as_mut(),
+                &project,
+                &run_directory,
+                record,
+                error.message,
+                error.code,
+                sink,
+            ));
+        }
         let Some(stdin) = child.take_stdin() else {
-            let _ = child.kill();
-            return Err(self.fail_start(
+            return Err(self.fail_spawned_child(
+                child.as_mut(),
                 &project,
                 &run_directory,
                 record,
@@ -583,8 +624,8 @@ impl RunManager {
             ));
         };
         let Some(stdout) = child.take_stdout() else {
-            let _ = child.kill();
-            return Err(self.fail_start(
+            return Err(self.fail_spawned_child(
+                child.as_mut(),
                 &project,
                 &run_directory,
                 record,
@@ -594,8 +635,8 @@ impl RunManager {
             ));
         };
         let Some(stderr) = child.take_stderr() else {
-            let _ = child.kill();
-            return Err(self.fail_start(
+            return Err(self.fail_spawned_child(
+                child.as_mut(),
                 &project,
                 &run_directory,
                 record,
@@ -616,11 +657,30 @@ impl RunManager {
             run_directory: run_directory.clone(),
             sink: sink.clone(),
         });
-        {
+        before_active();
+        let cancel_reason = {
             let mut state = self.lock_state()?;
             state.starting = false;
             state.active = Some(control.clone());
+            if state.cancel_requested {
+                state.cancel_requested = false;
+                state.cancel_reason.take()
+            } else {
+                None
+            }
+        };
+        if let Some(reason) = cancel_reason {
+            if let Err(error) = terminate(&control, &reason) {
+                tauri_plugin_log::log::error!(
+                    "Could not terminate workflow requested during startup: {error}"
+                );
+            }
         }
+        sink.emit(ChangeEvent::RunStarted {
+            run_id: run_id.clone(),
+            task_id: task_id.clone(),
+            workflow: workflow_name.clone(),
+        });
         let rpc_context = Arc::new(rpc::RpcContext {
             run_id: record.run_id.clone(),
             task_id: task_id.clone(),
@@ -671,15 +731,49 @@ impl RunManager {
         ServiceError::new(code, reason)
     }
 
+    fn fail_spawned_child(
+        &self,
+        child: &mut dyn ChildProcess,
+        project: &ProjectServices,
+        run_directory: &Path,
+        record: RunRecord,
+        reason: String,
+        code: ServiceErrorCode,
+        sink: Arc<dyn EventSink>,
+    ) -> ServiceError {
+        if let Err(error) = child.kill() {
+            tauri_plugin_log::log::error!(
+                "Could not kill workflow process after startup failure: {error}"
+            );
+        }
+        self.fail_start(project, run_directory, record, reason, code, sink)
+    }
+
     pub fn run_cancel(&self) -> Result<(), ServiceError> {
-        if let Some(control) = self.lock_state()?.active.clone() {
+        let control = {
+            let mut state = self.lock_state()?;
+            if state.starting {
+                state.cancel_requested = true;
+                state.cancel_reason = Some("cancelled".into());
+            }
+            state.active.clone()
+        };
+        if let Some(control) = control {
             terminate(&control, "cancelled")?;
         }
         Ok(())
     }
 
     pub fn cancel_for_project_change(&self, reason: &str) -> Result<(), ServiceError> {
-        if let Some(control) = self.lock_state()?.active.clone() {
+        let control = {
+            let mut state = self.lock_state()?;
+            if state.starting {
+                state.cancel_requested = true;
+                state.cancel_reason = Some(reason.to_owned());
+            }
+            state.active.clone()
+        };
+        if let Some(control) = control {
             terminate(&control, reason)?;
         }
         Ok(())
@@ -1657,6 +1751,146 @@ mod tests {
 
         start(&h).unwrap();
         assert!(h.manager.lock_state().unwrap().active.is_some());
+        h.manager.run_cancel().unwrap();
+        wait_inactive(&h.manager);
+    }
+
+    #[test]
+    fn post_spawn_startup_error_kills_child_and_fails_task() {
+        let h = harness(Duration::from_secs(3), false);
+        let task = h.project.services().unwrap().tasks.get(&h.task_id).unwrap();
+        let error = h
+            .manager
+            .run_start_with_hooks(
+                &h.project,
+                task.id,
+                task.rev,
+                Some("flow".into()),
+                Arc::new(h.sink.clone()),
+                || {
+                    Err(ServiceError::new(
+                        ServiceErrorCode::Io,
+                        "forced error after spawn",
+                    ))
+                },
+                || {},
+            )
+            .unwrap_err();
+
+        assert_eq!(error.code, ServiceErrorCode::Io);
+        assert_eq!(h.fake.exit_code.load(Ordering::SeqCst), 137);
+        assert_eq!(
+            h.project
+                .services()
+                .unwrap()
+                .tasks
+                .get(&h.task_id)
+                .unwrap()
+                .status,
+            crate::types::task::TaskStatus::Failed
+        );
+        assert!(h.manager.lock_state().unwrap().active.is_none());
+    }
+
+    #[test]
+    fn startup_cancel_and_project_close_are_applied_after_activation() {
+        let cancelled = harness(Duration::from_secs(3), false);
+        let task = cancelled
+            .project
+            .services()
+            .unwrap()
+            .tasks
+            .get(&cancelled.task_id)
+            .unwrap();
+        cancelled
+            .manager
+            .run_start_with_hooks(
+                &cancelled.project,
+                task.id,
+                task.rev,
+                Some("flow".into()),
+                Arc::new(cancelled.sink.clone()),
+                || Ok(()),
+                || cancelled.manager.run_cancel().unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            wait_outcome(&cancelled.manager).reason.as_deref(),
+            Some("cancelled")
+        );
+
+        let closed = harness(Duration::from_secs(3), false);
+        let task = closed
+            .project
+            .services()
+            .unwrap()
+            .tasks
+            .get(&closed.task_id)
+            .unwrap();
+        closed
+            .manager
+            .run_start_with_hooks(
+                &closed.project,
+                task.id,
+                task.rev,
+                Some("flow".into()),
+                Arc::new(closed.sink.clone()),
+                || Ok(()),
+                || {
+                    closed
+                        .manager
+                        .cancel_for_project_change("project closed")
+                        .unwrap()
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            wait_outcome(&closed.manager).reason.as_deref(),
+            Some("project closed")
+        );
+    }
+
+    struct RunGetOnStartSink {
+        manager: Arc<ManagerInner>,
+        observed: Mutex<Option<RunRecord>>,
+    }
+
+    impl EventSink for RunGetOnStartSink {
+        fn emit(&self, event: ChangeEvent) {
+            let ChangeEvent::RunStarted { run_id, .. } = event else {
+                return;
+            };
+            let manager = RunManager {
+                inner: self.manager.clone(),
+            };
+            let record = manager.run_get().unwrap().unwrap();
+            assert_eq!(record.run_id, run_id);
+            *self.observed.lock().unwrap() = Some(record);
+        }
+    }
+
+    #[test]
+    fn run_started_sink_observes_the_active_run() {
+        let h = harness(Duration::from_secs(3), false);
+        let sink = Arc::new(RunGetOnStartSink {
+            manager: h.manager.inner.clone(),
+            observed: Mutex::new(None),
+        });
+        let task = h.project.services().unwrap().tasks.get(&h.task_id).unwrap();
+        let run = h
+            .manager
+            .run_start(
+                &h.project,
+                task.id,
+                task.rev,
+                Some("flow".into()),
+                sink.clone(),
+            )
+            .unwrap();
+
+        let observed = sink.observed.lock().unwrap().clone().unwrap();
+        assert_eq!(observed.run_id, run.run_id);
+        assert!(observed.ended_at.is_none());
         h.manager.run_cancel().unwrap();
         wait_inactive(&h.manager);
     }
