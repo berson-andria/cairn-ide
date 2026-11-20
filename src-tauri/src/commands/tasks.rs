@@ -398,6 +398,7 @@ mod tests {
             ("createdAt", "1"),
             ("schemaVersion", "1"),
             ("rev", "1"),
+            ("runs", r#"["run-1"]"#),
             ("unknown", "true"),
         ] {
             let body = format!(r#"{{"title":"task","{field}":{value}}}"#);
@@ -429,6 +430,13 @@ mod tests {
             assert!(serde_json::from_str::<SubTaskPatch>(json).is_err());
         }
         assert!(serde_json::from_str::<TaskPatch>(r#"{"unknown":true}"#).is_err());
+        assert!(serde_json::from_str::<TaskPatch>(r#"{"runs":["run-1"]}"#).is_err());
+        assert!(
+            serde_json::from_str::<crate::types::proposal::BatchTaskItem>(
+                r#"{"key":"k","title":"x","runs":["run-1"]}"#
+            )
+            .is_err()
+        );
     }
     #[test]
     fn new_subtask_rejects_record_metadata() {

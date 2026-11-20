@@ -20,6 +20,8 @@ output are untrusted plain text.
 - Domain records and event payloads are in
   `src/app/shared/models/agent.model.ts`. Proposal `payload` is discriminated by
   `kind`; acceptance payloads are validated again by Rust.
+- `TaskItem.runs` is read-only attempt history (oldest first); it is never
+  included in task input types. Every retry creates a new run.
 - All service mutation methods resolve to the command result or `undefined`
   when a handled error prevented the operation, unless noted otherwise.
 
@@ -36,7 +38,7 @@ Typed command boundary; it has no signals and consumes no events.
 | `workflowTrust(name: string, hash: string)` | `void` | `NoProject`, `WorkflowNotFound`, `Validation`, `Io`, `Corrupt`, `RuntimeUnavailable` |
 | `runStart(taskId: string, expectedRev: number, workflow?: string)` | `RunRecord` | `NoProject`, `NotFound`, `StaleRev`, `InvalidTransition`, `RunActive`, `TrustRequired`, `RuntimeUnavailable`, `WorkflowNotFound`, `Validation`, `Io`, `Corrupt` |
 | `runCancel()` | `void` | `Io` |
-| `runGet()` | `RunRecord \| null` | — |
+| `runGet(runId?)` | `RunRecord \| null` | `NotFound`, `Validation` when an id is supplied |
 | `runList(limit: number)` | `RunRecord[]` | `NoProject`, `Io` |
 | `runLog(runId: string, maxLines: number)` | `string[]` | `NoProject`, `Validation`, `Io` |
 | `proposalList()` | `ListResult<Proposal>` | `NoProject`, `Io` |
@@ -87,10 +89,11 @@ Purpose: current/last-run snapshot, history, and bounded in-memory log cache.
 |---|---|
 | `current` | `Signal<RunState \| null>`; current/last run, potentially partial |
 | `history` | `Signal<RunRecord[]>` loaded by `RunService.loadHistory()` |
+| `record(runId)` | `Signal<RunRecord \| undefined>` for one full cached record |
 | `logLines(runId)` | Cached lines for one run |
 | `started(event)` / `append(event)` / `finished(event)` | Apply run events; retain at most 500 log lines |
-| `setCurrent(run)` / `setHistory(records)` / `setLog(runId, lines)` | Apply command results |
-| `refresh()` | Coalesced `run_get()`; also fetches the active run's log |
+| `setCurrent(run)` / `setHistory(records)` / `setRecord(record)` / `setLog(runId, lines)` | Apply command results |
+| `refresh()` | Coalesced `run_get()`; caches the full record and fetches the active run's log |
 | `clear()` | Clear current run, history, and logs on workspace change |
 
 The Rust lifecycle events omit some fields present on `RunRecord`: `run:started`
@@ -129,6 +132,8 @@ Start/cancel workflows and expose live run state.
 | `cancel()` | Call `run_cancel()` |
 | `refresh()` | Refresh `run_get()` and the active run's log |
 | `loadHistory(limit)` / `loadLog(runId, maxLines)` | Call `run_list` / `run_log` and cache results |
+| `attemptCount(task)` / `lastRunId(task)` | Read task history locally; no command calls |
+| `loadRunsFor(task, limit = 5)` | Load the newest task attempts, fetching only cache misses and skipping deleted runs |
 | `clear()` | Clear run state on workspace change |
 
 Without a workflow name, selection uses `default` when present, otherwise the
@@ -273,6 +278,18 @@ No service retries a rejected mutation silently.
    `await runService.loadLog(runId, 500)` once to refill the signal.
 3. Live `run:log` events append to that run's buffer; it retains at most 500
    newest lines. A refresh may briefly duplicate overlapping lines.
+
+### Task run history
+
+Every retry creates a new run and appends its id to the task's read-only
+`runs` history. Use `runService.attemptCount(task)` for the number of recorded
+attempts and `runService.lastRunId(task)` for the newest id. To list recent
+attempts, call `await runService.loadRunsFor(task, 5)`; results are newest
+first, only the newest requested ids are considered, and ids already in
+`RunStore` are not fetched again. Missing/deleted run folders are skipped.
+To open an older attempt's log, call
+`await runService.loadLog(record.runId, 500)` and read
+`runService.logLines(record.runId)`.
 
 ### Proposal inbox
 

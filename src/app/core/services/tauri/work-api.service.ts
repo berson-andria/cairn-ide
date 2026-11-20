@@ -62,7 +62,9 @@ export class WorkApiService {
   workflowTrust(name: string, hash: string) { return this.call<void>('workflow_trust', { name, hash }); }
   runStart(taskId: string, expectedRev: number, workflow?: string) { return this.call<RunRecord>('run_start', { taskId, expectedRev, workflow }); }
   runCancel() { return this.call<void>('run_cancel'); }
-  runGet() { return this.call<RunRecord | null>('run_get'); }
+  runGet(runId?: string) {
+    return this.call<RunRecord | null>('run_get', runId === undefined ? undefined : { runId });
+  }
   runList(limit: number) { return this.call<RunRecord[]>('run_list', { limit }); }
   runLog(runId: string, maxLines: number) { return this.call<string[]>('run_log', { runId, maxLines }); }
   proposalList() { return this.call<ListResult<Proposal>>('proposal_list'); }

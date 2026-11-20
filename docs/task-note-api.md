@@ -43,6 +43,14 @@ Tasks and notes are ignored by default in `.cairn/.gitignore`, which Rust create
 
 `TaskItem`, `NoteItem`, anchors and subtasks use the camelCase JSON shapes from Rust types. Status values are `ready`, `running`, `blocked`, `needs_review`, `completed`, `failed` for tasks and `open`, `completed` for notes. Delete commands resolve to no value (`null` through invoke).
 
+`TaskItem.runs` is a read-only `string[]` of run ids, oldest first. It is
+omitted when no run has been recorded, is capped at the newest 50 ids, and
+does not bump the task schema version. It is returned by task reads and
+included in task events, but is not accepted by `NewTask`, `TaskPatch`,
+`BatchTaskItem`, or any command input. Run ids are not validated when task
+files load: readers must tolerate unknown ids, including ids for deleted run
+folders.
+
 ## Events
 
 | Event | Payload |

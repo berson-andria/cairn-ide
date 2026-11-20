@@ -35,6 +35,43 @@ export class RunService {
     return this.store.logLines(runId);
   }
 
+  attemptCount(task: TaskItem): number {
+    return task.runs?.length ?? 0;
+  }
+
+  lastRunId(task: TaskItem): string | undefined {
+    return task.runs?.[task.runs.length - 1];
+  }
+
+  async loadRunsFor(task: TaskItem, limit = 5): Promise<RunRecord[]> {
+    const count = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 50;
+    if (count === 0) return [];
+    const runIds = [...new Set((task.runs ?? []).slice(-count).reverse())];
+    const records: RunRecord[] = [];
+
+    for (const runId of runIds) {
+      const cached = this.store.record(runId)();
+      if (cached) {
+        records.push(cached);
+        continue;
+      }
+
+      try {
+        const record = await this.api.runGet(runId);
+        if (record) {
+          this.store.setRecord(record);
+          records.push(record);
+        }
+      } catch (error) {
+        if ((error as { code?: string })?.code !== 'NotFound') {
+          await handleApiError(error, this.notices);
+        }
+      }
+    }
+
+    return records;
+  }
+
   canRun(task: TaskItem, workflow?: string): boolean {
     return this.runDisabledReason(task, workflow) === null;
   }

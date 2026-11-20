@@ -15,7 +15,7 @@ The Tauri commands are:
 |---|---|---|
 | `run_start` | `taskId`, `expectedRev`, optional `workflow` | run record |
 | `run_cancel` | — | `null` |
-| `run_get` | — | active run record, last run record, or `null` |
+| `run_get` | optional `runId` | with an id, that run record; without one, active run record, last run record, or `null` |
 | `run_list` | `limit` | run records, newest first |
 | `run_log` | `runId`, `maxLines` | `string[]` |
 | `workflow_list` | — | `{ name, source, trusted }[]` |
@@ -24,6 +24,9 @@ The Tauri commands are:
 
 `run_list` reads `.cairn/runs/*/run.json`, skips and logs unreadable or
 malformed records, and clamps `limit` to 1–50. Active records omit `endedAt`.
+When `run_get` receives `runId`, it returns the active in-memory record if that
+id matches; otherwise it reads `.cairn/runs/<runId>/run.json`. An unknown id
+returns `NotFound`; malformed ids return `Validation`.
 `run_log` returns the last `maxLines` lines from a run's log, clamped to
 1–2000; a missing log returns an empty array. `runId` must match
 `[A-Za-z0-9-]{1,64}`.
@@ -58,7 +61,7 @@ The first SDK call automatically performs the `hello` handshake. API version
 | Method | Parameters | Result |
 |---|---|---|
 | `hello` | `{ "apiVersion": 1 }` | `{ "apiVersion": 1 }` |
-| `run.context` | `{}` | `{ "runId", "taskId", "workflow" }` |
+| `run.context` | `{}` | `{ "runId", "taskId", "workflow", "attempt" }` |
 | `tasks.get` | `{ "id": string }` | one camelCase task record |
 | `tasks.list` | `{}` | array of camelCase task records |
 | `tasks.propose` | `NewTask` fields (camelCase), optional `presentation` | `{ "proposalId": string }` |
@@ -68,6 +71,10 @@ The first SDK call automatically performs the `hello` handshake. API version
 | `notes.get` | `{ "id": string }` | one camelCase note record |
 | `notes.for_task` | `{ "taskId": string }` | linked note records; missing linked ids are skipped |
 | `run.finish` | `{ "outcome": "needs_review" \| "failed", "summary"?: string, "reason"?: string }` | `null` |
+
+`run.context.attempt` is the current run id's 1-based position in the task's
+`runs` history. It is `1` when the history is absent or does not contain that
+id. Every retry creates a new run and appends a new id.
 
 For example, the request and response for a task read are each one line:
 

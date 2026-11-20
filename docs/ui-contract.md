@@ -39,6 +39,7 @@ details: `task-note-api.md`, `run-api.md`, `proposal-api.md`.
 | Link a note | `task_link_note(id, noteId, expectedRev)`, `task_unlink_note(...)` |
 | Subtasks | `task_add_subtask(id, subtask, expectedRev)` (`{title, description?}`), `task_update_subtask(id, subId, patch, expectedRev)`, `task_delete_subtask(id, subId, expectedRev)` |
 | Delete | `task_delete(id)` |
+| Run history | `TaskItem.runs?: string[]` is read-only, oldest first; do not send it to any task input |
 | "Can it start?" / dependents | compute locally from the store (not wrapped) |
 | Events | `task:created`, `task:updated`, `task:deleted {id}`, `task:reloaded` |
 
@@ -69,6 +70,7 @@ are marked as script-created (6c, planned).
 | Start | `run_start(taskId, expectedRev, workflow?)` -> run record; default workflow name is `default` |
 | Stop | `run_cancel()` |
 | Current or last run | `run_get()` -> record or `null` (running while `endedAt` is empty) |
+| One attempt | `run_get(runId)` -> that record; unknown ids return `NotFound` |
 | Past runs | `run_list(limit)` -> summaries, newest first |
 | Log of a run, also after a restart | `run_log(runId, maxLines)` |
 | Live | events `run:started {runId,taskId,workflow}`, `run:log {runId,lines[]}`, `run:finished {runId,taskId,outcome,reason?}` |
@@ -80,6 +82,11 @@ permissions**, and on approval call `workflow_trust` then `run_start` again.
 is missing or the SDK was not found. After `run:finished` the task is already
 `needs_review` or `failed`; the UI only displays it. Keep the last 500 log lines
 in memory per run and use `run_log` to refill after a reload.
+
+Every retry creates a new run and adds its id to `TaskItem.runs`; the history
+is oldest first and capped at 50 ids. `run.context` includes the current
+1-based `attempt`. The frontend task-history recipe and APIs are in
+[frontend-services.md](./frontend-services.md).
 
 ## 5. Proposals
 

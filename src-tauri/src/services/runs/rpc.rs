@@ -150,12 +150,19 @@ pub fn dispatch(ctx: &RpcContext, request: RpcRequest) -> Value {
     let id = request.id.clone();
     let response = match request.method.as_str() {
         "hello" => dispatch_hello(ctx, &request.params),
-        "run.context" => empty_params(&request.params).map(|()| {
-            json!({
+        "run.context" => empty_params(&request.params).and_then(|()| {
+            let task = ctx.project.tasks.get(&ctx.task_id).map_err(domain_error)?;
+            let attempt = task
+                .runs
+                .as_ref()
+                .and_then(|runs| runs.iter().position(|run_id| run_id == &ctx.run_id))
+                .map_or(1, |index| index + 1);
+            Ok(json!({
                 "runId":ctx.run_id,
                 "taskId":ctx.task_id,
-                "workflow":ctx.workflow
-            })
+                "workflow":ctx.workflow,
+                "attempt":attempt
+            }))
         }),
         "tasks.get" => required_string(&request.params, "id").and_then(|task_id| {
             ctx.project
@@ -697,6 +704,36 @@ mod tests {
                 .unwrap()
                 .len(),
             1
+        );
+    }
+
+    #[test]
+    fn run_context_reports_first_and_retry_attempts() {
+        let (_directory, mut ctx) = context();
+        let mut task = TaskItem::new("task");
+        task.id = ctx.task_id.clone();
+        task.runs = Some(vec![ctx.run_id.clone()]);
+        ctx.project.tasks.create(task.clone()).unwrap();
+
+        assert_eq!(
+            dispatch(&ctx, request(1, "run.context", json!({})))["result"]["attempt"],
+            1
+        );
+
+        ctx.run_id = "retry-run".into();
+        task.runs = Some(vec!["run-id".into(), ctx.run_id.clone()]);
+        std::fs::write(
+            ctx.project
+                .root
+                .join(".cairn")
+                .join("tasks")
+                .join(format!("{}.json", task.id)),
+            serde_json::to_vec(&task).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            dispatch(&ctx, request(2, "run.context", json!({})))["result"]["attempt"],
+            2
         );
     }
 

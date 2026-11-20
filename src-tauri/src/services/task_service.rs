@@ -517,6 +517,48 @@ impl TaskService {
         }
         self.set_status(id, TaskStatus::Running, expected_rev, actor)
     }
+    pub fn start_with_run(
+        &self,
+        id: &str,
+        expected_rev: u64,
+        run_id: String,
+        actor: Actor,
+    ) -> Result<TaskItem, ServiceError> {
+        let _g = self.lock()?;
+        let mut task = self.tasks.get(id)?;
+        if task.status != TaskStatus::Ready
+            || task.depends_on.as_ref().is_some_and(|dependency_id| {
+                self.tasks
+                    .get(dependency_id)
+                    .map(|dependency| dependency.status != TaskStatus::Completed)
+                    .unwrap_or(true)
+            })
+        {
+            return Err(ServiceError::new(
+                ServiceErrorCode::InvalidTransition,
+                "Task is not startable",
+            ));
+        }
+        if task.rev != expected_rev {
+            return Err(ServiceError::new(
+                ServiceErrorCode::StaleRev,
+                "Stale revision",
+            ));
+        }
+        Self::check_transition(task.status, TaskStatus::Running, actor, false)?;
+        let mut runs = task.runs.take().unwrap_or_default();
+        runs.push(run_id);
+        if runs.len() > 50 {
+            runs.drain(..runs.len() - 50);
+        }
+        task.runs = Some(runs);
+        task.status = TaskStatus::Running;
+        task.updated_at = Some(now_ms());
+        let updated = self.tasks.update(task, expected_rev)?;
+        drop(_g);
+        self.emit_changed(updated.clone());
+        Ok(updated)
+    }
     pub fn complete(&self, id: &str, expected_rev: u64) -> Result<TaskItem, ServiceError> {
         self.set_status(id, TaskStatus::Completed, expected_rev, Actor::Ui)
     }
@@ -1061,6 +1103,112 @@ mod tests {
                 .unwrap_err()
                 .code,
             ServiceErrorCode::InvalidTransition
+        );
+    }
+
+    #[test]
+    fn start_with_run_updates_status_and_history_in_one_write_and_event() {
+        let d = tempdir().unwrap();
+        let (service, _, sink) = services(d.path());
+        let task = service.create(TaskItem::new("task")).unwrap();
+        sink.take();
+
+        let started = service
+            .start_with_run(&task.id, task.rev, "run-1".into(), Actor::Ui)
+            .unwrap();
+
+        assert_eq!(started.status, TaskStatus::Running);
+        assert_eq!(
+            started.runs.as_deref(),
+            Some(["run-1".to_owned()].as_slice())
+        );
+        assert_eq!(started.rev, task.rev + 1);
+        assert_eq!(sink.events(), [ChangeEvent::TaskUpdated(started.clone())]);
+    }
+
+    #[test]
+    fn retry_start_appends_runs_in_attempt_order() {
+        let d = tempdir().unwrap();
+        let (service, _, _) = services(d.path());
+        let task = service.create(TaskItem::new("task")).unwrap();
+        let first = service
+            .start_with_run(&task.id, task.rev, "run-1".into(), Actor::Ui)
+            .unwrap();
+        let running = service
+            .set_status(&first.id, TaskStatus::Failed, first.rev, Actor::System)
+            .unwrap();
+        let ready = service
+            .set_status(&running.id, TaskStatus::Ready, running.rev, Actor::Ui)
+            .unwrap();
+
+        let retried = service
+            .start_with_run(&ready.id, ready.rev, "run-2".into(), Actor::Ui)
+            .unwrap();
+
+        assert_eq!(
+            retried.runs.as_deref(),
+            Some(["run-1".to_owned(), "run-2".to_owned()].as_slice())
+        );
+    }
+
+    #[test]
+    fn start_with_run_keeps_only_the_newest_fifty_ids() {
+        let d = tempdir().unwrap();
+        let (service, _, _) = services(d.path());
+        let mut task = TaskItem::new("task");
+        task.runs = Some((0..50).map(|index| format!("run-{index}")).collect());
+        let task = service.create(task).unwrap();
+
+        let started = service
+            .start_with_run(&task.id, task.rev, "run-50".into(), Actor::Ui)
+            .unwrap();
+
+        let runs = started.runs.unwrap();
+        assert_eq!(runs.len(), 50);
+        assert_eq!(runs.first().map(String::as_str), Some("run-1"));
+        assert_eq!(runs.last().map(String::as_str), Some("run-50"));
+    }
+
+    #[test]
+    fn hand_written_task_with_unknown_run_id_loads() {
+        let d = tempdir().unwrap();
+        let (service, _, _) = services(d.path());
+        let task_id = "hand-written";
+        std::fs::create_dir_all(d.path().join(".cairn/tasks")).unwrap();
+        std::fs::write(
+            d.path()
+                .join(".cairn/tasks")
+                .join(format!("{task_id}.json")),
+            r#"{"id":"hand-written","title":"task","status":"ready","createdAt":1,"schemaVersion":1,"rev":1,"runs":["bogus-run-id"]}"#,
+        )
+        .unwrap();
+
+        let loaded = service.get(task_id).unwrap();
+
+        assert_eq!(
+            loaded.runs.as_deref(),
+            Some(["bogus-run-id".to_owned()].as_slice())
+        );
+    }
+
+    #[test]
+    fn task_json_includes_runs_in_camel_case() {
+        let mut task = TaskItem::new("task");
+        task.id = "task-id".into();
+        task.created_at = 1;
+        task.runs = Some(vec!["run-1".into()]);
+
+        assert_eq!(
+            serde_json::to_value(task).unwrap(),
+            serde_json::json!({
+                "id": "task-id",
+                "title": "task",
+                "status": "ready",
+                "createdAt": 1,
+                "runs": ["run-1"],
+                "schemaVersion": 1,
+                "rev": 0
+            })
         );
     }
 

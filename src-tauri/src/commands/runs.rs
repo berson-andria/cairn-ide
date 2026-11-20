@@ -31,8 +31,15 @@ pub async fn run_cancel(runs: State<'_, RunManager>) -> Result<(), ServiceError>
 }
 
 #[tauri::command]
-pub async fn run_get(runs: State<'_, RunManager>) -> Result<Option<RunRecord>, ServiceError> {
-    runs.run_get()
+pub async fn run_get(
+    run_id: Option<String>,
+    projects: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
+) -> Result<Option<RunRecord>, ServiceError> {
+    match run_id {
+        Some(run_id) => runs.run_get_by_id(&projects, &run_id).map(Some),
+        None => runs.run_get(),
+    }
 }
 
 #[tauri::command]

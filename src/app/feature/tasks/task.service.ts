@@ -56,6 +56,7 @@ export interface TaskItem {
   updatedAt?: number;
   acceptanceCriteria?: string;
   branch?: string;
+  runs?: string[];
   schemaVersion: number;
   rev: number;
 }

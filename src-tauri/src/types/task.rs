@@ -79,6 +79,8 @@ pub struct TaskItem {
     pub acceptance_criteria: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runs: Option<Vec<String>>,
     pub schema_version: u32,
     pub rev: u64,
 }
@@ -98,6 +100,7 @@ impl TaskItem {
             updated_at: None,
             acceptance_criteria: None,
             branch: None,
+            runs: None,
             schema_version: 1,
             rev: 0,
         }

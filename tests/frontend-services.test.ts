@@ -1,5 +1,5 @@
 import '@angular/compiler';
-import { Injector, runInInjectionContext, signal } from '@angular/core';
+import { Injector, computed, runInInjectionContext, signal } from '@angular/core';
 import assert from 'node:assert/strict';
 import test, { mock } from 'node:test';
 import { RunStore } from '../src/app/core/store/run.store';
@@ -25,21 +25,34 @@ const task = (id: string, status: TaskStatus = 'ready', dependsOn?: string): Tas
 });
 
 const workflow = (name: string): WorkflowInfo => ({ name, source: 'project', trusted: true });
+const runRecord = (runId: string): RunRecord => ({
+  runId,
+  taskId: 'task-1',
+  workflow: 'default',
+  source: 'project',
+  scriptHash: 'hash',
+  startedAt: 1,
+  endedAt: 2,
+  outcome: 'needs_review',
+});
 
 function makeHarness(options: {
   tasks?: TaskItem[];
   current?: RunState | null;
   rootPath?: string | null;
   workflows?: WorkflowInfo[];
-  runStore?: Pick<RunStore, 'current' | 'logLines' | 'refresh'>;
+  runStore?: Pick<RunStore, 'current' | 'logLines' | 'refresh' | 'record' | 'setRecord'>;
   api?: Partial<WorkApiService>;
 } = {}) {
   const taskStore = new TaskStore();
   taskStore.replace(options.tasks ?? [task('task-1')], []);
+  const runRecords = signal<Record<string, RunRecord>>({});
   const runStore = options.runStore ?? {
     current: signal(options.current ?? null).asReadonly(),
     logLines: () => signal<string[]>([]).asReadonly(),
     refresh: async () => {},
+    record: (runId: string) => computed(() => runRecords()[runId]),
+    setRecord: (record: RunRecord) => runRecords.update(records => ({ ...records, [record.runId]: record })),
   };
   const api = {
     runStart: async () => ({} as RunRecord),
@@ -132,6 +145,7 @@ test('run:finished refreshes exactly once and replaces partial current state', a
   const storeInjector = Injector.create({ providers: [{ provide: WorkApiService, useValue: api }] });
   const runStore = runInInjectionContext(storeInjector, () => new RunStore());
   runStore.started({ runId: 'run-1', taskId: 'task-1', workflow: 'default' });
+  runStore.setRecord({ ...fullRun, outcome: 'failed' });
   const harness = makeHarness({ runStore, api });
 
   const refresh = refreshFinishedRun(
@@ -141,12 +155,50 @@ test('run:finished refreshes exactly once and replaces partial current state', a
   );
   assert.equal(runStore.current()?.startedAt, undefined);
   assert.equal(runStore.current()?.summary, undefined);
+  assert.equal(runStore.record(fullRun.runId)()?.outcome, 'needs_review');
   await refresh;
 
   assert.equal(runGetCalls, 1);
   assert.equal(runStore.current()?.startedAt, fullRun.startedAt);
   assert.equal(runStore.current()?.endedAt, fullRun.endedAt);
   assert.equal(runStore.current()?.summary, fullRun.summary);
+  assert.deepEqual(runStore.record(fullRun.runId)(), fullRun);
+});
+
+test('attemptCount and lastRunId use the task run history', () => {
+  const runService = makeHarness().runService;
+  const withHistory = { ...task('task-1'), runs: ['run-1', 'run-2'] };
+  assert.equal(runService.attemptCount(withHistory), 2);
+  assert.equal(runService.lastRunId(withHistory), 'run-2');
+
+  const withoutHistory = task('task-2');
+  assert.equal(runService.attemptCount(withoutHistory), 0);
+  assert.equal(runService.lastRunId(withoutHistory), undefined);
+});
+
+test('loadRunsFor fetches only missing recent ids and skips NotFound within its limit', async () => {
+  const cached = runRecord('run-8');
+  const calls: string[] = [];
+  const harness = makeHarness({
+    api: {
+      runGet: async (runId?: string) => {
+        calls.push(runId ?? '');
+        if (runId === 'run-7') throw { code: 'NotFound', message: 'missing' };
+        return runRecord(runId ?? '');
+      },
+    },
+  });
+  harness.runStore.setRecord(cached);
+
+  const records = await harness.runService.loadRunsFor(
+    { ...task('task-1'), runs: ['run-1', 'run-2', 'run-3', 'run-4', 'run-5', 'run-6', 'run-7', 'run-8'] },
+    3,
+  );
+
+  assert.deepEqual(calls, ['run-7', 'run-6']);
+  assert.ok(calls.length <= 3);
+  assert.deepEqual(records.map(record => record.runId), ['run-8', 'run-6']);
+  assert.equal(harness.runStore.record('run-6')()?.runId, 'run-6');
 });
 
 test('runDisabledReason reports project, task, run, dependency, and workflow blockers', () => {

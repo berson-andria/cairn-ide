@@ -521,9 +521,11 @@ impl RunManager {
             None => workflows::resolve(&project.root, &workflow_name)?,
         };
         workflows::require_trust(&project.root, &workflow)?;
-        let task = project.tasks.start(&task_id, expected_rev, Actor::Ui)?;
-
         let run_id = uuid::Uuid::new_v4().to_string();
+        let task =
+            project
+                .tasks
+                .start_with_run(&task_id, expected_rev, run_id.clone(), Actor::Ui)?;
         let run_directory = project.root.join(".cairn").join("runs").join(&run_id);
         if let Err(error) =
             ensure_cairn_dir(&project.root).and_then(|_| fs::create_dir_all(&run_directory))
@@ -791,6 +793,52 @@ impl RunManager {
             ));
         }
         Ok(state.last.clone())
+    }
+
+    pub fn run_get_by_id(
+        &self,
+        projects: &ProjectState,
+        run_id: &str,
+    ) -> Result<RunRecord, ServiceError> {
+        validate_run_id(run_id)?;
+        {
+            let state = self.lock_state()?;
+            if let Some(active) = &state.active {
+                let record = active
+                    .record
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .clone();
+                if record.run_id == run_id {
+                    return Ok(record);
+                }
+            }
+        }
+
+        let project = projects.services()?;
+        let path = project
+            .root
+            .join(".cairn")
+            .join("runs")
+            .join(run_id)
+            .join("run.json");
+        let bytes = fs::read(&path).map_err(|error| {
+            let code = if error.kind() == io::ErrorKind::NotFound {
+                ServiceErrorCode::NotFound
+            } else {
+                ServiceErrorCode::Io
+            };
+            ServiceError::new(code, error.to_string())
+        })?;
+        let record: RunRecord = serde_json::from_slice(&bytes)
+            .map_err(|error| ServiceError::new(ServiceErrorCode::Corrupt, error.to_string()))?;
+        if record.run_id != run_id {
+            return Err(ServiceError::new(
+                ServiceErrorCode::Corrupt,
+                "run id does not match directory name",
+            ));
+        }
+        Ok(record)
     }
 
     pub fn run_list(
@@ -1538,6 +1586,57 @@ mod tests {
         }
     }
 
+    #[test]
+    fn run_get_by_id_reads_finished_records_and_reports_invalid_or_missing_ids() {
+        let root = tempdir().unwrap();
+        let project = ProjectState::default();
+        project.open(root.path(), NoopSink).unwrap();
+        let manager = RunManager::default();
+        let finished = RunRecord {
+            run_id: "finished-run".into(),
+            task_id: "task-1".into(),
+            workflow: "default".into(),
+            source: workflows::WorkflowSource::Project,
+            script_hash: "hash".into(),
+            started_at: 10,
+            ended_at: Some(11),
+            outcome: Some(RunOutcome::NeedsReview),
+            reason: None,
+            summary: None,
+        };
+        write_run_record(
+            &root
+                .path()
+                .join(".cairn")
+                .join("runs")
+                .join(&finished.run_id),
+            &finished,
+        )
+        .unwrap();
+
+        assert_eq!(
+            manager
+                .run_get_by_id(&project, &finished.run_id)
+                .unwrap()
+                .run_id,
+            finished.run_id
+        );
+        assert_eq!(
+            manager
+                .run_get_by_id(&project, "../invalid")
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::Validation
+        );
+        assert_eq!(
+            manager
+                .run_get_by_id(&project, "missing-run")
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::NotFound
+        );
+    }
+
     fn start(harness: &Harness) -> Result<RunRecord, ServiceError> {
         let task = harness
             .project
@@ -1577,6 +1676,63 @@ mod tests {
             assert!(Instant::now() < deadline, "run did not become inactive");
             thread::sleep(Duration::from_millis(10));
         }
+    }
+
+    fn context_attempt(harness: &Harness, run: &RunRecord) -> serde_json::Value {
+        let context = rpc::RpcContext {
+            run_id: run.run_id.clone(),
+            task_id: run.task_id.clone(),
+            workflow: run.workflow.clone(),
+            project: harness.project.services().unwrap(),
+            finish: Arc::new(Mutex::new(None)),
+            version_mismatch: Arc::new(AtomicBool::new(false)),
+            trace_path: harness._root.path().join("trace.jsonl"),
+        };
+        rpc::dispatch(
+            &context,
+            rpc::RpcRequest {
+                id: serde_json::json!(1),
+                method: "run.context".into(),
+                params: serde_json::json!({}),
+            },
+        )["result"]["attempt"]
+            .clone()
+    }
+
+    #[test]
+    fn fake_launcher_run_context_reports_first_and_retry_attempts() {
+        let harness = harness(Duration::from_secs(3), false);
+        let first = start(&harness).unwrap();
+        assert_eq!(context_attempt(&harness, &first), 1);
+        harness.fake.exit_code.store(0, Ordering::SeqCst);
+        wait_outcome(&harness.manager);
+        wait_inactive(&harness.manager);
+
+        let task = harness
+            .project
+            .services()
+            .unwrap()
+            .tasks
+            .get(&harness.task_id)
+            .unwrap();
+        harness
+            .project
+            .services()
+            .unwrap()
+            .tasks
+            .set_status(
+                &task.id,
+                crate::types::task::TaskStatus::Ready,
+                task.rev,
+                Actor::Ui,
+            )
+            .unwrap();
+        harness.fake.exit_code.store(-1, Ordering::SeqCst);
+
+        let retry = start(&harness).unwrap();
+        assert_eq!(context_attempt(&harness, &retry), 2);
+        harness.manager.run_cancel().unwrap();
+        wait_inactive(&harness.manager);
     }
 
     #[test]
