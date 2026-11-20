@@ -34,7 +34,7 @@
               aria-label="More source control actions"
               (click)="$event.stopPropagation()"
               [appMenu]="action"
-              [menuPosition]="['left', 'bottom']"
+              [menuPosition]="'bottom left'"
             >
               <ng-icon name="lucideEllipsis" />
             </button>
@@ -68,7 +68,7 @@
                   <button
                     class="menu-item menu-accordion-btn"
                     [appMenu]="commitMenu"
-                    [menuPosition]="['left', 'center']"
+                    [menuPosition]="'center left'"
                   >
                     <span>Commit</span> <ng-icon name="lucideChevronRight" />
                   </button>
@@ -115,7 +115,7 @@
                   <button
                     class="menu-item menu-accordion-btn"
                     [appMenu]="changes"
-                    [menuPosition]="['left', 'center']"
+                    [menuPosition]="'center left'"
                   >
                     <span>Changes</span> <ng-icon name="lucideChevronRight" />
                   </button>
@@ -143,7 +143,7 @@
                   <button
                     class="menu-item menu-accordion-btn"
                     [appMenu]="pull_push"
-                    [menuPosition]="['left', 'center']"
+                    [menuPosition]="'center left'"
                   >
                     <span>Pull, Push</span> <ng-icon name="lucideChevronRight" />
                   </button>
@@ -177,7 +177,7 @@
                   <button
                     class="menu-item menu-accordion-btn"
                     [appMenu]="branch"
-                    [menuPosition]="['left', 'center']"
+                    [menuPosition]="'center left'"
                   >
                     <span>Branch</span> <ng-icon name="lucideChevronRight" />
                   </button>
@@ -255,7 +255,7 @@
                   <button
                     class="menu-item menu-accordion-btn"
                     [appMenu]="stash"
-                    [menuPosition]="['left', 'center']"
+                    [menuPosition]="'center left'"
                   >
                     <span>Stash</span> <ng-icon name="lucideChevronRight" />
                   </button>
@@ -375,7 +375,7 @@
                   <button
                     class="btn-action"
                     [appMenu]="action"
-                    [menuPosition]="['left', 'bottom']"
+                    [menuPosition]="'bottom left'"
                     [disabled]="!hasChanges() || git.busy()"
                   >
                     <ng-icon name="lucideEllipsis" />
