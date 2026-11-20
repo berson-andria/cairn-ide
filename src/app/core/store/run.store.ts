@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal, type Signal } from '@angular/core';
-import type { RunRecord, RunState, RunStartedEvent, RunLogEvent, RunFinishedEvent } from '../../shared/models/agent.model';
+import type { RunRecord, RunState, RunStartedEvent, RunLogEvent, RunFinishedEvent, RunStepEvent } from '../../shared/models/agent.model';
 import { WorkApiService } from '../services/tauri/work-api.service';
 
 const LOG_LIMIT = 500;
@@ -11,13 +11,24 @@ export class RunStore {
   private readonly _history = signal<RunRecord[]>([]);
   private readonly _byId = signal<Record<string, RunRecord>>({});
   private readonly _logs = signal<Record<string, string[]>>({});
+  private readonly _stepStatus = signal<Record<string, Record<string, { status: RunStepEvent['status']; summary?: string; reason?: string }>>>({});
   private readonly logSignals = new Map<string, Signal<string[]>>();
   private readonly recordSignals = new Map<string, Signal<RunRecord | undefined>>();
+  private readonly stepStatusSignals = new Map<string, Signal<Record<string, { status: RunStepEvent['status']; summary?: string; reason?: string }>>>();
   private refreshPromise?: Promise<void>;
   private generation = 0;
 
   readonly current = this._current.asReadonly();
   readonly history = this._history.asReadonly();
+
+  stepStatus(runId: string): Signal<Record<string, { status: RunStepEvent['status']; summary?: string; reason?: string }>> {
+    let status = this.stepStatusSignals.get(runId);
+    if (!status) {
+      status = computed(() => this._stepStatus()[runId] ?? {});
+      this.stepStatusSignals.set(runId, status);
+    }
+    return status;
+  }
 
   record(runId: string): Signal<RunRecord | undefined> {
     let record = this.recordSignals.get(runId);
@@ -46,6 +57,20 @@ export class RunStore {
     this._logs.update(logs => ({
       ...logs,
       [event.runId]: [...(logs[event.runId] ?? []), ...event.lines].slice(-LOG_LIMIT),
+    }));
+  }
+
+  step(event: RunStepEvent): void {
+    this._stepStatus.update(runs => ({
+      ...runs,
+      [event.runId]: {
+        ...(runs[event.runId] ?? {}),
+        [event.subtaskId]: {
+          status: event.status,
+          ...(event.summary !== undefined ? { summary: event.summary } : {}),
+          ...(event.reason !== undefined ? { reason: event.reason } : {}),
+        },
+      },
     }));
   }
 
@@ -105,8 +130,10 @@ export class RunStore {
     this._history.set([]);
     this._byId.set({});
     this._logs.set({});
+    this._stepStatus.set({});
     this.logSignals.clear();
     this.recordSignals.clear();
+    this.stepStatusSignals.clear();
     this.refreshPromise = undefined;
   }
 }

@@ -8,9 +8,9 @@ import { NodeStore } from '../src/app/core/store/node.store';
 import { NoticeManager } from '../src/app/core/services/notification/notification.service';
 import { WorkApiService } from '../src/app/core/services/tauri/work-api.service';
 import { refreshFinishedRun } from '../src/app/core/services/tauri/work-sync.service';
-import { ProposalNotifier } from '../src/app/feature/proposals/proposal-notifier.service';
-import { RunService } from '../src/app/feature/runs/run.service';
-import { WorkflowService } from '../src/app/feature/runs/workflow.service';
+import { ProposalNotifier } from '../src/app/core/services/proposals/proposal-notifier.service';
+import { RunService } from '../src/app/core/services/runs/run.service';
+import { WorkflowService } from '../src/app/core/services/runs/workflow.service';
 import { TaskService, type TaskItem, type TaskStatus } from '../src/app/feature/tasks/task.service';
 import type { Proposal, RunRecord, RunState, WorkflowInfo } from '../src/app/shared/models/agent.model';
 
@@ -268,6 +268,131 @@ test('perform forwards the chosen workflow to RunService.run', async () => {
 
   await harness.taskService.perform(task('task-1'), 'run', { workflow: 'two' });
   assert.equal(selected, 'two');
+});
+
+test('subtaskProgress reports done running failed pending and percent', () => {
+  const service = makeHarness().taskService;
+  const progressTask: TaskItem = {
+    ...task('task-1'),
+    subTasks: [
+      { id: 'done-1', title: 'Done', status: 'completed', createdAt: 1 },
+      { id: 'done-2', title: 'Review', status: 'needs_review', createdAt: 1 },
+      { id: 'run-1', title: 'Running', status: 'running', createdAt: 1 },
+      { id: 'fail-1', title: 'Failed', status: 'failed', createdAt: 1 },
+      { id: 'pending-1', title: 'Pending', status: 'ready', createdAt: 1 },
+    ],
+  };
+  assert.deepEqual(service.subtaskProgress(progressTask), {
+    total: 5,
+    done: 2,
+    running: 1,
+    failed: 1,
+    pending: 1,
+    percent: 40,
+  });
+  assert.deepEqual(service.subtaskProgress(task('task-2')), {
+    total: 0,
+    done: 0,
+    running: 0,
+    failed: 0,
+    pending: 0,
+    percent: 0,
+  });
+});
+
+test('availableActions offers resume for failed tasks with finished and pending steps', () => {
+  const partial: TaskItem = {
+    ...task('task-1', 'failed'),
+    subTasks: [
+      { id: 'done', title: 'Done', status: 'needs_review', createdAt: 1 },
+      { id: 'pending', title: 'Pending', status: 'ready', createdAt: 1 },
+    ],
+  };
+  assert.deepEqual(
+    makeHarness({ tasks: [partial] }).taskService.availableActions(partial),
+    [
+      { action: 'retry', enabled: true },
+      { action: 'resume', enabled: true, hint: '1 of 2 steps done' },
+    ],
+  );
+
+  const noDone: TaskItem = {
+    ...task('task-2', 'failed'),
+    subTasks: [
+      { id: 'pending', title: 'Pending', status: 'ready', createdAt: 1 },
+    ],
+  };
+  assert.deepEqual(
+    makeHarness({ tasks: [noDone] }).taskService.availableActions(noDone),
+    [{ action: 'retry', enabled: true }],
+  );
+});
+
+test('perform resume sets ready before run and stops on status error', async () => {
+  const calls: string[] = [];
+  const partial: TaskItem = {
+    ...task('task-1', 'failed'),
+    subTasks: [
+      { id: 'done', title: 'Done', status: 'needs_review', createdAt: 1 },
+      { id: 'pending', title: 'Pending', status: 'ready', createdAt: 1 },
+    ],
+  };
+  const success = makeHarness({
+    tasks: [partial],
+    api: {
+      taskSetStatus: async () => {
+        calls.push('status');
+        return { ...partial, status: 'ready', rev: 2 };
+      },
+      runStart: async () => {
+        calls.push('run');
+        return runRecord('run-1');
+      },
+    },
+  });
+  await success.taskService.perform(partial, 'resume');
+  assert.deepEqual(calls, ['status', 'run']);
+
+  calls.length = 0;
+  const stopped = makeHarness({
+    tasks: [partial],
+    api: {
+      taskSetStatus: async () => {
+        calls.push('status');
+        throw { code: 'Io', message: 'cannot update' };
+      },
+      runStart: async () => {
+        calls.push('run');
+        return runRecord('run-2');
+      },
+    },
+  });
+  await stopped.taskService.perform(partial, 'resume');
+  assert.deepEqual(calls, ['status']);
+});
+
+test('run step events update stepStatus and latest state', () => {
+  const api = { runGet: async () => null };
+  const injector = Injector.create({ providers: [{ provide: WorkApiService, useValue: api }] });
+  const store = runInInjectionContext(injector, () => new RunStore());
+  store.step({
+    runId: 'run-1',
+    taskId: 'task-1',
+    subtaskId: 'sub-1',
+    status: 'running',
+  });
+  store.step({
+    runId: 'run-1',
+    taskId: 'task-1',
+    subtaskId: 'sub-1',
+    status: 'needs_review',
+    summary: 'Implemented',
+  });
+  assert.deepEqual(store.stepStatus('run-1')(), {
+    'sub-1': { status: 'needs_review', summary: 'Implemented' },
+  });
+  store.clear();
+  assert.deepEqual(store.stepStatus('run-1')(), {});
 });
 
 test('proposal notifier emits on quiet time or the five-second maximum wait', t => {

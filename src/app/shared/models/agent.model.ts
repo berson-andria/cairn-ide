@@ -3,6 +3,15 @@ import type { NewSubTask, NewTask, TaskItem } from '../../feature/tasks/task.ser
 export type WorkflowSource = 'project' | 'global';
 export type RunOutcome = 'needs_review' | 'failed';
 
+export interface RunStep {
+  subtaskId: string;
+  startedAt: number;
+  endedAt?: number;
+  outcome?: 'needs_review' | 'failed';
+  summary?: string;
+  reason?: string;
+}
+
 export interface RunRecord {
   runId: string;
   taskId: string;
@@ -14,6 +23,7 @@ export interface RunRecord {
   outcome?: RunOutcome;
   reason?: string;
   summary?: string;
+  steps?: RunStep[];
 }
 
 export interface WorkflowInfo {
@@ -85,6 +95,15 @@ export interface RunFinishedEvent {
   runId: string;
   taskId: string;
   outcome: RunOutcome;
+  reason?: string;
+}
+
+export interface RunStepEvent {
+  runId: string;
+  taskId: string;
+  subtaskId: string;
+  status: 'running' | 'needs_review' | 'failed';
+  summary?: string;
   reason?: string;
 }
 

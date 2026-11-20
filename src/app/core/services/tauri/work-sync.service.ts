@@ -59,6 +59,7 @@ export class WorkSyncService {
       proposalDeleted: (id) => this.proposals.remove(id),
       runStarted: (event) => this.runs.started(event),
       runLog: (event) => this.runs.append(event),
+      runStep: (event) => this.runs.step(event),
       runFinished: (event) => {
         void refreshFinishedRun(event, this.runs, this.runService);
       },

@@ -64,6 +64,7 @@ export interface TaskItem {
 export type TaskAction =
   | 'start'
   | 'run'
+  | 'resume'
   | 'cancelRun'
   | 'complete'
   | 'sendBack'
@@ -73,6 +74,16 @@ export interface AvailableTaskAction {
   action: TaskAction;
   enabled: boolean;
   reason?: string;
+  hint?: string;
+}
+
+export interface SubtaskProgress {
+  total: number;
+  done: number;
+  running: number;
+  failed: number;
+  pending: number;
+  percent: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -121,9 +132,31 @@ export class TaskService {
       !!t && t.status === 'ready' && (!t.dependsOn || this.get(t.dependsOn)?.status === 'completed')
     );
   }
+  subtaskProgress(task: TaskItem): SubtaskProgress {
+    const subtasks = task.subTasks ?? [];
+    const total = subtasks.length;
+    const done = subtasks.filter((subtask) =>
+      subtask.status === 'needs_review' || subtask.status === 'completed'
+    ).length;
+    const running = subtasks.filter((subtask) => subtask.status === 'running').length;
+    const failed = subtasks.filter((subtask) => subtask.status === 'failed').length;
+    const pending = total - done - running - failed;
+    return {
+      total,
+      done,
+      running,
+      failed,
+      pending,
+      percent: total === 0 ? 0 : Math.round(done * 100 / total),
+    };
+  }
   availableActions(task: TaskItem): AvailableTaskAction[] {
     const dependency = task.dependsOn ? this.get(task.dependsOn) : undefined;
     const dependencyReady = !task.dependsOn || dependency?.status === 'completed';
+    const progress = this.subtaskProgress(task);
+    const progressHint = progress.total > 0
+      ? `${progress.done} of ${progress.total} steps done`
+      : undefined;
     switch (task.status) {
       case 'ready':
         return [
@@ -136,6 +169,7 @@ export class TaskService {
             action: 'run',
             enabled: this.runService.canRun(task),
             reason: this.runService.runDisabledReason(task) ?? undefined,
+            ...(progressHint ? { hint: progressHint } : {}),
           },
         ];
       case 'running': {
@@ -158,7 +192,18 @@ export class TaskService {
           { action: 'sendBack', enabled: true },
         ];
       case 'failed':
-        return [{ action: 'retry', enabled: true }];
+        {
+          const resumeTask = { ...task, status: 'ready' as const };
+          const canResume = progress.done > 0 &&
+            progress.pending > 0 &&
+            this.runService.runDisabledReason(resumeTask) === null;
+          return canResume
+            ? [
+                { action: 'retry', enabled: true },
+                { action: 'resume', enabled: true, ...(progressHint ? { hint: progressHint } : {}) },
+              ]
+            : [{ action: 'retry', enabled: true }];
+        }
       case 'completed':
         return [{ action: 'reopen', enabled: true }];
       case 'blocked':
@@ -182,6 +227,11 @@ export class TaskService {
         return this.start(task.id);
       case 'run':
         return this.runService.run(task.id, options?.workflow);
+      case 'resume': {
+        const updated = await this.setStatus(task.id, 'ready');
+        if (!updated) return;
+        return this.runService.run(task.id, options?.workflow);
+      }
       case 'cancelRun':
         return this.runService.cancel();
       case 'complete':
@@ -202,7 +252,9 @@ export class TaskService {
     const current = this.get(id);
     if (!current) return;
     try {
-      return await run(current.rev);
+      const updated = await run(current.rev);
+      this.store.upsert(updated);
+      return updated;
     } catch (e) {
       await this.handleApiError(e as ApiError, id);
       return;

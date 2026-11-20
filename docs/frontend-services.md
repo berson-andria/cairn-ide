@@ -279,6 +279,39 @@ No service retries a rejected mutation silently.
 3. Live `run:log` events append to that run's buffer; it retains at most 500
    newest lines. A refresh may briefly duplicate overlapping lines.
 
+### Progress per subtask during a run
+
+1. Read `runStore.stepStatus(runId)()` for the live latest event state keyed by
+   `subtaskId`; each value contains `status` plus optional `summary` and
+   `reason`.
+2. Read `taskService.subtaskProgress(task)` for aggregate counts and
+   `percent`, or read the full `RunRecord.steps` array after `run:finished`
+   refresh and `run_get`.
+3. The step event map is workspace-scoped and is cleared on workspace change.
+
+### Resume after a failure
+
+1. For a failed task, read `availableActions(task)`. A `resume` action appears
+   next to `retry` only when completed/needs-review progress exists, unfinished
+   pending steps remain, and run blockers are clear.
+2. Read `runService.resumeInfo(task)` for the attempt number and done, total,
+   and pending step counts for labels. The action hint is already phrased as
+   `"N of M steps done"`; the UI decides button wording.
+3. Calling `perform(task, 'resume')` sets the task to `ready` first and then
+   starts the workflow. It stops if the status update fails.
+4. Retry then Run behaves like Resume anyway: finished steps remain
+   `needs_review` or `completed`, so a retry skips them and continues with
+   pending steps.
+
+### Review steps and complete
+
+1. Read live step statuses from `runStore.stepStatus(runId)()`, and use the
+   refreshed `RunRecord.steps` for the ordered final review.
+2. Call the normal task action `perform(task, 'complete')` once after review.
+3. Completing a task completes all of its `needs_review` subtasks in Rust as
+   part of the task write. The UI must not call subtask completion once per
+   subtask.
+
 ### Task run history
 
 Every retry creates a new run and appends its id to the task's read-only

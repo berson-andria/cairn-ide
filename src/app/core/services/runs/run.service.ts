@@ -43,6 +43,19 @@ export class RunService {
     return task.runs?.[task.runs.length - 1];
   }
 
+  resumeInfo(task: TaskItem): { attempt: number; done: number; total: number; pending: number } {
+    const subtasks = task.subTasks ?? [];
+    const done = subtasks.filter((subtask) =>
+      subtask.status === 'needs_review' || subtask.status === 'completed'
+    ).length;
+    return {
+      attempt: this.attemptCount(task),
+      done,
+      total: subtasks.length,
+      pending: subtasks.length - done,
+    };
+  }
+
   async loadRunsFor(task: TaskItem, limit = 5): Promise<RunRecord[]> {
     const count = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 50;
     if (count === 0) return [];
