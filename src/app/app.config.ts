@@ -15,6 +15,7 @@ import { GitAskpassService } from './feature/git/services/git-askpass.service';
 import { SettingsService } from './feature/setting/settings.service';
 import { SettingsRuntimeService } from './core/services/settings-runtime.service';
 import { WorkSyncService } from './core/services/tauri/work-sync.service';
+import { WorkspaceStateService } from './core/services/workspace-state.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -27,6 +28,7 @@ export const appConfig: ApplicationConfig = {
         settings = inject(SettingsService),
         _settingsRuntime = inject(SettingsRuntimeService),
         _workSync = inject(WorkSyncService),
+        _workspaceState = inject(WorkspaceStateService),
       ) => {
         registerAppCommands();
         keybinding.init();

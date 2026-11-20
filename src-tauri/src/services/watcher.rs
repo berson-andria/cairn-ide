@@ -424,6 +424,19 @@ mod tests {
     }
 
     #[test]
+    fn workspace_state_cache_paths_are_not_filesystem_events() {
+        let root = tempdir().unwrap();
+        let ignore = watcher_ignore(root.path());
+        let path = root.path().join(".cairn/cache/workspace.json");
+
+        assert!(!path_allowed(root.path(), &path, &ignore));
+        assert!(!is_cairn_data_path(root.path(), &path));
+        assert!(build_batch(root.path(), &[event(EventKind::Any, &[path])])
+            .events
+            .is_empty());
+    }
+
+    #[test]
     fn explorer_filter_shows_ignored_entry_and_hides_its_contents() {
         let root = tempdir().unwrap();
         fs::write(

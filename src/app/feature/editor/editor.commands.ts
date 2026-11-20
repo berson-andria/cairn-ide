@@ -11,6 +11,8 @@ import { TerminalService } from '../terminal/terminal.service';
 import { TabStore } from '../../core/store/tab.store';
 import { DiagnosticsService } from '../../core/services/diagnostics.service';
 import { SettingsService } from '../../feature/setting/settings.service';
+import { WorkspaceStateService } from '../../core/services/workspace-state.service';
+import { samePath } from '../../core/services/file-system/external-watcher.utils';
 
 export type SaveChoice = 'save' | 'discard' | 'cancel';
 
@@ -27,6 +29,7 @@ export class EditorCommands {
   private readonly messageService = inject(MessageService);
   private readonly diagnostic = inject(DiagnosticsService);
   private readonly settings = inject(SettingsService);
+  private readonly workspaceState = inject(WorkspaceStateService);
   private readonly autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private windowSaveTimer?: ReturnType<typeof setTimeout>;
   // private readonly terminalService = inject(TerminalService);
@@ -283,8 +286,20 @@ export class EditorCommands {
   async openFolder(): Promise<void> {
     const path = await this.nodes.pickFolder();
     if (!path) return;
-    if (!(await this.closeAll())) return;
+    const previousRoot = this.nodes.rootPath();
+    if (!(await this.workspaceState.prepareProjectSwitch())) return;
+    if (!(await this.closeAll())) {
+      this.workspaceState.cancelProjectSwitch();
+      return;
+    }
     await this.nodes.loadFolder(path);
+    const openedRoot = this.nodes.rootPath();
+    if (!openedRoot || !samePath(openedRoot, path)) {
+      if (previousRoot) await this.workspaceState.restoreProject(previousRoot, (id) => this.openFile(id));
+      else this.workspaceState.cancelProjectSwitch();
+      return;
+    }
+    await this.workspaceState.restoreProject(openedRoot, (id) => this.openFile(id));
   }
 
   /** Refreshing gives every node a new id, so the open tabs would be lost: ask about them first. */

@@ -38,6 +38,7 @@ export class WorkSyncService {
   private readonly runService = inject(RunService);
   private readonly workflowService = inject(WorkflowService);
   private currentPath: string | null = null;
+  private currentLoad: Promise<boolean> = Promise.resolve(false);
   constructor() {
     const eventsReady = subscribeWorkEvents({
       taskCreated: (r) => this.tasks.upsert(r),
@@ -66,30 +67,46 @@ export class WorkSyncService {
     effect(() => {
       const path = this.nodes.rootPath();
       if (path === this.currentPath) return;
-      this.currentPath = path;
-      this.tasks.clear();
-      this.notes.clear();
-      this.proposals.clear();
-      this.runs.clear();
-      this.workflowService.clear();
-      void this.open(path, eventsReady);
+      this.beginOpen(path, eventsReady);
     });
   }
-  private async open(path: string | null, eventsReady: Promise<unknown>): Promise<void> {
+  async waitForProjectLoaded(path: string): Promise<boolean> {
+    while (this.nodes.rootPath() === path && this.currentPath !== path) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+    if (this.nodes.rootPath() !== path) return false;
+    const loaded = await this.currentLoad;
+    return loaded && this.nodes.rootPath() === path;
+  }
+  private beginOpen(path: string | null, eventsReady: Promise<unknown>): void {
+    this.currentPath = path;
+    this.tasks.clear();
+    this.notes.clear();
+    this.proposals.clear();
+    this.runs.clear();
+    this.workflowService.clear();
+    this.currentLoad = this.open(path, eventsReady);
+  }
+  private async open(path: string | null, eventsReady: Promise<unknown>): Promise<boolean> {
     try {
       await eventsReady;
       if (!path) {
         await this.api.projectClose();
-        return;
+        return true;
       }
       await this.api.projectOpen(path);
-      await Promise.all([
-        this.refresh(),
+      await Promise.all([this.taskService.refresh(), this.noteService.refresh()]);
+      void Promise.all([
+        this.proposals.refresh(),
         this.runService.refresh(),
         this.workflowService.refresh(),
-      ]);
+      ]).catch((error) => {
+        this.notices.error((error as { message?: string })?.message ?? String(error));
+      });
+      return this.tasks.loaded() && this.notes.loaded();
     } catch (e) {
       this.notices.error((e as { message?: string })?.message ?? String(e));
+      return false;
     }
   }
   private async refresh(): Promise<void> {

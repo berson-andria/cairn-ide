@@ -88,6 +88,28 @@ export const TabStore = signalStore(
       });
     },
 
+    /** Replaces restored tabs and focus together so opening order cannot select the wrong active tab. */
+    setRestoredTabs(openedTabs: Tab[], focusHistory: Tab[], diffTabs: Record<string, DiffTab>) {
+      const uniqueTabs: Tab[] = [];
+      const tabsById = new Map<string, Tab>();
+      for (const tab of openedTabs) {
+        if (tabsById.has(tab.id)) continue;
+        tabsById.set(tab.id, tab);
+        uniqueTabs.push(tab);
+      }
+      const seen = new Set<string>();
+      const history = focusHistory.flatMap((tab) => {
+        const restored = tabsById.get(tab.id);
+        if (!restored || seen.has(restored.id)) return [];
+        seen.add(restored.id);
+        return [restored];
+      });
+      for (const tab of openedTabs) {
+        if (!seen.has(tab.id)) history.push(tab);
+      }
+      patchState(store, { openedTabs: uniqueTabs, focusHistory: history, diffTabs, dirty: {} });
+    },
+
     /** Opens or focuses a file in Monaco CodeEditor. */
     openCodeEditor(id: string, title?: string) {
       this.openTab({ id, type: 'CodeEditor', ...(title ? { title } : {}) });

@@ -14,6 +14,14 @@ All statements below are limited to the requested source areas; citations use re
 
 `task.store.ts`, `note.store.ts`, and `setting.store.ts` are intentionally empty placeholders; task/note state resides in their services. (Empty files: `src/app/core/store/task.store.ts`, `note.store.ts`, `setting.store.ts`.)
 
+### Project workspace state
+
+- `WorkspaceStateService` persists expanded folder paths and supported open tabs to `.cairn/cache/workspace.json`; writes are debounced and use a temporary file followed by rename, with an immediate flush before window close or project switch. The snapshot contains no node IDs, selection, dirty flags, file content, or unsaved editor text.
+- Restore runs after the workspace tree and the WorkSync task/note caches are loaded. Paths are resolved against the opened project; missing folders, files, tasks, notes, malformed entries, and unsupported schema versions are skipped.
+- Task/note tabs use their record IDs. Code tabs use project-relative file paths. Diff tabs serialize their side descriptors with relative paths and rebuild worktree file IDs. Chat tabs are skipped because chat records are session-local; Review tabs currently have no stable review identifier or tab-opening implementation.
+- Rust's watcher excludes `.cairn/cache` paths from `fs:changed` batches (`src-tauri/src/services/watcher.rs`, `explorer_passes` and its tests).
+- This project snapshot is separate from `persistence.model.ts` and the existing `.ide/workspace.json` NodeState snapshot. The architecture decision that Rust alone reads/writes project data therefore does not describe this workspace-state file; it is Angular-owned as specified for this feature.
+
 ## 2. Tasks and notes
 
 ### Exact TypeScript shapes
@@ -93,7 +101,7 @@ export interface NoteItem {
 
 ## 6. Blockers and surprises
 
-- Tasks/notes are volatile in-memory signals with no repository or persistence integration (`task.service.ts:39-43`; `note.service.ts:35-45`). `persistence.model.ts` concerns IDE/workspace state only (`persistence.model.ts:4-32`).
+- Tasks/notes are caches backed by Rust services (`task.service.ts`; `note.service.ts`). The older `persistence.model.ts` concerns IDE/workspace state, while project UI state is persisted separately by `WorkspaceStateService`.
 - Notes use millisecond timestamp IDs while tasks use UUIDs (`note.service.ts:57-63`; `task.service.ts:97,205`); a Rust/JSON-RPC repository should account for ID uniqueness and wire-format compatibility.
 - The task anchor model includes `function`/`ast`, but creation UI currently attaches only `kind: 'file'`; notes have AST/task anchors and `lost` marker (`task.service.ts:5-10`; `new-task.ts:44-47`; `note.service.ts:3-18`).
 - The three named stores are empty placeholders, not current blockers; actual task/note state is service-owned. The empty task/note/setting store paths are listed above.
