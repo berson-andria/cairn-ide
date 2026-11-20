@@ -42,17 +42,10 @@ details: `task-note-api.md`, `run-api.md`, `proposal-api.md`.
 | "Can it start?" / dependents | compute locally from the store (not wrapped) |
 | Events | `task:created`, `task:updated`, `task:deleted {id}`, `task:reloaded` |
 
-Status buttons (Rust rejects anything else):
-
-| Status | Offer | Call |
-|---|---|---|
-| ready | Start manually (you do the work) | `task_start(id, expectedRev)` |
-| ready | Run workflow | `run_start` (section 4); it also sets `running` |
-| blocked | nothing (becomes ready by itself) | |
-| running | Mark completed | `task_complete(id, expectedRev)` |
-| needs_review | Mark completed / Send back | `task_complete` / `task_set_status(id, "ready", expectedRev)` |
-| failed | Retry | `task_set_status(id, "ready", expectedRev)` |
-| completed | Reopen | `task_set_status(id, "ready", expectedRev)` |
+Use `TaskService.availableActions(task)` for the applicable status actions and
+enabled state; execute with `TaskService.perform(task, action)`. See
+[frontend-services.md](./frontend-services.md) for action reasons and the
+service recipes.
 
 ## 3. Notes
 

@@ -2,8 +2,18 @@ import { Injectable } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
 import type { NewTask, TaskPatch, NewSubTask, SubTaskPatch, TaskItem } from '../../../feature/tasks/task.service';
 import type { NewNote, NotePatch, NoteItem, NoteAnchor, NoteStatus } from '../../../feature/notes/note.service';
+import type {
+  AcceptResult,
+  ApiErrorCode,
+  Proposal,
+  ProposalPayload,
+  RunRecord,
+  SourceAction,
+  WorkflowInfo,
+  WorkflowInspect,
+} from '../../../shared/models/agent.model';
 
-export interface ApiError { code: string; message: string; }
+export interface ApiError { code: ApiErrorCode; message: string; }
 export interface StorageError extends ApiError {}
 export interface ListResult<T> { records: T[]; errors: StorageError[]; }
 
@@ -13,7 +23,7 @@ export class WorkApiService {
     try { return await invoke<T>(command, args); }
     catch (reason) {
       if (reason && typeof reason === 'object' && 'code' in reason && 'message' in reason)
-        throw { code: String((reason as ApiError).code), message: String((reason as ApiError).message) } satisfies ApiError;
+        throw { code: String((reason as ApiError).code) as ApiErrorCode, message: String((reason as ApiError).message) } satisfies ApiError;
       throw { code: 'BadArgs', message: typeof reason === 'string' ? reason : String(reason) } satisfies ApiError;
     }
   }
@@ -47,4 +57,19 @@ export class WorkApiService {
   noteRemoveAnchor(id: string, index: number, expectedRev: number) { return this.call<NoteItem>('note_remove_anchor', { id, index, expectedRev }); }
   noteSetStatus(id: string, status: NoteStatus, expectedRev: number) { return this.call<NoteItem>('note_set_status', { id, status, expectedRev }); }
   noteToggleStatus(id: string, expectedRev: number) { return this.call<NoteItem>('note_toggle_status', { id, expectedRev }); }
+  workflowList() { return this.call<WorkflowInfo[]>('workflow_list'); }
+  workflowInspect(name: string) { return this.call<WorkflowInspect>('workflow_inspect', { name }); }
+  workflowTrust(name: string, hash: string) { return this.call<void>('workflow_trust', { name, hash }); }
+  runStart(taskId: string, expectedRev: number, workflow?: string) { return this.call<RunRecord>('run_start', { taskId, expectedRev, workflow }); }
+  runCancel() { return this.call<void>('run_cancel'); }
+  runGet() { return this.call<RunRecord | null>('run_get'); }
+  runList(limit: number) { return this.call<RunRecord[]>('run_list', { limit }); }
+  runLog(runId: string, maxLines: number) { return this.call<string[]>('run_log', { runId, maxLines }); }
+  proposalList() { return this.call<ListResult<Proposal>>('proposal_list'); }
+  proposalAccept(id: string, expectedRev: number, payload?: ProposalPayload, sourceAction?: SourceAction) {
+    return this.call<AcceptResult>('proposal_accept', { id, expectedRev, payload, sourceAction });
+  }
+  proposalReject(id: string, expectedRev: number) { return this.call<Proposal>('proposal_reject', { id, expectedRev }); }
+  proposalDelete(id: string) { return this.call<void>('proposal_delete', { id }); }
+  proposalMarkSeen(ids: string[]) { return this.call<Proposal[]>('proposal_mark_seen', { ids }); }
 }

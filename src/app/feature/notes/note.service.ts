@@ -1,6 +1,7 @@
 import { Injectable, computed, inject } from '@angular/core';
 import { NoteStore } from '../../core/store/note.store';
 import { WorkApiService, type ApiError } from '../../core/services/tauri/work-api.service';
+import { handleApiError as reportApiError } from '../../core/services/tauri/api-error';
 import { NoticeManager } from '../../core/services/notification/notification.service';
 
 export interface AstAnchor { kind:'ast'; id?:string; label:string; path:string; lost?:boolean; }
@@ -22,7 +23,7 @@ export class NoteService {
   refresh():Promise<void>{return this.refreshPromise??=this.api.noteList().then(r=>this.store.replace(r.records,r.errors)).catch(e=>this.handleApiError(e)).finally(()=>this.refreshPromise=undefined);}
   get(id:string):NoteItem|undefined{return this.records()[id];}
   private async mutate(id:string,run:(rev:number)=>Promise<NoteItem>):Promise<NoteItem|undefined>{const n=this.get(id);if(!n)return;try{return await run(n.rev);}catch(e){await this.handleApiError(e as ApiError,id);return;}}
-  private async handleApiError(error:ApiError,id?:string):Promise<void>{if(error?.code==='StaleRev'&&id){try{this.store.upsert(await this.api.noteGet(id));}catch{}}if(error?.code!=='NoProject')this.notices.error(error?.code==='StaleRev'?'This changed elsewhere; try again.':error?.message??String(error));}
+  private async handleApiError(error:ApiError,id?:string):Promise<void>{await reportApiError(error,this.notices,id?async()=>this.store.upsert(await this.api.noteGet(id)):undefined);}
   async add(data:NewNote):Promise<NoteItem|undefined>{try{return await this.api.noteCreate(data);}catch(e){await this.handleApiError(e as ApiError);return;}}
   edit(id:string,patch:NotePatch):Promise<NoteItem|undefined>{return this.mutate(id,rev=>this.api.noteUpdate(id,patch,rev));}
   async delete(id:string):Promise<void>{try{await this.api.noteDelete(id);}catch(e){await this.handleApiError(e as ApiError,id);}}

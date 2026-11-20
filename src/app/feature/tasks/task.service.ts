@@ -1,7 +1,9 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { TaskStore } from '../../core/store/task.store';
 import { WorkApiService, type ApiError } from '../../core/services/tauri/work-api.service';
+import { handleApiError as reportApiError } from '../../core/services/tauri/api-error';
 import { NoticeManager } from '../../core/services/notification/notification.service';
+import { RunService, type RunResult } from '../runs/run.service';
 
 export type TaskStatus = 'ready' | 'running' | 'blocked' | 'needs_review' | 'completed' | 'failed';
 export interface TaskAnchor {
@@ -58,11 +60,19 @@ export interface TaskItem {
   rev: number;
 }
 
+export type TaskAction = 'start' | 'run' | 'complete' | 'sendBack' | 'retry' | 'reopen';
+export interface AvailableTaskAction {
+  action: TaskAction;
+  enabled: boolean;
+  reason?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class TaskService {
   private readonly store = inject(TaskStore);
   private readonly api = inject(WorkApiService);
   private readonly notices = inject(NoticeManager);
+  private readonly runService = inject(RunService);
   readonly records = this.store.records;
   readonly errors = this.store.errors;
   readonly loaded = this.store.loaded;
@@ -103,6 +113,63 @@ export class TaskService {
       !!t && t.status === 'ready' && (!t.dependsOn || this.get(t.dependsOn)?.status === 'completed')
     );
   }
+  availableActions(task: TaskItem): AvailableTaskAction[] {
+    const dependency = task.dependsOn ? this.get(task.dependsOn) : undefined;
+    const dependencyReady = !task.dependsOn || dependency?.status === 'completed';
+    switch (task.status) {
+      case 'ready':
+        return [
+          {
+            action: 'start',
+            enabled: dependencyReady,
+            reason: dependencyReady ? undefined : 'Complete the dependency first.',
+          },
+          {
+            action: 'run',
+            enabled: this.runService.canRun(task),
+            reason: this.runDisabledReason(task, dependencyReady),
+          },
+        ];
+      case 'running':
+        return [{ action: 'complete', enabled: true }];
+      case 'needs_review':
+        return [
+          { action: 'complete', enabled: true },
+          { action: 'sendBack', enabled: true },
+        ];
+      case 'failed':
+        return [{ action: 'retry', enabled: true }];
+      case 'completed':
+        return [{ action: 'reopen', enabled: true }];
+      case 'blocked':
+        return [];
+    }
+  }
+  async perform(
+    task: TaskItem,
+    action: TaskAction,
+  ): Promise<TaskItem | RunResult | undefined> {
+    if (!this.availableActions(task).some(item => item.action === action && item.enabled)) return;
+    switch (action) {
+      case 'start':
+        return this.start(task.id);
+      case 'run':
+        return this.runService.run(task.id);
+      case 'complete':
+        return this.complete(task.id);
+      case 'sendBack':
+      case 'retry':
+      case 'reopen':
+        return this.setStatus(task.id, 'ready');
+    }
+  }
+  private runDisabledReason(task: TaskItem, dependencyReady: boolean): string | undefined {
+    if (task.status !== 'ready') return 'Task is not ready.';
+    if (!dependencyReady) return 'Complete the dependency first.';
+    if (this.runService.isRunning()) return 'Another workflow is running.';
+    if (!this.runService.canRun(task)) return 'Open a project before starting a workflow.';
+    return undefined;
+  }
   getDependentTasks(id: string): TaskItem[] {
     return this.tasks().filter((t) => t.dependsOn === id);
   }
@@ -120,16 +187,10 @@ export class TaskService {
     }
   }
   private async handleApiError(error: ApiError, id?: string): Promise<void> {
-    if (error?.code === 'StaleRev' && id) {
-      try {
-        this.store.upsert(await this.api.taskGet(id));
-      } catch {}
-    }
-    if (error?.code === 'NoProject') return;
-    this.notices.error(
-      error?.code === 'StaleRev'
-        ? 'This changed elsewhere; try again.'
-        : (error?.message ?? String(error)),
+    await reportApiError(
+      error,
+      this.notices,
+      id ? async () => this.store.upsert(await this.api.taskGet(id)) : undefined,
     );
   }
   async add(data: NewTask): Promise<TaskItem | undefined> {
