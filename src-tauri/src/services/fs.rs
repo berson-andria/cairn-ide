@@ -1,19 +1,26 @@
+use crate::services::watcher::tree_hidden;
 use crate::types::workspace_node::{BaseNode, FileNode, FolderNode, Node};
 
 use std::fs::{create_dir_all, read_dir, File};
-use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use tauri::Manager;
-use tauri_plugin_log::log::info;
 use uuid::Uuid;
 
 pub fn get_directory_content(path: &Path) -> Result<Vec<Node>, String> {
     let mut nodes = Vec::new();
+    let cairn_root = project_root_for_cairn_path(path);
     let entries = read_dir(path).map_err(|e| format!("Failed to read directory details: {}", e))?;
 
     for entry in entries {
         if let Ok(entry) = entry {
             let item_path = entry.path();
+            let visibility_path = cairn_root
+                .as_deref()
+                .and_then(|root| item_path.strip_prefix(root).ok())
+                .or_else(|| item_path.file_name().map(Path::new))
+                .unwrap_or(item_path.as_path());
+            if tree_hidden(visibility_path) {
+                continue;
+            }
 
             // Get clean system string representations of the file name and path
             let item_name = item_path
@@ -76,6 +83,87 @@ pub fn get_directory_content(path: &Path) -> Result<Vec<Node>, String> {
     });
 
     Ok(nodes)
+}
+
+fn project_root_for_cairn_path(path: &Path) -> Option<PathBuf> {
+    let mut root = PathBuf::new();
+    for component in path.components() {
+        if component.as_os_str() == ".cairn" {
+            return Some(root);
+        }
+        root.push(component.as_os_str());
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn names(path: &Path) -> Vec<String> {
+        get_directory_content(path)
+            .unwrap()
+            .into_iter()
+            .map(|node| match node {
+                Node::File(file) => file.base.name,
+                Node::Folder(folder) => folder.base.name,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn directory_listing_hides_git_and_private_cairn_data_only() {
+        let root = tempfile::tempdir().unwrap();
+        for name in [".git", ".venv", "venv", "node_modules", ".env"] {
+            create_dir_all(root.path().join(name)).unwrap();
+        }
+        create_dir_all(root.path().join(".cairn/tasks")).unwrap();
+        create_dir_all(root.path().join(".cairn/notes")).unwrap();
+        create_dir_all(root.path().join(".cairn/cache")).unwrap();
+        create_dir_all(root.path().join(".cairn/runs/id")).unwrap();
+        create_dir_all(root.path().join("target/debug")).unwrap();
+        std::fs::write(root.path().join(".cairn/settings.json"), "{}").unwrap();
+        std::fs::write(root.path().join(".cairn/tasks/a.json"), "{}").unwrap();
+        std::fs::write(root.path().join(".cairn/notes/n.json"), "{}").unwrap();
+        std::fs::write(root.path().join(".cairn/cache/codemap.json"), "{}").unwrap();
+        std::fs::write(root.path().join(".cairn/runs/id/run.log"), "").unwrap();
+        std::fs::write(root.path().join(".venv/lib.py"), "").unwrap();
+        std::fs::write(root.path().join("node_modules/pkg.js"), "").unwrap();
+        std::fs::write(root.path().join("target/debug/app.exe"), "").unwrap();
+
+        let root_entries = names(root.path());
+        assert!(root_entries.contains(&".cairn".to_string()));
+        assert!(!root_entries.contains(&".git".to_string()));
+        assert!(root_entries.contains(&".venv".to_string()));
+        assert!(root_entries.contains(&"node_modules".to_string()));
+        assert!(root_entries.contains(&".env".to_string()));
+
+        let cairn_entries = names(&root.path().join(".cairn"));
+        for visible in ["settings.json", "tasks", "notes"] {
+            assert!(cairn_entries.contains(&visible.to_string()), "{visible}");
+        }
+        for hidden in ["cache", "runs", "workflows"] {
+            assert!(!cairn_entries.contains(&hidden.to_string()), "{hidden}");
+        }
+        assert_eq!(
+            names(&root.path().join(".cairn/tasks")),
+            vec!["a.json".to_string()]
+        );
+
+        create_dir_all(root.path().join(".cairn/workflows")).unwrap();
+        std::fs::write(root.path().join(".cairn/workflows/default.py"), "pass").unwrap();
+        assert!(names(&root.path().join(".cairn")).contains(&"workflows".to_string()));
+        assert_eq!(
+            names(&root.path().join(".cairn/workflows")),
+            vec!["default.py".to_string()]
+        );
+        assert_eq!(names(&root.path().join(".venv")), vec!["lib.py"]);
+        assert_eq!(names(&root.path().join("node_modules")), vec!["pkg.js"]);
+        assert_eq!(
+            names(&root.path().join("target/debug")),
+            vec!["app.exe".to_string()]
+        );
+    }
 }
 
 pub async fn create_fs_node(

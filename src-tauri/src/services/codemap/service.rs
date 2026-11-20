@@ -43,7 +43,11 @@ impl CodeMapService {
     ) -> Result<IndexStats, String> {
         let started = std::time::Instant::now();
         let files = self.collect_files();
-        info!("codemap walk completed in {:?} ({} files)", started.elapsed(), files.len());
+        info!(
+            "codemap walk completed in {:?} ({} files)",
+            started.elapsed(),
+            files.len()
+        );
         let total = files.len();
         let mut stats = IndexStats {
             scanned: total,
@@ -69,7 +73,10 @@ impl CodeMapService {
         stats.removed = self.store.retain_files(&present)?;
         stats.symbols = self.store.symbol_count()?;
         self.store.save()?;
-        info!("codemap parse/index completed in {:?}", parse_started.elapsed());
+        info!(
+            "codemap parse/index completed in {:?}",
+            parse_started.elapsed()
+        );
 
         on_progress(IndexProgress { done: total, total });
         Ok(stats)
@@ -353,6 +360,16 @@ pub(crate) fn watcher_ignore(root: &Path) -> Gitignore {
     let mut builder = GitignoreBuilder::new(root);
     let _ = builder.add(root.join(".gitignore")); // a missing file is fine
     let _ = builder.add(root.join(".git/info/exclude"));
+    for pattern in [
+        ".venv/",
+        "venv/",
+        "__pycache__/",
+        ".mypy_cache/",
+        ".pytest_cache/",
+        ".ruff_cache/",
+    ] {
+        let _ = builder.add_line(None, pattern);
+    }
     builder.build().unwrap_or_else(|_| Gitignore::empty())
 }
 
@@ -494,6 +511,40 @@ mod tests {
             ])
             .unwrap();
         assert_eq!(s.scanned, 0);
+    }
+
+    #[test]
+    fn update_files_does_not_parse_or_save_hidden_and_ignored_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        write(&dir, ".gitignore", "node_modules/\n");
+        let hidden_python = write(&dir, ".venv/lib/hidden.py", "def hidden(): pass");
+        let hidden_env = write(&dir, ".env", "SECRET=value");
+        let cache = write(&dir, ".cairn/cache/codemap.json", "not source");
+        let workflow = write(&dir, ".cairn/workflows/default.py", "def hidden(): pass");
+        let task = write(&dir, ".cairn/tasks/x.json", r#"{"title":"hidden"}"#);
+        let git_head = write(&dir, ".git/HEAD", "ref: refs/heads/main");
+        let git_object = write(&dir, ".git/objects/x.rs", "fn hidden() {}");
+        let ignored = write(&dir, "node_modules/pkg/hidden.rs", "fn hidden() {}");
+        let cache_path = dir.path().join(".cairn/cache/codemap.json");
+        let mut svc = CodeMapService::open(dir.path()).unwrap();
+        let stats = svc
+            .update_files(&[
+                hidden_python,
+                hidden_env,
+                cache,
+                workflow,
+                task,
+                git_head,
+                git_object,
+                ignored,
+            ])
+            .unwrap();
+        assert_eq!(stats.scanned, 0);
+        assert_eq!(stats.parsed, 0);
+        assert_eq!(stats.skipped, 0);
+        assert_eq!(stats.symbols, 0);
+        assert!(svc.store.file_states().unwrap().is_empty());
+        assert_eq!(fs::read_to_string(cache_path).unwrap(), "not source");
     }
 
     #[test]
