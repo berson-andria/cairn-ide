@@ -14,12 +14,15 @@
       <!-- Input for new note -->
       <div class="input-container">
         <div class="input-form">
-          <input
+          <textarea
             #noteInput
+            autoExpand
+            class="scrolling-el"
+            rows="1"
             aria-label="New note"
-            placeholder="New note, Enter to save"
-            (keydown.enter)="addNote(noteInput.value); noteInput.value = ''"
-          />
+            placeholder="⏎ to save ● ⇧ + ⏎ for a new line"
+            (submit)="addNote(noteInput.value); noteInput.value = ''"
+          ></textarea>
         </div>
       </div>
 

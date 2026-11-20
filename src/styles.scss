@@ -344,6 +344,9 @@ ng-icon {
     display: none;
   }
 }
+textarea[autoExpand] {
+  resize: none;
+}
 .input-form {
   display: flex;
   align-items: center;

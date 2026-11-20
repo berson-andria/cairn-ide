@@ -3,6 +3,7 @@ import { bootstrapChevronDown, bootstrapChevronRight } from '@ng-icons/bootstrap
 import { lucideChevronDown } from '@ng-icons/lucide';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { LayoutService } from '../../../core/services/layout.service';
+import { AutoExpandDirective } from '../../../shared/directives/auto-expand';
 import { MenuDirective } from '../../../shared/directives/menu.directive';
 import { TabStore } from '../../../core/store/tab.store';
 import { EditorCommands } from '../../editor/editor.commands';
@@ -17,7 +18,7 @@ export type NoteFilter = 'all' | 'open' | 'inbox' | 'completed';
   selector: 'note-list',
   templateUrl: './note-list.html',
   styleUrl: './note-list.scss',
-  imports: [NgIcon, Note, MenuDirective],
+  imports: [AutoExpandDirective, NgIcon, Note, MenuDirective],
   providers: [
     provideIcons({
       bootstrapChevronDown,

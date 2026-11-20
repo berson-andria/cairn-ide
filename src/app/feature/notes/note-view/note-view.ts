@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  input,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { TabStore } from '../../../core/store/tab.store';
 import { EditorCommands } from '../../editor/editor.commands';
@@ -121,11 +115,15 @@ export class NoteView {
   async attachToTask(): Promise<void> {
     const note = this.activeNote();
     if (!note) return;
-    const selected = await this.layout.openComponent({ kind: 'note', id: note.id });
+    const selected = await this.layout.openAnchor({ kind: 'note', id: note.id });
     if (!selected) return;
 
     if (selected.kind === 'file') {
-      const anchor: AstAnchor = { kind: 'ast', path: selected.path, label: selected.path.split(/[\\/]/).pop() ?? selected.path };
+      const anchor: AstAnchor = {
+        kind: 'ast',
+        path: selected.path,
+        label: selected.path.split(/[\\/]/).pop() ?? selected.path,
+      };
       await this.noteService.addAnchor(note.id, anchor);
     } else if (selected.kind === 'task') {
       const task = this.taskService.get(selected.id);
@@ -150,4 +148,3 @@ export class NoteView {
     }
   }
 }
-

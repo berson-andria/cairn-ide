@@ -10,6 +10,22 @@
 .input-container {
   padding: var(--space-4) var(--space-10);
 }
+.input-form textarea {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-ui);
+  outline: none;
+  resize: none;
+}
+.input-form textarea::placeholder {
+  color: var(--color-text-muted);
+}
 .note-filter-bar {
   padding: 0 var(--space-10) var(--space-8);
   display: flex;

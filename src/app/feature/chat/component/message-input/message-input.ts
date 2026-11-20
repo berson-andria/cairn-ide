@@ -54,7 +54,7 @@ export class MessageInput {
   }
 
   async attachContext(): Promise<void> {
-    const selected = await this.layoutService.openComponent({ kind: 'file' });
+    const selected = await this.layoutService.openAnchor({ kind: 'file' });
     if (!selected) return;
 
     if (selected.kind === 'file') {

@@ -1,4 +1,4 @@
-import { Directive, ElementRef, output } from '@angular/core';
+import { AfterViewInit, Directive, ElementRef, input, output } from '@angular/core';
 
 @Directive({
   selector: 'textarea[autoExpand]',
@@ -7,14 +7,20 @@ import { Directive, ElementRef, output } from '@angular/core';
     '(input)': 'onInput()',
   },
 })
-export class AutoExpandDirective {
+export class AutoExpandDirective implements AfterViewInit {
   submit = output();
+  autoExpandSubmitOnEnter = input(true);
   private readonly maxHeight = 160;
 
   constructor(private el: ElementRef<HTMLTextAreaElement>) {}
 
+  ngAfterViewInit(): void {
+    this.onInput();
+  }
+
   onEnter(event: Event) {
     const kbEvent = event as KeyboardEvent;
+    if (!this.autoExpandSubmitOnEnter()) return;
     if (!kbEvent.shiftKey) {
       kbEvent.preventDefault();
       this.el.nativeElement.style.height = 'auto';
