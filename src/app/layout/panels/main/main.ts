@@ -20,13 +20,11 @@ import { NoFolderOpen } from './no-folder';
 import { FileNode } from '../../../core/store/node.state';
 import { EditorService } from '../../../feature/editor/services/editor.service';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
-import { baseName } from '../../../feature/editor/features/diff-tab';
 import { NoteView } from '../../../feature/notes/note-view/note-view';
 import { Editor } from '../../../feature/editor/editor';
 import { FileIcon } from '../../../shared/components/file-icon';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideFileWarning, lucideX } from '@ng-icons/lucide';
-import { MenuDirective } from '../../../shared/directives/menu.directive';
 import { LayoutService, Toolkit } from '../../../core/services/layout.service';
 import { GitService } from '../../../feature/git/services/git.service';
 import { statusStyle } from '../../../feature/git/ui/git-ui';
@@ -72,7 +70,7 @@ export class MainPanel {
   readonly command = inject(EditorCommands);
   readonly injector = inject(Injector);
   protected layoutService = inject(LayoutService);
-  readonly git = inject(GitService);
+  protected git = inject(GitService);
 
   private elementRef = inject(ElementRef);
 
@@ -184,7 +182,6 @@ export class MainPanel {
           ];
         }
 
-        case 'chat':
         case 'Chat': {
           const label = tab.title ?? 'Chat';
           return [
@@ -226,12 +223,6 @@ export class MainPanel {
     const path = tab.kind === 'diff' ? tab.tooltip : this.nodeStore.nodes()[tab.id]!.path;
     return this.git.badgeFor(path);
   }
-
-  gitChangesCount = computed(() => {
-    const staged = this.git.staged();
-    const unstaged = this.git.unstaged();
-    return staged.length + unstaged.length;
-  });
 
   private readonly destroyRef = inject(DestroyRef);
 

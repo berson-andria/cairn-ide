@@ -29,6 +29,7 @@ import {
   lucideGitBranch,
   lucideGitCommitHorizontal,
   lucideGitGraph,
+  lucideHighlighter,
   lucideOctagonX,
   lucidePanelLeft,
   lucidePlus,
@@ -74,6 +75,7 @@ import { NoticeList } from '../../core/services/notification/notification-list';
       lucideBraces,
       lucideFolderTree,
       lucideSettings2,
+      lucideHighlighter,
     }),
   ],
 })

@@ -145,7 +145,12 @@
         </div>
       </div>
     </ng-template>
-
+    @if (tabStore.dirtyCount()) {
+      <button class="icon-btn notif" title="Highlight  Unsaved Files">
+        <span style="margin-right: 6px">{{ tabStore.dirtyCount() }}</span>
+        <ng-icon name="lucideHighlighter" />
+      </button>
+    }
     <button
       class="icon-btn"
       type="button"

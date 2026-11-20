@@ -40,25 +40,6 @@
           </div>
         }
       </div>
-      <div class="unsaved-control">
-        @if (dirtyFileCount()) {
-          <button class="icon-btn notif-action" title="Highlight Unsaved Files">
-            <span>{{ dirtyFileCount() }} </span><ng-icon name="lucideFileWarning "></ng-icon>
-          </button>
-        }
-
-        @if (gitChangesCount() > 0) {
-          <button
-            class="icon-btn notif-action"
-            type="button"
-            aria-label="Open Git"
-            (click)="toggleToolkit('Git')"
-          >
-            <span>{{ gitChangesCount() }}</span>
-            <ng-icon name="lucideGitBranch " />
-          </button>
-        }
-      </div>
     </div>
   }
   <div class="workspace-content">

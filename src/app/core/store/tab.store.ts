@@ -2,14 +2,7 @@ import { computed } from '@angular/core';
 import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
 import { DiffTab, DiffRequest, diffTabId, diffTitle } from '../../feature/editor/features/diff-tab';
 
-export type TabContentType =
-  | 'CodeEditor'
-  | 'DiffEditor'
-  | 'Task'
-  | 'Review'
-  | 'Note'
-  | 'chat'
-  | 'Chat';
+export type TabContentType = 'CodeEditor' | 'DiffEditor' | 'Task' | 'Review' | 'Note' | 'Chat';
 
 export interface Tab<T = unknown> {
   id: string;
@@ -167,7 +160,7 @@ export const TabStore = signalStore(
     openChat(id: string, title: string, data?: unknown): string {
       this.openTab({
         id,
-        type: 'chat',
+        type: 'Chat',
         title,
         ...(data !== undefined ? { data } : {}),
       });
