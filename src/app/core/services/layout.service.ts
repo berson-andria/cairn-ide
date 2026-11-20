@@ -47,7 +47,7 @@ export class LayoutService {
   }
 
   /** Opens the picker using the allowed sources for its origin and returns the selected entity. */
-  async openComponent(
+  async openAnchor(
     opener:
       | { kind: 'task'; id: string }
       | { kind: 'note'; id: string }

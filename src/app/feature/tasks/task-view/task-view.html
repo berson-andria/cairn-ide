@@ -2,9 +2,15 @@
   <div class="task-detail">
     <main class="task-detail__main scrolling-el">
       <div class="muted">Tasks › {{ item.id.slice(0, 8) }}</div>
+      @if (item.status === 'running') {
+        <div class="task-readonly-banner" role="status">
+          This task is running. Its content is read-only until it finishes.
+        </div>
+      }
       <input
         class="task-title-input"
         aria-label="Title"
+        [readOnly]="item.status === 'running'"
         [value]="item.title"
         (change)="updateTitle($any($event.target).value)"
       />
@@ -15,36 +21,163 @@
         }}</span>
         <span class="status-line__action">
           <span class="muted">{{ availabilityLabel(item) }}</span>
-          @if (item.status === 'ready') { <button class="btn-action run-button" [disabled]="!canStart()" (click)="startTask()">Start</button> }
-          @if (item.status === 'running' || item.status === 'needs_review') { <button class="btn-action run-button" (click)="completeTask()">Mark completed</button> }
-          @if (item.status === 'needs_review') { <button class="btn-action" (click)="setStatus('ready')">Send back</button> }
-          @if (item.status === 'failed') { <button class="btn-action" (click)="setStatus('ready')">Retry</button> }
-          @if (item.status === 'completed') { <button class="btn-action" (click)="setStatus('ready')">Reopen</button> }
+          @if (item.status === 'ready') {
+            <button class="btn-action run-button" [disabled]="!canStart()" (click)="startTask()">
+              Start
+            </button>
+          }
+          @if (item.status === 'running' || item.status === 'needs_review') {
+            <button class="btn-action run-button" (click)="completeTask()">Mark completed</button>
+          }
+          @if (item.status === 'needs_review') {
+            <button class="btn-action" (click)="setStatus('ready')">Send back</button>
+          }
+          @if (item.status === 'failed') {
+            <button class="btn-action" (click)="setStatus('ready')">Retry</button>
+          }
+          @if (item.status === 'completed') {
+            <button class="btn-action" (click)="setStatus('ready')">Reopen</button>
+          }
         </span>
       </div>
 
       <section class="detail-section">
+        <div class="section-heading"><span>Description</span></div>
+        <textarea
+          #descriptionInput
+          autoExpand
+          [autoExpandSubmitOnEnter]="false"
+          class="description-input scrolling-el"
+          aria-label="Description"
+          [readOnly]="item.status === 'running'"
+          [value]="item.description ?? ''"
+          (input)="setDescriptionDraft(item.id, descriptionInput.value)"
+        ></textarea>
+        @if (hasDescriptionChanges()) {
+          <div class="description-actions">
+            <button type="button" class="btn-action" (click)="cancelDescription(descriptionInput)">
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn-action"
+              [disabled]="item.status === 'running'"
+              (click)="updateDescription(item.id, descriptionInput.value)"
+            >
+              Save
+            </button>
+          </div>
+        }
+      </section>
+      <section class="detail-section">
         <div class="section-heading">
-          <span>Description</span
-          ><button
+          <span>Anchor</span>
+          <button
+            type="button"
             class="text-button muted normal-case"
-            (click)="editingDescription.update(editing => !editing)"
+            [disabled]="item.status === 'running'"
+            (click)="attachLinkedItem()"
           >
-            {{ editingDescription() ? 'Cancel' : 'Click to edit' }}
+            <ng-icon name="lucidePlus" />
           </button>
         </div>
-        @if (editingDescription()) {
-          <textarea
-            class="description-input"
-            aria-label="Description"
-            [value]="item.description ?? ''"
-            (blur)="updateDescription($any($event.target).value)"
-            (keydown.control.enter)="updateDescription($any($event.target).value)"
-          ></textarea>
+        @if (item.anchor || linkedNotes().length) {
+          @if (item.anchor; as anchor) {
+            <div class="anchor-items">
+              <span class="chip file-chip">{{ anchor.path }}</span>
+            </div>
+          }
+          @if (linkedNotes().length) {
+            <div class="anchor-items">
+              @for (note of linkedNotes(); track note.id) {
+                <div class="linked-note">
+                  <div class="linked-note-icon">
+                    <ng-icon name="lucideNotebook" />
+                  </div>
+                  <div class="linked-note-content">
+                    {{ note.content }}
+                  </div>
+                  <button class="remove-link"></button>
+                </div>
+              }
+            </div>
+          }
         } @else {
-          <p class="description" (click)="editingDescription.set(true)">
-            {{ item.description || 'No description added.' }}
-          </p>
+          <span class="muted">No files or notes attached</span>
+        }
+      </section>
+      <section class="detail-section" (focusout)="closeDependencyPickerOnBlur($event)">
+        <div class="section-heading">
+          <span>Depends on</span>
+          <button
+            type="button"
+            class="text-button muted normal-case"
+            [disabled]="item.status === 'running'"
+            [attr.aria-label]="
+              showDependencyPicker() ? 'Close dependency picker' : 'Add dependency'
+            "
+            [attr.aria-expanded]="showDependencyPicker()"
+            (click)="toggleDependencyPicker()"
+          >
+            <ng-icon name="lucidePlus" />
+          </button>
+        </div>
+        @if (item.dependsOn) {
+          <div class="dependency-current">
+            <span class="chip file-chip">{{
+              taskService.get(item.dependsOn)?.title ?? item.dependsOn.slice(0, 8)
+            }}</span>
+            <button
+              type="button"
+              class="text-button muted normal-case"
+              aria-label="Remove dependency"
+              [disabled]="item.status === 'running'"
+              (click)="setDependency(item.id, null)"
+            >
+              ×
+            </button>
+          </div>
+        } @else {
+          <span class="muted">No dependencies</span>
+        }
+        @if (showDependencyPicker()) {
+          <div class="dependency-picker">
+            @if (dependencyCandidates().length > 8) {
+              <label class="dependency-search-label" for="dependency-search">Search tasks</label>
+              <input
+                id="dependency-search"
+                class="dependency-search"
+                type="search"
+                aria-label="Search tasks for dependency"
+                [readOnly]="item.status === 'running'"
+                [value]="dependencySearch()"
+                (input)="dependencySearch.set($any($event.target).value)"
+              />
+            }
+            <div class="dependency-picker__list scrolling-el" aria-label="Available tasks">
+              @for (candidate of filteredDependencyCandidates(); track candidate.id) {
+                <button
+                  type="button"
+                  class="dependency-option"
+                  [disabled]="item.status === 'running'"
+                  (click)="setDependency(item.id, candidate.id)"
+                >
+                  <span>{{ candidate.title }}</span>
+                  <span class="muted">{{ candidate.id.slice(0, 8) }}</span>
+                </button>
+              } @empty {
+                <span class="muted dependency-empty">No matching tasks</span>
+              }
+            </div>
+          </div>
+        }
+      </section>
+      <!-- <section class="detail-section">
+        <div class="section-heading">Branch</div>
+        @if (item.branch) {
+          <span class="chip file-chip">{{ item.branch }}</span>
+        } @else {
+          <span class="muted">No branch assigned</span>
         }
       </section>
       <section class="detail-section">
@@ -56,19 +189,40 @@
         } @else {
           <p class="muted">No acceptance criteria added.</p>
         }
-      </section>
-      <section class="detail-section">
-        <div class="section-heading"><span>Linked notes · {{ linkedNotes().length }}</span></div>
-        @for (note of linkedNotes(); track note.id) {
-          <div class="linked-note">{{ note.content }}</div>
-        } @empty {
-          <p class="muted">No linked notes.</p>
-        }
-      </section>
+      </section> -->
       <section class="detail-section">
         <div class="section-heading">
           <span>Subtasks · {{ item.subTasks?.length ?? 0 }}</span>
+          <button
+            type="button"
+            class="text-button muted normal-case"
+            aria-label="Add subtask"
+            [disabled]="item.status === 'running'"
+            [attr.aria-expanded]="showSubtaskInput()"
+            (click)="toggleSubtaskInput()"
+          >
+            <ng-icon name="lucidePlus" />
+          </button>
         </div>
+        @if (showSubtaskInput()) {
+          <form class="subtask-form" (submit)="$event.preventDefault(); addSubtask(item.id)">
+            <input
+              class="subtask-input"
+              aria-label="Subtask title"
+              placeholder="Subtask title"
+              [readOnly]="item.status === 'running'"
+              [value]="subtaskDraft()"
+              (input)="subtaskDraft.set($any($event.target).value)"
+            />
+            <button
+              type="submit"
+              class="btn-action"
+              [disabled]="item.status === 'running' || !subtaskDraft().trim()"
+            >
+              Add
+            </button>
+          </form>
+        }
         @for (subtask of item.subTasks ?? []; track subtask.id) {
           <div class="criteria">
             <span
@@ -82,37 +236,7 @@
         }
       </section>
     </main>
-    <aside class="task-detail__aside scrolling-el">
-      <section class="detail-section">
-        <div class="section-heading">
-          <span>Files</span>
-          <button type="button" class="text-button muted normal-case" (click)="attachLinkedItem()">
-            + Attach
-          </button>
-        </div>
-        @if (item.anchor; as anchor) {
-          <span class="chip file-chip">{{ anchor.path }}</span>
-        } @else {
-          <span class="muted">No linked files</span>
-        }
-      </section>
-      <section class="detail-section">
-        <div class="section-heading">Depends on</div>
-        @if (item.dependsOn) {
-          <span class="chip file-chip">{{ item.dependsOn.slice(0, 8) }}</span>
-        } @else {
-          <span class="muted">No dependencies</span>
-        }
-      </section>
-      <section class="detail-section">
-        <div class="section-heading">Branch</div>
-        @if (item.branch) {
-          <span class="chip file-chip">{{ item.branch }}</span>
-        } @else {
-          <span class="muted">No branch assigned</span>
-        }
-      </section>
-    </aside>
+    <aside class="task-detail__aside scrolling-el"></aside>
   </div>
 } @else {
   <div class="task-empty"><span class="muted">Select a task to view its details.</span></div>

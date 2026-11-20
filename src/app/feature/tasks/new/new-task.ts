@@ -2,12 +2,14 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { DialogRef } from '@angular/cdk/dialog';
 import { TaskService, type TaskItem } from '../task.service';
 import { LayoutService } from '../../../core/services/layout.service';
+import { AutoExpandDirective } from '../../../shared/directives/auto-expand';
 
 @Component({
   selector: 'app-new-task',
   standalone: true,
   templateUrl: './new-task.html',
   styleUrl: './new-task.scss',
+  imports: [AutoExpandDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NewTask {
@@ -42,7 +44,7 @@ export class NewTask {
   }
 
   async attachAnchor(): Promise<void> {
-    const selected = await this.layout.openComponent({ kind: 'file' });
+    const selected = await this.layout.openAnchor({ kind: 'file' });
     if (selected?.kind === 'file') this.anchorPath.set(selected.path);
   }
 

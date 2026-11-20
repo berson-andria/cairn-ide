@@ -1,5 +1,5 @@
 <div
-  class="task-item"
+  class="task-item icon-btn"
   [class.task-row--selected]="selected()"
   (click)="taskSelected.emit(task())"
   [attr.aria-current]="selected() ? 'page' : null"
@@ -7,27 +7,104 @@
 >
   @switch (task().status) {
     @case ('ready') {
-      <button class="play-btn">
-        <ng-icon name="lucidePlay" />
+      <button class="btn-action-play task-action" title="run stask">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          width="14"
+          height="14"
+          role="img"
+          aria-label="Run"
+        >
+          <path
+            d="M6 3.5v17L21 12z"
+            fill="#22c55e"
+            stroke="#22c55e"
+            stroke-width="2"
+            stroke-linejoin="round"
+          />
+        </svg>
       </button>
     }
     @case ('running') {
-      <button class="stop-btn">
-        <ng-icon name="lucideSquare" />
+      <button class="task-action btn-action-stop" title="Stop Task">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          width="14"
+          height="14"
+          role="img"
+          aria-label="Stop"
+        >
+          <rect x="4" y="4" width="16" height="16" rx="3" fill="#ef4444" />
+        </svg>
       </button>
     }
     @case ('failed') {
-      <button class="replay-btn">
-        <ng-icon name="lucideRotateCcw" />
+      <button class="task-action btn-action-rerun" title="Retry failed task">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          width="14"
+          height="14"
+          role="img"
+          aria-label="Rerun"
+        >
+          <g
+            fill="none"
+            stroke="#f59e0b"
+            stroke-width="3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="22 4 22 10 16 10" />
+            <path d="M20.5 15a9 9 0 1 1-2.1-9.4L22 10" />
+          </g>
+        </svg>
       </button>
     }
-    <!-- @case ('blocked') {} -->
+    @case ('needs_review') {
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        width="14"
+        height="14"
+        role="img"
+        aria-label="Needs review"
+      >
+        <circle cx="12" cy="12" r="11" fill="#8b5cf6" />
+        <line
+          x1="12"
+          y1="6.5"
+          x2="12"
+          y2="13"
+          stroke="#fff"
+          stroke-width="2.8"
+          stroke-linecap="round"
+        />
+        <circle cx="12" cy="17.2" r="1.6" fill="#fff" />
+      </svg>
+    }
+    @case ('completed') {
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        width="14"
+        height="14"
+        role="img"
+        aria-label="Completed"
+      >
+        <polyline
+          points="3 12.5 9 18.5 21 5.5"
+          fill="none"
+          stroke="#22c55e"
+          stroke-width="3.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    }
   }
-  <!-- <span
-    class="task-status"
-    [class]="'task-status task-status--' + task().status"
-    aria-hidden="true"
-  ></span> -->
   <span class="task-title">{{ task().title }}</span>
   @if (task().status === 'blocked') {
     <span class="chip task-id">{{ task().id.slice(0, 8) }}</span>

@@ -12,7 +12,9 @@
     autofocus
   />
   <textarea
-    class="field field--area"
+    class="field field--area scrolling-el"
+    autoExpand
+    [autoExpandSubmitOnEnter]="false"
     aria-label="Description"
     placeholder="Context the model needs. Markdown is fine."
     [value]="description()"
@@ -69,7 +71,7 @@
       @if (showSubtaskInput()) {
         <form class="subtask-form" (submit)="$event.preventDefault(); addSubtask()">
           <input
-            class="field field--compact"
+            class="field field--compact scrolling-el"
             aria-label="Subtask title"
             placeholder="Subtask title"
             [value]="subtaskDraft()"
@@ -181,6 +183,8 @@
       <textarea
         id="acceptance"
         class="field field--compact"
+        autoExpand
+        [autoExpandSubmitOnEnter]="false"
         placeholder="How will this task be checked?"
         [value]="acceptanceCriteria()"
         (input)="acceptanceCriteria.set($any($event.target).value)"

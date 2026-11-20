@@ -1,4 +1,51 @@
 .task-item {
   display: flex;
   flex-direction: row;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-4) var(--space-6);
+  margin-left: var(--space-8);
+  height: 28px;
+  cursor: pointer;
+  &:hover {
+    .task-row__delete {
+      display: inline;
+    }
+  }
+}
+
+.task-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-row__delete {
+  display: none;
+  &:hover {
+    color: var(--color-error-fg);
+    background-color: var(--color-error-bg);
+  }
+}
+.task-action {
+  aspect-ratio: 1/1;
+  height: fit-content;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+  border-radius: var(--radius-chip);
+}
+.btn-action {
+  &-play:hover {
+    background: #22c55e55;
+  }
+  &-stop:hover {
+    background: #ef444455;
+  }
+  &-rerun:hover {
+    background: #f59e0b55;
+  }
 }
