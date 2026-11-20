@@ -6,7 +6,7 @@ import { TaskStore } from '../../core/store/task.store';
 import { NoticeManager } from '../../core/services/notification/notification.service';
 import { handleApiError } from '../../core/services/tauri/api-error';
 import { WorkApiService } from '../../core/services/tauri/work-api.service';
-import type { RunRecord, WorkflowInspect } from '../../shared/models/agent.model';
+import type { RunRecord, WorkflowInfo, WorkflowInspect } from '../../shared/models/agent.model';
 import type { TaskItem } from '../tasks/task.service';
 import { WorkflowService } from './workflow.service';
 
@@ -26,21 +26,43 @@ export class RunService {
   readonly current = this.store.current;
   readonly isRunning = computed(() => {
     const current = this.current();
-    return !!current && !current.endedAt && !current.outcome;
+    if (!current || current.endedAt || current.outcome) return false;
+    const task = this.tasks.records()[current.taskId];
+    return !task || task.status === 'running';
   });
 
   logLines(runId: string): Signal<string[]> {
     return this.store.logLines(runId);
   }
 
-  canRun(task: TaskItem): boolean {
+  canRun(task: TaskItem, workflow?: string): boolean {
+    return this.runDisabledReason(task, workflow) === null;
+  }
+
+  runDisabledReason(task: TaskItem, workflow?: string): string | null {
+    if (!this.nodes.rootPath()) return 'Open a project before starting a workflow.';
+    if (task.status !== 'ready') return 'Task is not ready.';
+    if (this.isRunning()) return 'Another workflow is running.';
     const dependency = task.dependsOn ? this.tasks.records()[task.dependsOn] : undefined;
-    return (
-      task.status === 'ready' &&
-      !this.isRunning() &&
-      !!this.nodes.rootPath() &&
-      (!task.dependsOn || dependency?.status === 'completed')
-    );
+    if (task.dependsOn && dependency?.status !== 'completed') {
+      return 'Complete the dependency first.';
+    }
+
+    const workflows = this.workflows.workflows();
+    if (workflows.length === 0) return 'No workflows are available.';
+
+    const selectedWorkflow = this.selectWorkflow(workflow, workflows);
+    if (selectedWorkflow === undefined) return 'Choose a workflow.';
+    if (!workflows.some(item => item.name === selectedWorkflow)) {
+      return 'Workflow not found.';
+    }
+    return null;
+  }
+
+  private selectWorkflow(workflow: string | undefined, workflows: WorkflowInfo[]): string | undefined {
+    if (workflow !== undefined) return workflow;
+    if (workflows.some(item => item.name === 'default')) return 'default';
+    return workflows.length === 1 ? workflows[0].name : undefined;
   }
 
   async run(taskId: string, workflow?: string): Promise<RunResult | undefined> {
@@ -49,12 +71,14 @@ export class RunService {
       await handleApiError({ code: 'NotFound', message: `Task ${taskId} was not found.` }, this.notices);
       return undefined;
     }
+    const workflowName = this.selectWorkflow(workflow, this.workflows.workflows());
+    if (workflowName === undefined || this.runDisabledReason(task, workflow) !== null) return undefined;
     try {
-      const run = await this.api.runStart(taskId, task.rev, workflow);
+      const run = await this.api.runStart(taskId, task.rev, workflowName);
       return { kind: 'started', run };
     } catch (error) {
       if ((error as { code?: string })?.code === 'TrustRequired') {
-        const inspection = await this.workflows.inspect(workflow ?? 'default');
+        const inspection = await this.workflows.inspect(workflowName);
         return inspection ? { kind: 'trust-required', workflow: inspection } : undefined;
       }
       await handleApiError(error, this.notices);

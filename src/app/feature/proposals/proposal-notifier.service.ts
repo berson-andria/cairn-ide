@@ -1,6 +1,9 @@
 import { Injectable } from '@angular/core';
-import { Observable, Subject, buffer, debounceTime, filter, groupBy, map, mergeMap } from 'rxjs';
+import { Observable, Subject, bufferWhen, debounceTime, filter, groupBy, map, mergeMap, race, timer } from 'rxjs';
 import type { Proposal } from '../../shared/models/agent.model';
+
+export const PROPOSAL_NOTIFIER_QUIET_WINDOW_MS = 1000;
+export const PROPOSAL_NOTIFIER_MAX_WAIT_MS = 5000;
 
 export interface ProposalNotification {
   runId: string;
@@ -14,11 +17,21 @@ export interface ProposalNotification {
 export class ProposalNotifier {
   private readonly created = new Subject<Proposal>();
 
+  protected get quietWindowMs(): number {
+    return PROPOSAL_NOTIFIER_QUIET_WINDOW_MS;
+  }
+
+  protected get maxWaitMs(): number {
+    return PROPOSAL_NOTIFIER_MAX_WAIT_MS;
+  }
+
   readonly notifications$: Observable<ProposalNotification> = this.created.pipe(
     groupBy(proposal => proposal.runId),
     mergeMap(group =>
       group.pipe(
-        buffer(group.pipe(debounceTime(1000))),
+        bufferWhen(() =>
+          race(group.pipe(debounceTime(this.quietWindowMs)), timer(this.maxWaitMs)),
+        ),
         filter(proposals => proposals.length > 0),
         map(proposals => {
           const first = proposals[0];

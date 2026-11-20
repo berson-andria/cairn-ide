@@ -81,8 +81,9 @@ export class TaskView {
   availabilityLabel(task: TaskItem): string {
     if (task.status === 'completed') return 'Completed';
     if (task.status === 'running') return 'Currently in progress';
-    if (task.status === 'blocked' || !this.taskService.canStart(task.id))
-      return 'Waiting on dependency';
+    if (task.status === 'blocked') return 'Waiting on dependency';
+    if (task.status === 'failed') {
+    }
     return 'Ready to work';
   }
 }

@@ -60,7 +60,14 @@ export interface TaskItem {
   rev: number;
 }
 
-export type TaskAction = 'start' | 'run' | 'complete' | 'sendBack' | 'retry' | 'reopen';
+export type TaskAction =
+  | 'start'
+  | 'run'
+  | 'cancelRun'
+  | 'complete'
+  | 'sendBack'
+  | 'retry'
+  | 'reopen';
 export interface AvailableTaskAction {
   action: TaskAction;
   enabled: boolean;
@@ -127,11 +134,24 @@ export class TaskService {
           {
             action: 'run',
             enabled: this.runService.canRun(task),
-            reason: this.runDisabledReason(task, dependencyReady),
+            reason: this.runService.runDisabledReason(task) ?? undefined,
           },
         ];
-      case 'running':
-        return [{ action: 'complete', enabled: true }];
+      case 'running': {
+        const currentRun = this.runService.current();
+        const activeRunForTask =
+          this.runService.isRunning() && currentRun?.taskId === task.id;
+        return activeRunForTask
+          ? [
+              { action: 'cancelRun', enabled: true },
+              {
+                action: 'complete',
+                enabled: false,
+                reason: 'A workflow is running; cancel it first',
+              },
+            ]
+          : [{ action: 'complete', enabled: true }];
+      }
       case 'needs_review':
         return [
           { action: 'complete', enabled: true },
@@ -148,13 +168,20 @@ export class TaskService {
   async perform(
     task: TaskItem,
     action: TaskAction,
-  ): Promise<TaskItem | RunResult | undefined> {
-    if (!this.availableActions(task).some(item => item.action === action && item.enabled)) return;
+    options?: { workflow?: string },
+  ): Promise<TaskItem | RunResult | void> {
+    if (action === 'run') {
+      if (!this.runService.canRun(task, options?.workflow)) return;
+    } else if (!this.availableActions(task).some(item => item.action === action && item.enabled)) {
+      return;
+    }
     switch (action) {
       case 'start':
         return this.start(task.id);
       case 'run':
-        return this.runService.run(task.id);
+        return this.runService.run(task.id, options?.workflow);
+      case 'cancelRun':
+        return this.runService.cancel();
       case 'complete':
         return this.complete(task.id);
       case 'sendBack':
@@ -162,13 +189,6 @@ export class TaskService {
       case 'reopen':
         return this.setStatus(task.id, 'ready');
     }
-  }
-  private runDisabledReason(task: TaskItem, dependencyReady: boolean): string | undefined {
-    if (task.status !== 'ready') return 'Task is not ready.';
-    if (!dependencyReady) return 'Complete the dependency first.';
-    if (this.runService.isRunning()) return 'Another workflow is running.';
-    if (!this.runService.canRun(task)) return 'Open a project before starting a workflow.';
-    return undefined;
   }
   getDependentTasks(id: string): TaskItem[] {
     return this.tasks().filter((t) => t.dependsOn === id);

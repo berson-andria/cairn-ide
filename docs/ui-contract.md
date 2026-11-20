@@ -43,7 +43,10 @@ details: `task-note-api.md`, `run-api.md`, `proposal-api.md`.
 | Events | `task:created`, `task:updated`, `task:deleted {id}`, `task:reloaded` |
 
 Use `TaskService.availableActions(task)` for the applicable status actions and
-enabled state; execute with `TaskService.perform(task, action)`. See
+enabled state; execute with `TaskService.perform(task, action, options?)`.
+When a workflow run is active for a running task, its actions include
+`cancelRun` and a disabled `complete`; run actions may pass
+`{ workflow: name }` when the user selects a workflow. See
 [frontend-services.md](./frontend-services.md) for action reasons and the
 service recipes.
 

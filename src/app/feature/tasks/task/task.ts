@@ -1,6 +1,14 @@
 import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideTrash } from '@ng-icons/lucide';
+import {
+  lucidePlay,
+  lucidePlayCircle,
+  lucidePlayOff,
+  lucideReply,
+  lucideRotateCcw,
+  lucideSquare,
+  lucideTrash,
+} from '@ng-icons/lucide';
 import { TaskService, type TaskItem, type TaskStatus } from '../task.service';
 
 @Component({
@@ -8,7 +16,9 @@ import { TaskService, type TaskItem, type TaskStatus } from '../task.service';
   templateUrl: './task.html',
   styleUrl: './task.scss',
   imports: [NgIcon],
-  providers: [provideIcons({ lucideTrash })],
+  providers: [
+    provideIcons({ lucideTrash, lucidePlay, lucideReply, lucideRotateCcw, lucideSquare }),
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Task {

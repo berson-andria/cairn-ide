@@ -31,19 +31,19 @@ Typed command boundary; it has no signals and consumes no events.
 
 | Method | Resolves to | Command errors |
 |---|---|---|
-| `workflowList()` | `WorkflowInfo[]` | `NoProject`, `Io`, `Corrupt` |
-| `workflowInspect(name: string)` | `WorkflowInspect` | `NoProject`, `WorkflowNotFound`, `Io`, `Corrupt` |
-| `workflowTrust(name: string, hash: string)` | `void` | `NoProject`, `WorkflowNotFound`, `TrustRequired`, `Validation`, `Io` |
-| `runStart(taskId: string, expectedRev: number, workflow?: string)` | `RunRecord` | `NoProject`, `NotFound`, `StaleRev`, `InvalidTransition`, `RunActive`, `TrustRequired`, `RuntimeUnavailable`, `WorkflowNotFound`, `Validation`, `Io` |
-| `runCancel()` | `void` | `NoProject`, `Io` |
-| `runGet()` | `RunRecord \| null` | `Io`, `Corrupt` |
+| `workflowList()` | `WorkflowInfo[]` | `NoProject`, `Io`, `Corrupt`, `RuntimeUnavailable` |
+| `workflowInspect(name: string)` | `WorkflowInspect` | `NoProject`, `WorkflowNotFound`, `Validation`, `Io`, `Corrupt`, `RuntimeUnavailable` |
+| `workflowTrust(name: string, hash: string)` | `void` | `NoProject`, `WorkflowNotFound`, `Validation`, `Io`, `Corrupt`, `RuntimeUnavailable` |
+| `runStart(taskId: string, expectedRev: number, workflow?: string)` | `RunRecord` | `NoProject`, `NotFound`, `StaleRev`, `InvalidTransition`, `RunActive`, `TrustRequired`, `RuntimeUnavailable`, `WorkflowNotFound`, `Validation`, `Io`, `Corrupt` |
+| `runCancel()` | `void` | `Io` |
+| `runGet()` | `RunRecord \| null` | — |
 | `runList(limit: number)` | `RunRecord[]` | `NoProject`, `Io` |
 | `runLog(runId: string, maxLines: number)` | `string[]` | `NoProject`, `Validation`, `Io` |
-| `proposalList()` | `ListResult<Proposal>` | `NoProject`, `Io`, `Corrupt` |
-| `proposalAccept(id: string, expectedRev: number, payload?: ProposalPayload, sourceAction?: SourceAction)` | `AcceptResult` | `NoProject`, `NotFound`, `StaleRev`, `InvalidTransition`, `Forbidden`, `Validation`, `Io` |
-| `proposalReject(id: string, expectedRev: number)` | `Proposal` | `NoProject`, `NotFound`, `StaleRev`, `InvalidTransition`, `Forbidden`, `Io` |
-| `proposalDelete(id: string)` | `void` | `NoProject`, `NotFound`, `InvalidTransition`, `Forbidden`, `Io` |
-| `proposalMarkSeen(ids: string[])` | `Proposal[]` | `NoProject`, `Validation`, `Io` |
+| `proposalList()` | `ListResult<Proposal>` | `NoProject`, `Io` |
+| `proposalAccept(id: string, expectedRev: number, payload?: ProposalPayload, sourceAction?: SourceAction)` | `AcceptResult` | `NoProject`, `NotFound`, `StaleRev`, `InvalidTransition`, `Validation`, `Io`, `Corrupt` |
+| `proposalReject(id: string, expectedRev: number)` | `Proposal` | `NoProject`, `NotFound`, `StaleRev`, `InvalidTransition`, `Io`, `Corrupt` |
+| `proposalDelete(id: string)` | `void` | `NoProject`, `NotFound`, `InvalidTransition`, `Io`, `Corrupt` |
+| `proposalMarkSeen(ids: string[])` | `Proposal[]` | `NoProject`, `Validation`, `Io`, `Corrupt` |
 
 Task and note command wrappers remain on this same service. All JS arguments use
 camelCase.
@@ -52,115 +52,88 @@ camelCase.
 
 ### `TaskStore` and `NoteStore`
 
-Each keeps `records: Signal<Record<string, TaskItem|NoteItem>>`,
-`errors: Signal<StorageError[]>`, and `loaded: Signal<boolean>`. `upsert`
-accepts only a newer `rev`; `reload` replaces unconditionally for external
-changes; `remove`, `replace`, and `clear` manage the cache. The existing
-`TaskService.refresh()` and `NoteService.refresh()` coalesce concurrent list
-requests. These stores do not subscribe to events directly; `WorkSyncService`
-feeds them. For each store, `upsert(item)` only replaces an absent/older
-revision, `reload(item)` replaces regardless of revision, `remove(id)` deletes,
-`replace(items, errors)` sets records/errors and marks loaded, and `clear()`
-resets records/errors/loaded. These are internal cache methods; UI code calls
-the facades instead.
+Both stores are event-fed caches. `WorkSyncService` applies events; UI code
+uses the task and note facades rather than mutating stores.
+
+| API | Behavior |
+|---|---|
+| `records`, `errors`, `loaded` | Signals for cached records, list errors, and load state |
+| `upsert(item)` | Replace only an absent/older revision |
+| `reload(item)` | Replace unconditionally after an external reload event |
+| `remove(id)` | Delete one record |
+| `replace(items, errors)` | Apply a list result and mark loaded |
+| `clear()` | Reset records, errors, and loaded state on workspace change |
 
 ### `ProposalStore`
 
-Purpose: event-fed proposal cache and proposal-list loading.
+Event-fed proposal cache; `WorkSyncService` applies events. `refresh()` coalesces
+`proposal_list`; the facade handles failures and results from a cleared
+workspace are discarded.
 
-| Signal | Type | Meaning |
-|---|---|---|
-| `records` | `Signal<Record<string, Proposal>>` | Proposals keyed by id |
-| `all` | `Signal<Proposal[]>` | Current cache values |
-| `errors` | `Signal<StorageError[]>` | Per-record/list storage errors |
-| `loaded` | `Signal<boolean>` | Whether a list result has been applied |
-
-`upsert(proposal)` accepts only a higher `rev`; `remove(id)` deletes; `replace`
-applies a list result; `clear()` resets all signals on workspace change.
-`refresh(): Promise<void>` calls `proposal_list`; concurrent calls share one
-promise. List command failures reject to `ProposalService.refresh()` for
-handling. An in-flight result from a cleared workspace is discarded. It
-consumes no events directly.
-
-| Method | Signature / result | Errors and when to call |
-|---|---|---|
-| `upsert` | `(proposal: Proposal): void` | Event handler only; ignores equal/older revisions |
-| `remove` | `(id: string): void` | On `proposal:deleted` |
-| `replace` | `(records: Proposal[], errors: StorageError[]): void` | On successful `proposal_list` |
-| `refresh` | `(): Promise<void>` | Coalesced `proposal_list`; on project open/reload |
-| `clear` | `(): void` | On workspace change |
+| API | Behavior |
+|---|---|
+| `records`, `all`, `errors`, `loaded` | Cached proposals, their list/errors, and load state |
+| `upsert(proposal)` | Replace only with a newer revision |
+| `remove(id)` | Delete on `proposal:deleted` |
+| `replace(records, errors)` | Apply a successful list result |
+| `refresh()` | Coalesced proposal list on project open/reload |
+| `clear()` | Reset on workspace change |
 
 ### `RunStore`
 
 Purpose: current/last-run snapshot, history, and bounded in-memory log cache.
 
-| Signal/API | Type | Meaning |
-|---|---|---|
-| `current` | `Signal<RunState \| null>` | Active or most recently known run; event-derived values may be partial |
-| `history` | `Signal<RunRecord[]>` | Records loaded by `RunService.loadHistory()` |
-| `logLines(runId)` | `Signal<string[]>` | Cached log lines for one run |
-
-`started(event)` sets the current run and starts its buffer; `append(event)`
-retains the newest 500 lines; `finished(event)` applies outcome and reason to
-the matching current run; `setCurrent`, `setHistory`, and `setLog` apply command
-results. `refresh(): Promise<void>` coalesces `run_get()` and, when active,
-fetches `run_log(runId, 500)` once. Live lines may overlap lines fetched during
-refresh, so a short run of duplicate log lines after refresh is acceptable.
-`clear()` removes the current run, history, and logs on workspace change.
-`started(event: RunStartedEvent)`, `append(event: RunLogEvent)`, and
-`finished(event: RunFinishedEvent)` consume the corresponding events;
-`setCurrent(run: RunRecord | null)`, `setHistory(records: RunRecord[])`, and
-`setLog(runId: string, lines: string[])` apply explicit refresh/history/log
-loads. The refresh rejects command errors to `RunService.refresh()`.
+| API | Behavior |
+|---|---|
+| `current` | `Signal<RunState \| null>`; current/last run, potentially partial |
+| `history` | `Signal<RunRecord[]>` loaded by `RunService.loadHistory()` |
+| `logLines(runId)` | Cached lines for one run |
+| `started(event)` / `append(event)` / `finished(event)` | Apply run events; retain at most 500 log lines |
+| `setCurrent(run)` / `setHistory(records)` / `setLog(runId, lines)` | Apply command results |
+| `refresh()` | Coalesced `run_get()`; also fetches the active run's log |
+| `clear()` | Clear current run, history, and logs on workspace change |
 
 The Rust lifecycle events omit some fields present on `RunRecord`: `run:started`
-has no `source`, `scriptHash`, or `startedAt`; `run:finished` has no `endedAt`
-or `summary`. Accordingly, the event-fed `RunState` is partial until a command
-returns a full record. No placeholder field values are synthesized.
+has no `source`, `scriptHash`, or `startedAt`; `run:finished` has no `endedAt` or `summary`. Its event-derived `RunState` stays
+partial until `refresh()` replaces it with the full record; no fields are
+synthesized. Live lines may overlap lines fetched during refresh.
 
 ## Services
 
 ### `WorkflowService`
 
-Purpose: workflow list and trust-dialog inspection data.
+Workflow list and trust-dialog inspection data.
 
-| Signal | Type | Meaning |
-|---|---|---|
-| `workflows` | `Signal<WorkflowInfo[]>` | Latest workflow list |
+| API | Behavior |
+|---|---|
+| `workflows` | `Signal<WorkflowInfo[]>` of the latest workflow list |
+| `refresh()` | Coalesced `workflow_list()` after project open |
+| `inspect(name)` | Return script path, hash, and file inventory for trust |
+| `clear()` | Reset workspace-scoped state |
 
-`refresh(): Promise<void>` coalesces `workflow_list()` and is called after
-`project_open`. `inspect(name: string): Promise<WorkflowInspect | undefined>`
-returns the script path/hash/file inventory for the trust dialog.
-`clear(): void` resets workspace-scoped workflow state. It consumes no events.
-List and inspect errors are reported through `handleApiError`.
+List and inspect errors are reported through `handleApiError`; the service
+consumes no events.
 
 ### `RunService`
 
-Purpose: start/cancel workflows and expose live run state.
+Start/cancel workflows and expose live run state.
 
-| Signal/API | Type | Meaning |
-|---|---|---|
-| `current` | `Signal<RunState \| null>` | Delegates to `RunStore.current` |
-| `isRunning` | `Signal<boolean>` | Current run has neither `endedAt` nor an outcome |
-| `logLines(runId)` | `Signal<string[]>` | Delegates to the bounded `RunStore` buffer |
+| API | Behavior |
+|---|---|
+| `current` | `Signal<RunState \| null>` from `RunStore` |
+| `isRunning` | `Signal<boolean>`; run is unfinished and its cached task is running when present |
+| `logLines(runId)` | `Signal<string[]>` from the bounded run buffer |
+| `runDisabledReason(task, workflow?)` / `canRun(task, workflow?)` | Explain or check project, task, run, dependency, and workflow eligibility |
+| `run(taskId, workflow?)` | Call `run_start`; return `started`, or `trust-required` without toasting |
+| `trustAndRun(taskId, workflowName, hash)` | Call `workflow_trust`, then retry `run` |
+| `cancel()` | Call `run_cancel()` |
+| `refresh()` | Refresh `run_get()` and the active run's log |
+| `loadHistory(limit)` / `loadLog(runId, maxLines)` | Call `run_list` / `run_log` and cache results |
+| `clear()` | Clear run state on workspace change |
 
-Methods:
-
-- `canRun(task: TaskItem): boolean` is true only for `ready` tasks with no
-  active run, an open project, and no dependency or a completed dependency.
-- `run(taskId: string, workflow?: string): Promise<RunResult | undefined>` calls
-  `run_start(taskId, task.rev, workflow)`. Result is
-  `{ kind: 'started', run }`, or on `TrustRequired`,
-  `{ kind: 'trust-required', workflow: WorkflowInspect }`. The trust case does
-  not toast. Other errors go through `handleApiError`.
-- `trustAndRun(taskId: string, workflowName: string, hash: string): Promise<RunResult | undefined>`
-  calls `workflow_trust` first and only then calls `run`.
-- `cancel(): Promise<void>` calls `run_cancel()`.
-- `refresh(): Promise<void>` refreshes `run_get()` and the active run's log.
-- `loadHistory(limit: number): Promise<RunRecord[] | undefined>` calls `run_list`.
-- `loadLog(runId: string, maxLines: number): Promise<string[] | undefined>` calls `run_log` and
-  replaces that run's cached lines.
-- `clear()` clears run state for workspace changes.
+Without a workflow name, selection uses `default` when present, otherwise the
+only listed workflow. If several non-default workflows exist, the run action
+requires an explicit choice.
 
 Errors other than the handled `TrustRequired` path are reported through
 `handleApiError`; `NoProject` is suppressed by that helper. The service consumes
@@ -168,47 +141,20 @@ Errors other than the handled `TrustRequired` path are reported through
 
 ### `ProposalService`
 
-Purpose: proposal inbox/planning projections and user decisions.
+Proposal inbox/planning projections and user decisions.
 
-| Signal | Type | Meaning |
-|---|---|---|
-| `all` | `Signal<Proposal[]>` | Every cached proposal |
-| `pending` | `Signal<Proposal[]>` | Pending proposals |
-| `display` | `Signal<Proposal[]>` | Pending proposals with `presentation: 'display'` |
-| `notifications` | `Signal<Proposal[]>` | Pending proposals with `presentation: 'notify'` |
-| `unseenCount` | `Signal<number>` | Pending notify proposals without `seenAt` |
-| `byRun` | `Signal<Record<string, Proposal[]>>` | All proposals grouped by run id |
+| API | Behavior |
+|---|---|
+| `all`, `pending`, `display`, `notifications`, `unseenCount`, `byRun` | Signals for proposal views and grouping |
+| `refresh()` | Coalesced `proposal_list()` on open/reload; reports list errors |
+| `accept(proposal, options?)` | Accept with cached `rev`, optional edited payload and source action |
+| `reject(proposal)` | Reject using cached `rev` |
+| `remove(proposal)` | Delete only an accepted/rejected proposal |
+| `markSeen(ids)` | Dismiss notifications; Rust ignores unknown/already-seen ids and accepts at most 100 |
+| `clear()` | Clear workspace-scoped records |
 
-Methods:
-
-- `refresh(): Promise<void>` coalesces `proposal_list()` through the store and
-  is called after project open and `project:reloaded`.
-- `accept(proposal, options?): Promise<AcceptResult | undefined>` supplies the
-  cached proposal's `rev` as `expectedRev`, plus optional edited `payload` and
-  `sourceAction`. On `StaleRev` it refreshes the full list and reports
-  “This changed elsewhere; try again.”
-- `reject(proposal): Promise<Proposal | undefined>` supplies the cached
-  `expectedRev`.
-- `remove(proposal): Promise<void>` calls `proposal_delete`; only decided
-  proposals may be deleted.
-- `markSeen(ids): Promise<void>` calls `proposal_mark_seen`; Rust ignores
-  unknown/already-seen ids and accepts at most 100 ids. Changed records are
-  applied by the proposal events.
-- `clear()` clears workspace-scoped records.
-
-Decision errors are reported through `handleApiError`. A `StaleRev` from
-`accept` refreshes the store before the notice; `reject` also refreshes on
-`StaleRev`. The service consumes `proposal:created`, `proposal:updated`, and
-`proposal:deleted` through `WorkSyncService`.
-
-| Method | Signature / result | Errors and when to call |
-|---|---|---|
-| `refresh` | `(): Promise<void>` | On project open/reload; reports list errors |
-| `accept` | `(proposal: Proposal, options?: { payload?: ProposalPayload; sourceAction?: SourceAction }): Promise<AcceptResult \| undefined>` | Pending proposal approval/edit |
-| `reject` | `(proposal: Proposal): Promise<Proposal \| undefined>` | Reject a pending proposal |
-| `remove` | `(proposal: Proposal): Promise<void>` | Remove only after accepted/rejected |
-| `markSeen` | `(ids: string[]): Promise<void>` | Dismiss notifications; does not reject |
-| `clear` | `(): void` | On workspace change |
+Decision errors go through `handleApiError`; stale accept/reject refreshes the
+list. `WorkSyncService` feeds proposal events.
 
 Exported pure editing helpers:
 
@@ -225,81 +171,47 @@ Purpose: group new notify proposals for the UI to present; it does not toast.
 
 `notifications$: Observable<ProposalNotification>` emits
 `{ runId, workflow, taskId?, proposalIds, kinds }`. `WorkSyncService` calls
-`proposalCreated(proposal: Proposal): void` only for `proposal:created`; the notifier filters out
-`display` proposals and proposals with `seenAt`, then coalesces same-run
-proposals until one second of inactivity. It consumes no Tauri event directly.
-The UI decides whether/how to show a toast and can call `markSeen(ids)` when
-dismissed.
+`proposalCreated()` only for `proposal:created`; the notifier excludes `display`
+and already-seen proposals, grouping each run with a 1000 ms quiet window and
+5000 ms maximum wait. It does not toast; the UI presents and dismisses groups.
 
 ### `TaskService` action API (existing facade)
 
-`availableActions(task): AvailableTaskAction[]` returns each applicable
-`{ action, enabled, reason? }` for the status transition table. In particular,
-`start` requires a missing/completed dependency and `run` additionally requires
-`RunService.canRun(task)`. `perform(task, action)` routes to `task_start`,
-`run_start` via `RunService`, `task_complete`, or `task_set_status(..., 'ready')`
-for `sendBack`, `retry`, and `reopen`. Disabled actions are not executed.
-Existing task methods (`add`, `edit`, `delete`, `start`, `complete`,
-`setStatus`, etc.) remain available. Mutations use cached `rev`; stale updates
-refresh the affected task and report the changed-elsewhere notice.
+`availableActions` returns applicable `{ action, enabled, reason? }` entries.
+Disabled actions are not executed. Mutations use cached `rev`; stale updates
+refresh the affected task. Errors are handled through `handleApiError`.
 
-Added method signatures:
-
-- `availableActions(task: TaskItem): AvailableTaskAction[]`
-- `perform(task: TaskItem, action: TaskAction): Promise<TaskItem | RunResult | undefined>`
-
-`start` and `complete` resolve to the resulting `TaskItem` or `undefined`;
-`run` resolves to the `RunService` result or `undefined`; `sendBack`, `retry`,
-and `reopen` resolve to the updated `TaskItem` or `undefined`. API errors are
-handled through `handleApiError`.
-
-The facade also exposes `records`, `errors`, and `loaded` from `TaskStore`;
-computed `tasks`, `selectedTask`, `readyTasks`, `runningTasks`,
-`blockedTasks`, `completedTasks`, `needsReviewTasks`, `failedTasks`, and
-`availableTasks`; plus `selectedTaskId`. Existing methods include
-`refresh(): Promise<void>`, `get(id: string): TaskItem | undefined`,
-`select(id: string): void`, `canStart(id: string): boolean`,
-`getDependentTasks(id: string): TaskItem[]`, `add(data: NewTask)`,
-`edit(id: string, patch: TaskPatch)`, `delete(id: string)`,
-`setStatus(id: string, status: TaskStatus)`, `start(id: string)`,
-`complete(id: string)`, and the anchor, note-link, dependency, subtask,
-acceptance-criteria, and branch mutators. Mutation methods resolve to a
-`TaskItem` or `undefined` (delete resolves `void`); errors are reported through
-`handleApiError`.
+| API | Behavior |
+|---|---|
+| `records`, `errors`, `loaded`, `tasks`, task-status projections | Task cache and filtered signals |
+| `availableActions(task)` | Status actions, including workflow eligibility |
+| `perform(task, action, options?)` | Route start/run/cancel/complete/review/retry/reopen; run accepts `{ workflow? }` |
+| `refresh()`, `get(id)`, `select(id)`, `canStart(id)`, `getDependentTasks(id)` | Read and refresh tasks |
+| `add`, `edit`, `delete`, `start`, `complete`, `setStatus`, task mutators | Existing task command facade |
 
 ### `WorkSyncService`
 
-Purpose: app-wide single subscription and workspace lifecycle coordinator.
-It exposes no signals or public command methods. It is instantiated by the app
-initializer. It subscribes once to task, note, project, run, and proposal events
-before allowing `project_open`; event handlers update the corresponding
-stores. `project:reloaded` refreshes tasks, notes, and proposals. On workspace
-change it clears task, note, proposal, run, and workflow caches, then closes or
-opens the project and refreshes the relevant services.
+App-wide subscription and workspace lifecycle coordinator, instantiated by the
+app initializer.
+
+| Lifecycle | Behavior |
+|---|---|
+| Subscribe | Listen once to task, note, project, run, and proposal events |
+| Workspace change | Clear caches, then close or open the project |
+| Project open | Refresh tasks, notes, proposals, run, and workflows |
+| `project:reloaded` | Refresh tasks, notes, and proposals |
 
 ### `NoteService` (existing facade)
 
-Signals: `records: Signal<Record<string, NoteItem>>`,
-`errors: Signal<StorageError[]>`, `loaded: Signal<boolean>`,
-`notes: Signal<NoteItem[]>`, `openNotes: Signal<NoteItem[]>`,
-`completedNotes: Signal<NoteItem[]>`, and `inboxNotes: Signal<NoteItem[]>`.
-Methods: `refresh`, `get`, `add`, `edit`, `delete`,
-`setAnchors`, `setAnchor`, `addAnchor`, `removeAnchor`, `setStatus`, and
-`toggleStatus`. Commands resolve to their record/void result or `undefined`
-when a handled error prevents the operation. It consumes no events directly;
-`WorkSyncService` feeds `NoteStore`. `refresh()` coalesces list requests.
-Public signatures are `refresh(): Promise<void>`,
-`get(id: string): NoteItem | undefined`,
-`add(note: NewNote): Promise<NoteItem | undefined>`,
-`edit(id: string, patch: NotePatch): Promise<NoteItem | undefined>`,
-`delete(id: string): Promise<void>`,
-`setAnchors(id: string, anchors: NoteAnchor[]): Promise<NoteItem | undefined>`,
-`setAnchor(id: string, anchor: NoteAnchor | NoteAnchor[] | null)`,
-`addAnchor(id: string, anchor: NoteAnchor)`,
-`removeAnchor(id: string, index: number)`,
-`setStatus(id: string, status: NoteStatus)`, and `toggleStatus(id: string)`.
-Mutators resolve to their record/void result or `undefined`; API errors are
-handled through `handleApiError`.
+Note facade over the event-fed `NoteStore`; refresh coalesces list requests.
+Handled API errors go through `handleApiError`.
+
+| API | Behavior |
+|---|---|
+| `records`, `errors`, `loaded`, `notes`, `openNotes`, `completedNotes`, `inboxNotes` | Note cache and filtered signals |
+| `refresh()`, `get(id)` | Read and refresh notes |
+| `add`, `edit`, `delete` | Create, update, and delete notes |
+| `setAnchors`, `setAnchor`, `addAnchor`, `removeAnchor`, `setStatus`, `toggleStatus` | Note mutations |
 
 ## Error table
 
@@ -330,14 +242,17 @@ No service retries a rejected mutation silently.
    `taskService.availableActions(task)`.
 2. Derive a run-in-progress state from `runService.isRunning()`; disabled
    actions include a `reason`.
-3. On the run action call `await runService.run(task.id)`.
+3. On the run action call
+   `await taskService.perform(task, 'run', { workflow })`; omit `workflow` to
+   use `default`, or the sole listed workflow when there is exactly one.
 4. On `{ kind: 'started', run }`, show the active state from
    `runService.current()` / `runService.isRunning()`. The event-fed task status
    also changes to `running`.
 5. On `{ kind: 'trust-required', workflow }`, follow the trust-dialog recipe.
    Other handled errors appear through `NoticeManager`.
-6. On `run:finished`, `current` has its outcome/reason and `isRunning()` becomes
-   false; the task event carries the task's resulting status.
+6. On `run:finished`, the event-derived state is interim; `RunStore.refresh()`
+   fetches the full run record. `isRunning()` becomes false and the task event
+   carries the task's resulting status.
 
 ### Trust dialog
 
@@ -345,7 +260,7 @@ No service retries a rejected mutation silently.
 2. If `result?.kind === 'trust-required'`, display its `path`, `hash`, and
    `files`, and plainly warn: **the script runs with your permissions**.
 3. After approval call
-   `await runService.trustAndRun(task.id, workflow.name, workflow.hash)`.
+   `await runService.trustAndRun(task.id, result.workflow.name, result.workflow.hash)`.
    This calls `workflow_trust` before retrying `run_start`.
 4. If the hash has changed since inspection, Rust rejects trust/start and the
    service reports the error; inspect again before asking for approval.
@@ -406,3 +321,20 @@ No service retries a rejected mutation silently.
    `await proposalService.accept(proposal, { payload, sourceAction: 'keep' })`
    or use `'delete'`. Rust creates the tasks before deleting the source and
    revalidates the final payload.
+
+### Startup
+
+1. Subscribe to work events before opening a project.
+2. Call `project_open(path)`.
+3. Refresh tasks, notes, proposals, the current run, and workflows.
+   `WorkSyncService` follows this order on workspace changes.
+4. On restart, pending unseen notify proposals appear in the inbox and
+   `unseenCount`. They do not produce toasts: the notifier reacts only to
+   `proposal:created` events, not list results.
+
+### Known limits
+
+- Run events omit record fields; the current run remains partial until the
+  post-finish refresh obtains the full record.
+- Live log events can overlap log lines fetched by a refresh.
+- Proposals created before the app starts do not trigger notifier emissions.
