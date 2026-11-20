@@ -6,9 +6,9 @@ use crate::{
     types::workspace_node::{BaseNode, FileNode, FileSearchResult, LineMatch, Node},
 };
 use std::{
-    fs::{create_dir_all, File},
+    fs::File,
     io::{BufRead, BufReader, Read},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 use std::sync::atomic::{AtomicBool, Ordering};
