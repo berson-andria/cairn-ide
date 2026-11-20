@@ -16,8 +16,17 @@ The Tauri commands are:
 | `run_start` | `taskId`, `expectedRev`, optional `workflow` | run record |
 | `run_cancel` | — | `null` |
 | `run_get` | — | active run record, last run record, or `null` |
+| `run_list` | `limit` | run records, newest first |
+| `run_log` | `runId`, `maxLines` | `string[]` |
 | `workflow_list` | — | `{ name, source, trusted }[]` |
+| `workflow_inspect` | `name` | `{ name, source, path, hash, trusted, files }` |
 | `workflow_trust` | `name`, `hash` | `null` |
+
+`run_list` reads `.cairn/runs/*/run.json`, skips and logs unreadable or
+malformed records, and clamps `limit` to 1–50. Active records omit `endedAt`.
+`run_log` returns the last `maxLines` lines from a run's log, clamped to
+1–2000; a missing log returns an empty array. `runId` must match
+`[A-Za-z0-9-]{1,64}`.
 
 `run_start` requires an open project, no active run, a resolvable trusted
 workflow, and a startable task with the supplied revision. If `workflow` is
@@ -36,6 +45,10 @@ the project. Its keys are `<canonical project root>|.cairn/workflows`; its
 values are folder SHA-256 hashes. `workflow_trust` accepts a hash only when it
 matches the current folder hash. `TrustRequired` reports the folder path and
 current hash. Global workflows are trusted automatically.
+`workflow_inspect` returns the resolved script path and hash, plus file paths
+and sizes. For project workflows, the inventory is exactly the sorted set of
+files covered by the folder hash, excluding `__pycache__` directories and
+`*.pyc`; for global workflows, it contains only the workflow script.
 
 ## RPC methods
 

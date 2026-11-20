@@ -11,7 +11,7 @@ use crate::services::{
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, OpenOptions},
-    io::{self, Read, Write},
+    io::{self, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
@@ -793,6 +793,83 @@ impl RunManager {
         Ok(state.last.clone())
     }
 
+    pub fn run_list(
+        &self,
+        projects: &ProjectState,
+        limit: u32,
+    ) -> Result<Vec<RunRecord>, ServiceError> {
+        let project = projects.services()?;
+        let runs_directory = project.root.join(".cairn").join("runs");
+        let entries = match fs::read_dir(&runs_directory) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(ServiceError::new(ServiceErrorCode::Io, error.to_string())),
+        };
+        let mut records = Vec::new();
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) => {
+                    tauri_plugin_log::log::error!(
+                        "Could not inspect run directory in {}: {error}",
+                        runs_directory.display()
+                    );
+                    continue;
+                }
+            };
+            if !matches!(entry.file_type(), Ok(file_type) if file_type.is_dir()) {
+                continue;
+            }
+            let run_path = entry.path().join("run.json");
+            let bytes = match fs::read(&run_path) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    tauri_plugin_log::log::error!(
+                        "Could not read run metadata {}: {error}",
+                        run_path.display()
+                    );
+                    continue;
+                }
+            };
+            match serde_json::from_slice::<RunRecord>(&bytes) {
+                Ok(record) => records.push(record),
+                Err(error) => tauri_plugin_log::log::error!(
+                    "Skipping malformed run metadata {}: {error}",
+                    run_path.display()
+                ),
+            }
+        }
+        records.sort_by(|left, right| {
+            right
+                .started_at
+                .cmp(&left.started_at)
+                .then_with(|| left.run_id.cmp(&right.run_id))
+        });
+        records.truncate(limit.clamp(1, 50) as usize);
+        Ok(records)
+    }
+
+    pub fn run_log(
+        &self,
+        projects: &ProjectState,
+        run_id: &str,
+        max_lines: u32,
+    ) -> Result<Vec<String>, ServiceError> {
+        validate_run_id(run_id)?;
+        let project = projects.services()?;
+        let log_path = project
+            .root
+            .join(".cairn")
+            .join("runs")
+            .join(run_id)
+            .join("run.log");
+        match read_log_tail(&log_path, max_lines.clamp(1, 2000)) {
+            Ok(lines) => Ok(lines),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
+            Err(error) => Err(ServiceError::new(ServiceErrorCode::Io, error.to_string())),
+        }
+    }
+
     pub fn workflow_list(
         &self,
         projects: &ProjectState,
@@ -802,6 +879,15 @@ impl RunManager {
             Some(data_dir) => workflows::list_in(&project.root, Some(data_dir)),
             None => workflows::list(&project.root),
         }
+    }
+
+    pub fn workflow_inspect(
+        &self,
+        projects: &ProjectState,
+        name: &str,
+    ) -> Result<workflows::WorkflowInspection, ServiceError> {
+        let project = projects.services()?;
+        workflows::inspect_in(&project.root, name, self.inner.trust_data_dir.as_deref())
     }
 
     pub fn workflow_trust(
@@ -836,6 +922,71 @@ pub fn sdk_dir(
     } else {
         resource_dir.map(|directory| directory.join("sdk").join("python"))
     }
+}
+
+fn validate_run_id(run_id: &str) -> Result<(), ServiceError> {
+    if (1..=64).contains(&run_id.len())
+        && run_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    {
+        Ok(())
+    } else {
+        Err(ServiceError::validation(
+            "Run id must match [A-Za-z0-9-]{1,64}",
+        ))
+    }
+}
+
+fn read_log_tail(path: &Path, max_lines: u32) -> io::Result<Vec<String>> {
+    const BLOCK_SIZE: u64 = 8192;
+
+    let mut file = fs::File::open(path)?;
+    let end = file.seek(SeekFrom::End(0))?;
+    if end == 0 {
+        return Ok(Vec::new());
+    }
+
+    let mut scan_end = end;
+    let mut last_byte = [0];
+    file.seek(SeekFrom::Start(end - 1))?;
+    file.read_exact(&mut last_byte)?;
+    if last_byte[0] == b'\n' {
+        scan_end -= 1;
+    }
+
+    let mut start = 0;
+    let mut cursor = scan_end;
+    let mut delimiters = 0;
+    let wanted = max_lines.clamp(1, 2000);
+    let mut block = vec![0; BLOCK_SIZE as usize];
+    while cursor > 0 && delimiters < wanted {
+        let block_start = cursor.saturating_sub(BLOCK_SIZE);
+        let block_len = (cursor - block_start) as usize;
+        file.seek(SeekFrom::Start(block_start))?;
+        file.read_exact(&mut block[..block_len])?;
+        for (index, byte) in block[..block_len].iter().enumerate().rev() {
+            if *byte == b'\n' {
+                delimiters += 1;
+                if delimiters == wanted {
+                    start = block_start + index as u64 + 1;
+                    break;
+                }
+            }
+        }
+        if delimiters == wanted {
+            break;
+        }
+        cursor = block_start;
+    }
+
+    file.seek(SeekFrom::Start(start))?;
+    let mut bytes = Vec::with_capacity((end - start) as usize);
+    file.take(end - start).read_to_end(&mut bytes)?;
+    Ok(String::from_utf8_lossy(&bytes)
+        .lines()
+        .map(str::to_owned)
+        .collect())
 }
 
 fn write_run_record(directory: &Path, record: &RunRecord) -> io::Result<()> {
@@ -1254,6 +1405,136 @@ mod tests {
             manager,
             fake,
             sink,
+        }
+    }
+
+    #[test]
+    fn run_list_sorts_limits_and_skips_corrupt_records() {
+        let root = tempdir().unwrap();
+        let project = ProjectState::default();
+        project.open(root.path(), NoopSink).unwrap();
+        let manager = RunManager::default();
+        let runs_directory = root.path().join(".cairn/runs");
+
+        for record in [
+            RunRecord {
+                run_id: "older".into(),
+                task_id: "task-1".into(),
+                workflow: "default".into(),
+                source: workflows::WorkflowSource::Project,
+                script_hash: "hash".into(),
+                started_at: 10,
+                ended_at: Some(11),
+                outcome: Some(RunOutcome::NeedsReview),
+                reason: None,
+                summary: None,
+            },
+            RunRecord {
+                run_id: "active".into(),
+                task_id: "task-2".into(),
+                workflow: "default".into(),
+                source: workflows::WorkflowSource::Global,
+                script_hash: "global-hash".into(),
+                started_at: 30,
+                ended_at: None,
+                outcome: None,
+                reason: None,
+                summary: None,
+            },
+            RunRecord {
+                run_id: "middle".into(),
+                task_id: "task-3".into(),
+                workflow: "other".into(),
+                source: workflows::WorkflowSource::Project,
+                script_hash: "hash".into(),
+                started_at: 20,
+                ended_at: Some(21),
+                outcome: Some(RunOutcome::Failed),
+                reason: Some("failure".into()),
+                summary: Some("summary".into()),
+            },
+        ] {
+            write_run_record(&runs_directory.join(&record.run_id), &record).unwrap();
+        }
+        let corrupt_directory = runs_directory.join("corrupt");
+        fs::create_dir_all(&corrupt_directory).unwrap();
+        fs::write(corrupt_directory.join("run.json"), "{").unwrap();
+
+        let records = manager.run_list(&project, 50).unwrap();
+        assert_eq!(
+            records
+                .iter()
+                .map(|record| record.run_id.as_str())
+                .collect::<Vec<_>>(),
+            ["active", "middle", "older"]
+        );
+        assert_eq!(
+            manager
+                .run_list(&project, 2)
+                .unwrap()
+                .iter()
+                .map(|record| record.run_id.as_str())
+                .collect::<Vec<_>>(),
+            ["active", "middle"]
+        );
+        assert_eq!(
+            serde_json::to_value(&records[0]).unwrap(),
+            serde_json::json!({
+                "runId": "active",
+                "taskId": "task-2",
+                "workflow": "default",
+                "source": "global",
+                "scriptHash": "global-hash",
+                "startedAt": 30
+            })
+        );
+    }
+
+    #[test]
+    fn run_log_reads_tail_validates_ids_and_clamps_limits() {
+        let root = tempdir().unwrap();
+        let project = ProjectState::default();
+        project.open(root.path(), NoopSink).unwrap();
+        let manager = RunManager::default();
+        let log_directory = root.path().join(".cairn/runs/run-1");
+        fs::create_dir_all(&log_directory).unwrap();
+        let contents = (0..10_000)
+            .map(|line| format!("line-{line}\n"))
+            .collect::<String>();
+        fs::write(log_directory.join("run.log"), contents).unwrap();
+
+        assert_eq!(
+            manager.run_log(&project, "run-1", 3).unwrap(),
+            ["line-9997", "line-9998", "line-9999"]
+        );
+        assert_eq!(
+            serde_json::to_value(manager.run_log(&project, "run-1", 2).unwrap()).unwrap(),
+            serde_json::json!(["line-9998", "line-9999"])
+        );
+        assert_eq!(
+            manager.run_log(&project, "run-1", 0).unwrap(),
+            ["line-9999"]
+        );
+        let clamped = manager.run_log(&project, "run-1", 10_000).unwrap();
+        assert_eq!(clamped.len(), 2000);
+        assert_eq!(clamped.first().map(String::as_str), Some("line-8000"));
+        assert_eq!(clamped.last().map(String::as_str), Some("line-9999"));
+
+        fs::write(log_directory.join("empty.log"), "").unwrap();
+        assert!(read_log_tail(&log_directory.join("empty.log"), 20)
+            .unwrap()
+            .is_empty());
+        assert!(manager.run_log(&project, "missing", 20).unwrap().is_empty());
+
+        let unopened_project = ProjectState::default();
+        for invalid in [r"..\x".to_owned(), "../x".to_owned(), "x".repeat(65)] {
+            assert_eq!(
+                manager
+                    .run_log(&unopened_project, &invalid, 10)
+                    .unwrap_err()
+                    .code,
+                ServiceErrorCode::Validation
+            );
         }
     }
 

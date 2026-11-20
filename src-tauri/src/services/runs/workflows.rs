@@ -26,6 +26,24 @@ pub struct WorkflowInfo {
     pub trusted: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowFile {
+    pub path: String,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowInspection {
+    pub name: String,
+    pub source: WorkflowSource,
+    pub path: String,
+    pub hash: String,
+    pub trusted: bool,
+    pub files: Vec<WorkflowFile>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Workflow {
     pub path: PathBuf,
@@ -72,7 +90,7 @@ pub fn resolve_in(
         .canonicalize()
         .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
     let script_hash = match source {
-        WorkflowSource::Project => hash_workflows_dir(&root.join(".cairn").join("workflows"))?,
+        WorkflowSource::Project => hash_workflows_dir(&root.join(".cairn").join("workflows"))?.hash,
         WorkflowSource::Global => hash_file(&path)?,
     };
     let trusted = match source {
@@ -84,6 +102,41 @@ pub fn resolve_in(
         source,
         script_hash,
         trusted,
+    })
+}
+
+pub fn inspect_in(
+    root: &Path,
+    name: &str,
+    data_dir: Option<&Path>,
+) -> Result<WorkflowInspection, ServiceError> {
+    let workflow = resolve_in(root, name, data_dir)?;
+    let files = match workflow.source {
+        WorkflowSource::Project => {
+            hash_workflows_dir(&root.join(".cairn").join("workflows"))?.files
+        }
+        WorkflowSource::Global => {
+            let size = fs::metadata(&workflow.path)
+                .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?
+                .len();
+            vec![WorkflowFile {
+                path: workflow
+                    .path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned(),
+                size,
+            }]
+        }
+    };
+    Ok(WorkflowInspection {
+        name: name.to_owned(),
+        source: workflow.source,
+        path: workflow.path.to_string_lossy().into_owned(),
+        hash: workflow.script_hash,
+        trusted: workflow.trusted,
+        files,
     })
 }
 
@@ -117,7 +170,7 @@ pub fn trust_in(
             "Workflow folder hash does not match the current project workflows folder",
         ));
     }
-    let current_hash = hash_workflows_dir(&root.join(".cairn").join("workflows"))?;
+    let current_hash = hash_workflows_dir(&root.join(".cairn").join("workflows"))?.hash;
     if current_hash != hash {
         return Err(ServiceError::validation(
             "Workflow folder changed before its trust could be stored",
@@ -206,7 +259,12 @@ fn hash_file(path: &Path) -> Result<String, ServiceError> {
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
-fn hash_workflows_dir(directory: &Path) -> Result<String, ServiceError> {
+struct WorkflowDirectoryHash {
+    hash: String,
+    files: Vec<WorkflowFile>,
+}
+
+fn hash_workflows_dir(directory: &Path) -> Result<WorkflowDirectoryHash, ServiceError> {
     let mut files = walkdir::WalkDir::new(directory)
         .follow_links(false)
         .into_iter()
@@ -249,13 +307,25 @@ fn hash_workflows_dir(directory: &Path) -> Result<String, ServiceError> {
     });
 
     let mut digest = Sha256::new();
+    let mut inventory = Vec::with_capacity(files.len());
     for relative in files {
         digest.update(relative.as_os_str().as_encoded_bytes());
         let contents = fs::read(directory.join(&relative))
             .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+        inventory.push(WorkflowFile {
+            path: relative
+                .components()
+                .map(|component| component.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/"),
+            size: contents.len() as u64,
+        });
         digest.update(contents);
     }
-    Ok(format!("{:x}", digest.finalize()))
+    Ok(WorkflowDirectoryHash {
+        hash: format!("{:x}", digest.finalize()),
+        files: inventory,
+    })
 }
 
 fn is_regular_file(path: &Path) -> bool {
@@ -455,6 +525,75 @@ mod tests {
     }
 
     #[test]
+    fn workflow_inspection_matches_trust_hash_and_hashed_file_inventory() {
+        let root = tempdir().unwrap();
+        let workflow_dir = root.path().join(".cairn/workflows");
+        let pycache = workflow_dir.join("__pycache__");
+        fs::create_dir_all(&pycache).unwrap();
+        fs::write(workflow_dir.join("default.py"), "pass").unwrap();
+        fs::write(pycache.join("ignored.pyc"), "cache").unwrap();
+        let data = tempdir().unwrap();
+
+        let initial = inspect_in(root.path(), "default", Some(data.path())).unwrap();
+        assert_eq!(
+            initial.files,
+            [WorkflowFile {
+                path: "default.py".into(),
+                size: 4
+            }]
+        );
+        assert_eq!(
+            initial.hash,
+            resolve_in(root.path(), "default", Some(data.path()))
+                .unwrap()
+                .script_hash
+        );
+        assert_eq!(
+            serde_json::to_value(&initial).unwrap(),
+            serde_json::json!({
+                "name": "default",
+                "source": "project",
+                "path": root.path().join(".cairn/workflows/default.py").canonicalize().unwrap().to_string_lossy(),
+                "hash": initial.hash,
+                "trusted": false,
+                "files": [{"path": "default.py", "size": 4}]
+            })
+        );
+        trust_in(root.path(), "default", &initial.hash, Some(data.path())).unwrap();
+        assert!(
+            inspect_in(root.path(), "default", Some(data.path()))
+                .unwrap()
+                .trusted
+        );
+
+        fs::write(workflow_dir.join("helper.py"), "VALUE = 1").unwrap();
+        fs::write(pycache.join("helper.pyc"), "more cache").unwrap();
+        let updated = inspect_in(root.path(), "default", Some(data.path())).unwrap();
+        assert_ne!(updated.hash, initial.hash);
+        assert_eq!(
+            updated
+                .files
+                .iter()
+                .map(|file| file.path.as_str())
+                .collect::<Vec<_>>(),
+            ["default.py", "helper.py"]
+        );
+        trust_in(root.path(), "default", &updated.hash, Some(data.path())).unwrap();
+        assert!(
+            inspect_in(root.path(), "default", Some(data.path()))
+                .unwrap()
+                .trusted
+        );
+
+        assert_eq!(
+            inspect_in(root.path(), "missing", Some(data.path()))
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::WorkflowNotFound
+        );
+    }
+
+    #[test]
     fn global_workflow_is_trusted() {
         let config_dir = dirs::config_dir().unwrap();
         let global_dir = config_dir.join("cairn/workflows");
@@ -465,6 +604,18 @@ mod tests {
         let workflow = resolve_in(root.path(), "slice6a-global-test", None).unwrap();
         assert_eq!(workflow.source, WorkflowSource::Global);
         assert!(workflow.trusted);
+        let inspection = inspect_in(root.path(), "slice6a-global-test", None).unwrap();
+        assert_eq!(
+            serde_json::to_value(&inspection).unwrap(),
+            serde_json::json!({
+                "name": "slice6a-global-test",
+                "source": "global",
+                "path": path.canonicalize().unwrap().to_string_lossy(),
+                "hash": workflow.script_hash,
+                "trusted": true,
+                "files": [{"path": "slice6a-global-test.py", "size": 4}]
+            })
+        );
         fs::remove_file(path).unwrap();
     }
 }

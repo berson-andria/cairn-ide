@@ -2,9 +2,8 @@
 
 For building the Angular UI. Args are camelCase as passed to `invoke`. Every
 command rejects with `{ code, message }` OR a plain string (bad arguments);
-normalize both (the existing `work-api.service.ts` does this). Items marked
-**(6e)** are not built yet. Authoritative details: `task-note-api.md`,
-`run-api.md`, `proposal-api.md`.
+normalize both (the existing `work-api.service.ts` does this). Authoritative
+details: `task-note-api.md`, `run-api.md`, `proposal-api.md`.
 
 ## 0. Rules that apply everywhere
 
@@ -69,13 +68,13 @@ are marked as script-created (6c, planned).
 | Purpose | Call |
 |---|---|
 | Which workflows exist | `workflow_list()` -> `[{ name, source: "project"\|"global", trusted }]` |
-| Details for the trust dialog (files, hash) **(6e)** | `workflow_inspect(name)` -> `{ name, source, path, hash, trusted, files:[{path,size}] }` |
+| Details for the trust dialog (files, hash) | `workflow_inspect(name)` -> `{ name, source, path, hash, trusted, files:[{path,size}] }` |
 | Approve a project workflow | `workflow_trust(name, hash)`; the hash must be the current folder hash |
 | Start | `run_start(taskId, expectedRev, workflow?)` -> run record; default workflow name is `default` |
 | Stop | `run_cancel()` |
 | Current or last run | `run_get()` -> record or `null` (running while `endedAt` is empty) |
-| Past runs **(6e)** | `run_list(limit)` -> summaries, newest first |
-| Log of a run, also after a restart **(6e)** | `run_log(runId, maxLines)` |
+| Past runs | `run_list(limit)` -> summaries, newest first |
+| Log of a run, also after a restart | `run_log(runId, maxLines)` |
 | Live | events `run:started {runId,taskId,workflow}`, `run:log {runId,lines[]}`, `run:finished {runId,taskId,outcome,reason?}` |
 
 Start flow: call `run_start`. On `TrustRequired`, open the trust dialog:

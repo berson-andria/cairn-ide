@@ -1,6 +1,6 @@
 use crate::services::{
     project::{ProjectState, TauriEventSink},
-    runs::workflows::WorkflowInfo,
+    runs::workflows::{WorkflowInfo, WorkflowInspection},
     runs::{RunManager, RunRecord},
     service_error::ServiceError,
 };
@@ -36,11 +36,39 @@ pub async fn run_get(runs: State<'_, RunManager>) -> Result<Option<RunRecord>, S
 }
 
 #[tauri::command]
+pub async fn run_list(
+    limit: u32,
+    projects: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
+) -> Result<Vec<RunRecord>, ServiceError> {
+    runs.run_list(&projects, limit)
+}
+
+#[tauri::command]
+pub async fn run_log(
+    run_id: String,
+    max_lines: u32,
+    projects: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
+) -> Result<Vec<String>, ServiceError> {
+    runs.run_log(&projects, &run_id, max_lines)
+}
+
+#[tauri::command]
 pub async fn workflow_list(
     projects: State<'_, ProjectState>,
     runs: State<'_, RunManager>,
 ) -> Result<Vec<WorkflowInfo>, ServiceError> {
     runs.workflow_list(&projects)
+}
+
+#[tauri::command]
+pub async fn workflow_inspect(
+    name: String,
+    projects: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
+) -> Result<WorkflowInspection, ServiceError> {
+    runs.workflow_inspect(&projects, &name)
 }
 
 #[tauri::command]
