@@ -8,7 +8,7 @@ use crate::{
         task::{SubTask, TaskItem, TaskStatus},
     },
 };
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::{
     collections::HashSet,
     path::Path,
@@ -23,14 +23,14 @@ where
     T::deserialize(d).map(Some)
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct NewSubTask {
     pub title: String,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct NewTask {
     pub title: String,
@@ -217,16 +217,59 @@ impl TaskService {
         }
         Ok(())
     }
-    pub fn create(&self, mut task: TaskItem) -> Result<TaskItem, ServiceError> {
-        let _g = self.lock()?;
-        self.validate_dependency(&task.id, task.depends_on.as_deref())?;
-        if let Some(ids) = task.linked_note_ids.as_ref() {
+    fn validate_linked_notes(&self, ids: Option<&[String]>) -> Result<(), ServiceError> {
+        if let Some(ids) = ids {
             for id in ids {
-                self.notes
-                    .get(id)
-                    .map_err(|_| ServiceError::validation(format!("Linked note {id} not found")))?;
+                if let Err(error) = self.notes.get(id) {
+                    if error.code == crate::services::storage::StorageErrorCode::NotFound {
+                        return Err(ServiceError::validation(format!(
+                            "linkedNoteIds: linked note {id} not found"
+                        )));
+                    }
+                    return Err(error.into());
+                }
             }
         }
+        Ok(())
+    }
+    pub(crate) fn validate_input_with_id_locked(
+        &self,
+        id: &str,
+        input: &NewTask,
+    ) -> Result<(), ServiceError> {
+        self.validate_dependency(id, input.depends_on.as_deref())
+            .map_err(|mut error| {
+                if error.code == ServiceErrorCode::Validation {
+                    error.message = format!("dependsOn: {}", error.message);
+                }
+                error
+            })?;
+        self.validate_linked_notes(input.linked_note_ids.as_deref())
+    }
+    fn task_from_input(id: String, input: NewTask) -> TaskItem {
+        let mut task = TaskItem::new(input.title);
+        task.id = id;
+        task.description = input.description;
+        task.anchor = input.anchor;
+        task.linked_note_ids = input.linked_note_ids;
+        task.sub_tasks = input.sub_tasks.map(|items| {
+            items
+                .into_iter()
+                .map(|item| {
+                    let mut subtask = SubTask::new(item.title);
+                    subtask.description = item.description;
+                    subtask
+                })
+                .collect()
+        });
+        task.depends_on = input.depends_on;
+        task.acceptance_criteria = input.acceptance_criteria;
+        task.branch = input.branch;
+        task
+    }
+    fn create_locked(&self, mut task: TaskItem) -> Result<(TaskItem, Vec<TaskItem>), ServiceError> {
+        self.validate_dependency(&task.id, task.depends_on.as_deref())?;
+        self.validate_linked_notes(task.linked_note_ids.as_deref())?;
         if let Some(subs) = task.sub_tasks.as_mut() {
             for sub in subs {
                 sub.id = uuid::Uuid::new_v4().to_string();
@@ -244,7 +287,7 @@ impl TaskService {
         } else {
             TaskStatus::Ready
         };
-        let t = self.tasks.create(task)?;
+        let created = self.tasks.create(task)?;
         let changed = match self.reconcile_locked() {
             Ok(v) => v,
             Err(e) => {
@@ -252,33 +295,37 @@ impl TaskService {
                 Vec::new()
             }
         };
-        let result = self.tasks.get(&t.id)?;
+        let result = self.tasks.get(&created.id)?;
+        Ok((result, changed))
+    }
+    pub(crate) fn create_input_with_id_locked(
+        &self,
+        id: String,
+        input: NewTask,
+    ) -> Result<(TaskItem, Vec<TaskItem>), ServiceError> {
+        self.validate_input_with_id_locked(&id, &input)?;
+        match self.tasks.get(&id) {
+            Ok(existing) => return Ok((existing, Vec::new())),
+            Err(error) if error.code == crate::services::storage::StorageErrorCode::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        self.create_locked(Self::task_from_input(id, input))
+    }
+    pub fn create(&self, task: TaskItem) -> Result<TaskItem, ServiceError> {
+        let _g = self.lock()?;
+        let (result, changed) = self.create_locked(task)?;
         drop(_g);
-        self.sink.emit(ChangeEvent::TaskCreated(t));
+        self.sink.emit(ChangeEvent::TaskCreated(result.clone()));
         for task in changed {
             self.emit_changed(task);
         }
         Ok(result)
     }
     pub fn create_input(&self, input: NewTask) -> Result<TaskItem, ServiceError> {
-        let mut task = TaskItem::new(input.title);
-        task.description = input.description;
-        task.anchor = input.anchor;
-        task.linked_note_ids = input.linked_note_ids;
-        task.sub_tasks = input.sub_tasks.map(|items| {
-            items
-                .into_iter()
-                .map(|item| {
-                    let mut subtask = SubTask::new(item.title);
-                    subtask.description = item.description;
-                    subtask
-                })
-                .collect()
-        });
-        task.depends_on = input.depends_on;
-        task.acceptance_criteria = input.acceptance_criteria;
-        task.branch = input.branch;
-        self.create(task)
+        self.create(Self::task_from_input(
+            uuid::Uuid::new_v4().to_string(),
+            input,
+        ))
     }
     pub fn update(
         &self,

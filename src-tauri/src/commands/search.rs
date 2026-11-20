@@ -181,9 +181,11 @@ pub async fn search_files(
     query: String,
     excluded_folders: Vec<String>,
 ) -> Result<Vec<FileNameSearchResult>, String> {
-    tauri::async_runtime::spawn_blocking(move || search_files_blocking(root_path, query, excluded_folders))
-        .await
-        .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        search_files_blocking(root_path, query, excluded_folders)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 fn search_files_blocking(

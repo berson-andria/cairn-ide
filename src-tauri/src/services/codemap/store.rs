@@ -44,7 +44,7 @@ struct SnapshotRef<'a> {
 }
 
 pub struct Store {
-    path: Option<PathBuf>,
+    pub path: Option<PathBuf>,
     dirty: bool,
     files: HashMap<String, FileRecord>,
     symbols: HashMap<String, Symbol>,
@@ -102,6 +102,24 @@ impl Store {
         };
         if !self.dirty {
             return Ok(());
+        }
+        if path.file_name().is_some_and(|name| name == "codemap.json")
+            && path
+                .parent()
+                .and_then(Path::file_name)
+                .is_some_and(|name| name == "cache")
+            && path
+                .parent()
+                .and_then(Path::parent)
+                .and_then(Path::file_name)
+                .is_some_and(|name| name == ".cairn")
+        {
+            let root = path
+                .parent()
+                .and_then(Path::parent)
+                .and_then(Path::parent)
+                .expect("codemap cache has a project root");
+            crate::services::storage::ensure_cairn_dir(root).map_err(|e| e.to_string())?;
         }
         let mut files: Vec<&FileRecord> = self.files.values().collect();
         files.sort_by(|a, b| a.path.cmp(&b.path));

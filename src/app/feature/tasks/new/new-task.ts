@@ -25,7 +25,7 @@ export class NewTask {
   readonly anchorPath = signal('');
   readonly acceptanceCriteria = signal('');
   readonly branch = signal('');
-  readonly showOptions = signal(true);
+  readonly showOptions = signal(false);
   readonly showSubtaskInput = signal(false);
   readonly tasks = this.taskService.tasks;
 

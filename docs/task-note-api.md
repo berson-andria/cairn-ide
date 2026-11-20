@@ -2,6 +2,8 @@
 
 All commands return structured service errors as `{ "code": "...", "message": "..." }`. Tauri exposes Rust snake_case argument names as camelCase. Every command except `project_open` and `project_close` requires an open project. List commands return `{ records, errors }`; each error carries `{ code, message }`.
 
+Tasks and notes are ignored by default in `.cairn/.gitignore`, which Rust creates as `cache/`, `runs/`, `tasks/`, and `notes/` only when that file is missing. It never overwrites a user file. Removing the `tasks/` and `notes/` lines allows those files to be added to Git and shared through Git.
+
 ## Commands
 
 | Command | JS args | Returns |
@@ -47,11 +49,15 @@ All commands return structured service errors as `{ "code": "...", "message": ".
 |---|---|
 | `task:created` | full `TaskItem` |
 | `task:updated` | full `TaskItem` |
+| `task:reloaded` | full `TaskItem` |
 | `task:deleted` | `{ id: string }` |
 | `note:created` | full `NoteItem` |
 | `note:updated` | full `NoteItem` |
+| `note:reloaded` | full `NoteItem` |
 | `note:deleted` | `{ id: string }` |
 | `project:reloaded` | `{}` |
+
+For `task:reloaded` and `note:reloaded`, replace the cached record unconditionally and ignore `rev`; outside edits and git checkout can preserve or reduce revisions. Hand edits should bump `rev` to keep subsequent optimistic updates meaningful.
 
 ## Error codes
 

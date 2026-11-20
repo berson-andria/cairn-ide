@@ -10,10 +10,17 @@ fn last_segment(path: &str) -> &str {
 
 /// Which of `named` (functions/methods called like `call.name`) can `call` be talking about?
 pub fn resolve<'a>(caller: &Symbol, call: &CallRef, named: &'a [Symbol]) -> Vec<&'a Symbol> {
-    let same_scope = |s: &&Symbol, scope: &str| s.parent.as_deref().map(last_segment) == Some(scope);
+    let same_scope =
+        |s: &&Symbol, scope: &str| s.parent.as_deref().map(last_segment) == Some(scope);
 
     match call.kind {
-        CallKind::Bare => prefer_same_file(caller, named.iter().filter(|s| s.kind == SymbolKind::Function).collect()),
+        CallKind::Bare => prefer_same_file(
+            caller,
+            named
+                .iter()
+                .filter(|s| s.kind == SymbolKind::Function)
+                .collect(),
+        ),
 
         CallKind::Path => {
             let qualifier = match call.qualifier.as_deref() {
@@ -22,9 +29,13 @@ pub fn resolve<'a>(caller: &Symbol, call: &CallRef, named: &'a [Symbol]) -> Vec<
             };
             match qualifier {
                 // `crate::foo()`, `self::foo()`, `super::foo()`: a free function somewhere in the crate
-                Some("crate" | "self" | "super") => {
-                    prefer_same_file(caller, named.iter().filter(|s| s.kind == SymbolKind::Function).collect())
-                }
+                Some("crate" | "self" | "super") => prefer_same_file(
+                    caller,
+                    named
+                        .iter()
+                        .filter(|s| s.kind == SymbolKind::Function)
+                        .collect(),
+                ),
                 // `Type::foo()` or `module::foo()`
                 Some(q) => named.iter().filter(|s| same_scope(s, q)).collect(),
                 None => Vec::new(),
@@ -40,20 +51,34 @@ pub fn resolve<'a>(caller: &Symbol, call: &CallRef, named: &'a [Symbol]) -> Vec<
                 None => Vec::new(),
             };
             if own.is_empty() {
-                named.iter().filter(|s| s.kind == SymbolKind::Method).collect()
+                named
+                    .iter()
+                    .filter(|s| s.kind == SymbolKind::Method)
+                    .collect()
             } else {
                 own
             }
         }
 
-        CallKind::Method => named.iter().filter(|s| s.kind == SymbolKind::Method).collect(),
+        CallKind::Method => named
+            .iter()
+            .filter(|s| s.kind == SymbolKind::Method)
+            .collect(),
     }
 }
 
 /// A bare `foo()` most likely means the `foo` next to the caller.
 fn prefer_same_file<'a>(caller: &Symbol, candidates: Vec<&'a Symbol>) -> Vec<&'a Symbol> {
-    let local: Vec<&Symbol> = candidates.iter().copied().filter(|s| s.file == caller.file).collect();
-    if local.is_empty() { candidates } else { local }
+    let local: Vec<&Symbol> = candidates
+        .iter()
+        .copied()
+        .filter(|s| s.file == caller.file)
+        .collect();
+    if local.is_empty() {
+        candidates
+    } else {
+        local
+    }
 }
 
 #[cfg(test)]
@@ -84,23 +109,37 @@ mod tests {
     }
 
     fn call(name: &str, qualifier: Option<&str>, kind: CallKind) -> CallRef {
-        CallRef { from: String::new(), name: name.into(), qualifier: qualifier.map(Into::into), kind }
+        CallRef {
+            from: String::new(),
+            name: name.into(),
+            qualifier: qualifier.map(Into::into),
+            kind,
+        }
     }
 
     fn ids(found: Vec<&Symbol>) -> Vec<String> {
-        found.into_iter().map(|s| s.qualified_name.clone()).collect()
+        found
+            .into_iter()
+            .map(|s| s.qualified_name.clone())
+            .collect()
     }
 
     #[test]
     fn bare_call_prefers_the_same_file() {
         let caller = sym("a.rs", "main", SymbolKind::Function);
-        let named = vec![sym("b.rs", "go", SymbolKind::Function), sym("a.rs", "go", SymbolKind::Function)];
+        let named = vec![
+            sym("b.rs", "go", SymbolKind::Function),
+            sym("a.rs", "go", SymbolKind::Function),
+        ];
         let found = resolve(&caller, &call("go", None, CallKind::Bare), &named);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].file, "a.rs");
         // nothing local: every function with that name
         let caller = sym("c.rs", "main", SymbolKind::Function);
-        assert_eq!(resolve(&caller, &call("go", None, CallKind::Bare), &named).len(), 2);
+        assert_eq!(
+            resolve(&caller, &call("go", None, CallKind::Bare), &named).len(),
+            2
+        );
     }
 
     #[test]
@@ -111,19 +150,62 @@ mod tests {
             sym("a.rs", "Bar::new", SymbolKind::Method),
             sym("a.rs", "util::new", SymbolKind::Function),
         ];
-        assert_eq!(ids(resolve(&caller, &call("new", Some("Bar"), CallKind::Path), &named)), ["Bar::new"]);
-        assert_eq!(ids(resolve(&caller, &call("new", Some("Self"), CallKind::Path), &named)), ["Foo::new"]);
-        assert_eq!(ids(resolve(&caller, &call("new", Some("util"), CallKind::Path), &named)), ["util::new"]);
-        assert!(resolve(&caller, &call("new", Some("String"), CallKind::Path), &named).is_empty());
+        assert_eq!(
+            ids(resolve(
+                &caller,
+                &call("new", Some("Bar"), CallKind::Path),
+                &named
+            )),
+            ["Bar::new"]
+        );
+        assert_eq!(
+            ids(resolve(
+                &caller,
+                &call("new", Some("Self"), CallKind::Path),
+                &named
+            )),
+            ["Foo::new"]
+        );
+        assert_eq!(
+            ids(resolve(
+                &caller,
+                &call("new", Some("util"), CallKind::Path),
+                &named
+            )),
+            ["util::new"]
+        );
+        assert!(resolve(
+            &caller,
+            &call("new", Some("String"), CallKind::Path),
+            &named
+        )
+        .is_empty());
     }
 
     #[test]
     fn self_method_prefers_own_type_then_any_method() {
         let caller = sym("a.rs", "Foo::run", SymbolKind::Method);
-        let named = vec![sym("a.rs", "Foo::step", SymbolKind::Method), sym("a.rs", "Bar::step", SymbolKind::Method)];
-        assert_eq!(ids(resolve(&caller, &call("step", None, CallKind::SelfMethod), &named)), ["Foo::step"]);
+        let named = vec![
+            sym("a.rs", "Foo::step", SymbolKind::Method),
+            sym("a.rs", "Bar::step", SymbolKind::Method),
+        ];
+        assert_eq!(
+            ids(resolve(
+                &caller,
+                &call("step", None, CallKind::SelfMethod),
+                &named
+            )),
+            ["Foo::step"]
+        );
         let named = vec![sym("a.rs", "Bar::step", SymbolKind::Method)]; // e.g. a trait default
-        assert_eq!(ids(resolve(&caller, &call("step", None, CallKind::SelfMethod), &named)), ["Bar::step"]);
+        assert_eq!(
+            ids(resolve(
+                &caller,
+                &call("step", None, CallKind::SelfMethod),
+                &named
+            )),
+            ["Bar::step"]
+        );
     }
 
     #[test]
@@ -134,6 +216,13 @@ mod tests {
             sym("a.rs", "B::run", SymbolKind::Method),
             sym("a.rs", "run", SymbolKind::Function), // a free fn cannot be `x.run()`
         ];
-        assert_eq!(ids(resolve(&caller, &call("run", None, CallKind::Method), &named)), ["A::run", "B::run"]);
+        assert_eq!(
+            ids(resolve(
+                &caller,
+                &call("run", None, CallKind::Method),
+                &named
+            )),
+            ["A::run", "B::run"]
+        );
     }
 }

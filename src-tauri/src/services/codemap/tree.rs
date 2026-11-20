@@ -21,7 +21,9 @@ pub fn build(
     let mut root = Dir::default();
     for (path, lang) in files {
         let mut parts: Vec<&str> = path.split('/').collect();
-        let Some(file_name) = parts.pop() else { continue };
+        let Some(file_name) = parts.pop() else {
+            continue;
+        };
         let mut dir = &mut root;
         for part in parts {
             dir = dir.dirs.entry(part.to_string()).or_default();
@@ -36,15 +38,30 @@ pub fn build(
 }
 
 fn convert(dir: &Dir, prefix: &str, symbols_of: &dyn Fn(&str) -> Vec<Symbol>) -> Vec<TreeNode> {
-    let join = |name: &str| if prefix.is_empty() { name.to_string() } else { format!("{prefix}/{name}") };
+    let join = |name: &str| {
+        if prefix.is_empty() {
+            name.to_string()
+        } else {
+            format!("{prefix}/{name}")
+        }
+    };
     let mut out = Vec::new();
     for (name, sub) in &dir.dirs {
         let path = join(name);
-        out.push(TreeNode::Folder { name: name.clone(), children: convert(sub, &path, symbols_of), path });
+        out.push(TreeNode::Folder {
+            name: name.clone(),
+            children: convert(sub, &path, symbols_of),
+            path,
+        });
     }
     for (name, lang) in &dir.files {
         let path = join(name);
-        out.push(TreeNode::File { name: name.clone(), lang: lang.clone(), symbols: symbols_of(&path), path });
+        out.push(TreeNode::File {
+            name: name.clone(),
+            lang: lang.clone(),
+            symbols: symbols_of(&path),
+            path,
+        });
     }
     out
 }

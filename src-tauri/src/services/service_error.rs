@@ -17,6 +17,10 @@ pub enum ServiceErrorCode {
     Io,
     Corrupt,
     NoProject,
+    RunActive,
+    TrustRequired,
+    RuntimeUnavailable,
+    WorkflowNotFound,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -77,6 +81,31 @@ pub enum ChangeEvent {
     NoteReloaded(crate::types::note::NoteItem),
     NoteDeleted(String),
     ProjectReloaded,
+    RunStarted {
+        run_id: String,
+        task_id: String,
+        workflow: String,
+    },
+    RunLog {
+        run_id: String,
+        lines: Vec<String>,
+    },
+    RunFinished {
+        run_id: String,
+        task_id: String,
+        outcome: RunOutcome,
+        reason: Option<String>,
+    },
+    ProposalCreated(crate::types::proposal::Proposal),
+    ProposalUpdated(crate::types::proposal::Proposal),
+    ProposalDeleted(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RunOutcome {
+    NeedsReview,
+    Failed,
 }
 pub trait EventSink: Send + Sync {
     fn emit(&self, event: ChangeEvent);

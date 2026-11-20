@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { EditorService } from '../../../feature/editor/services/editor.service';
 import { FileNode } from '../../store/node.state';
-import { classifyWatchEvent, findNodeByPath } from './external-watcher.utils';
+import { baseNameOf, classifyWatchEvent, findNodeByPath } from './external-watcher.utils';
 import { FileSystemService } from './file-system.service';
 import { NodeStore } from '../../store/node.store';
 import { TabStore } from '../../store/tab.store';
@@ -131,18 +131,19 @@ export class WorkspaceWatcherService {
 
   private async process(event: { type: unknown; paths: string[] }) {
     const { action, entry, mode } = classifyWatchEvent(event.type);
-    const [first, second] = event.paths;
+    const paths = event.paths.filter((path) => baseNameOf(path) !== '.git');
+    const [first, second] = paths;
     if (!first) return;
 
     switch (action) {
       case 'create':
-        for (const p of event.paths) await this.nodes.applyCreated(p, entry);
+        for (const p of paths) await this.nodes.applyCreated(p, entry);
         break;
       case 'remove':
-        for (const p of event.paths) this.nodes.applyRemoved(p);
+        for (const p of paths) this.nodes.applyRemoved(p);
         break;
       case 'modify':
-        for (const p of event.paths) await this.onModify(p);
+        for (const p of paths) await this.onModify(p);
         break;
       case 'rename':
         if (second) await this.onRename(first, second);

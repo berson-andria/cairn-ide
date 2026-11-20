@@ -1,10 +1,22 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     fmt, fs,
-    io::Write,
+    fs::OpenOptions,
+    io::{self, Write},
     path::{Path, PathBuf},
     sync::Mutex,
 };
+
+pub fn ensure_cairn_dir(root: impl AsRef<Path>) -> io::Result<()> {
+    let directory = root.as_ref().join(".cairn");
+    fs::create_dir_all(&directory)?;
+    let ignore = directory.join(".gitignore");
+    match OpenOptions::new().write(true).create_new(true).open(ignore) {
+        Ok(mut file) => file.write_all(b"cache/\nruns/\ntasks/\nnotes/\n"),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+        Err(error) => Err(error),
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -78,6 +90,20 @@ impl RepositoryRecord for crate::types::note::NoteItem {
         self.rev = rev;
     }
 }
+impl RepositoryRecord for crate::types::proposal::Proposal {
+    fn id(&self) -> &str {
+        &self.id
+    }
+    fn set_id(&mut self, id: String) {
+        self.id = id;
+    }
+    fn rev(&self) -> u64 {
+        self.rev
+    }
+    fn set_rev(&mut self, rev: u64) {
+        self.rev = rev;
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -116,6 +142,9 @@ impl<T> FileRepository<T> {
     pub fn for_notes(root: impl AsRef<Path>) -> Self {
         Self::new(root.as_ref().join(".cairn/notes"))
     }
+    pub fn for_proposals(root: impl AsRef<Path>) -> Self {
+        Self::new(root.as_ref().join(".cairn/runs/proposals"))
+    }
     fn path(&self, id: &str) -> Result<PathBuf, StorageError> {
         if id.is_empty()
             || id.len() > 64
@@ -130,10 +159,71 @@ impl<T> FileRepository<T> {
         }
         Ok(self.directory.join(format!("{id}.json")))
     }
+    pub(crate) fn path_for_reload(&self, id: &str) -> Result<PathBuf, StorageError> {
+        self.path(id)
+    }
 }
 
 impl<T: RepositoryRecord> FileRepository<T> {
+    fn own_key(&self, id: &str) -> String {
+        self.directory
+            .join(format!("{id}.json"))
+            .to_string_lossy()
+            .to_string()
+    }
+    pub fn is_own_write(&self, id: &str, bytes: Option<&[u8]>) -> bool {
+        OWN_WRITES
+            .get_or_init(Default::default)
+            .lock()
+            .ok()
+            .and_then(|writes| writes.get(&self.own_key(id)).copied())
+            == Some(bytes.map(blake3::hash).map(|hash| *hash.as_bytes()))
+    }
+    pub fn clear_own_write(&self, id: &str) {
+        if let Ok(mut writes) = OWN_WRITES.get_or_init(Default::default).lock() {
+            writes.remove(&self.own_key(id));
+        }
+    }
+
     fn write(&self, record: &T) -> Result<(), StorageError> {
+        let cairn_directory = if self
+            .directory
+            .file_name()
+            .is_some_and(|name| name == "tasks" || name == "notes")
+            && self
+                .directory
+                .parent()
+                .and_then(Path::file_name)
+                .is_some_and(|name| name == ".cairn")
+        {
+            self.directory.parent()
+        } else if self
+            .directory
+            .file_name()
+            .is_some_and(|name| name == "proposals")
+            && self
+                .directory
+                .parent()
+                .and_then(Path::file_name)
+                .is_some_and(|name| name == "runs")
+            && self
+                .directory
+                .parent()
+                .and_then(Path::parent)
+                .and_then(Path::file_name)
+                .is_some_and(|name| name == ".cairn")
+        {
+            self.directory.parent().and_then(Path::parent)
+        } else {
+            None
+        };
+        if let Some(cairn_directory) = cairn_directory {
+            let root = cairn_directory
+                .parent()
+                .expect(".cairn directory has a project root");
+            ensure_cairn_dir(root)
+                .map_err(|e| StorageError::new(StorageErrorCode::Io, e.to_string()))?;
+        }
         fs::create_dir_all(&self.directory)
             .map_err(|e| StorageError::new(StorageErrorCode::Io, e.to_string()))?;
         let path = self.path(record.id())?;
@@ -142,6 +232,14 @@ impl<T: RepositoryRecord> FileRepository<T> {
             .join(format!(".{}.{}.tmp", record.id(), uuid::Uuid::new_v4()));
         let bytes = serde_json::to_vec_pretty(record)
             .map_err(|e| StorageError::new(StorageErrorCode::Validation, e.to_string()))?;
+        OWN_WRITES
+            .get_or_init(Default::default)
+            .lock()
+            .map_err(|e| StorageError::new(StorageErrorCode::Io, e.to_string()))?
+            .insert(
+                self.own_key(record.id()),
+                Some(*blake3::hash(&bytes).as_bytes()),
+            );
         let result = (|| {
             let mut file = fs::File::create(&temp)?;
             file.write_all(&bytes)?;
@@ -149,6 +247,9 @@ impl<T: RepositoryRecord> FileRepository<T> {
             fs::rename(&temp, &path)
         })();
         if let Err(error) = result {
+            if let Ok(mut writes) = OWN_WRITES.get_or_init(Default::default).lock() {
+                writes.remove(&self.own_key(record.id()));
+            }
             let _ = fs::remove_file(&temp);
             return Err(StorageError::new(StorageErrorCode::Io, error.to_string()));
         }
@@ -276,15 +377,31 @@ impl<T: RepositoryRecord> Repository<T> for FileRepository<T> {
                 format!("Repository lock poisoned: {e}"),
             )
         })?;
-        fs::remove_file(self.path(id)?).map_err(|e| {
+        let path = self.path(id)?;
+        OWN_WRITES
+            .get_or_init(Default::default)
+            .lock()
+            .map_err(|e| StorageError::new(StorageErrorCode::Io, e.to_string()))?
+            .insert(self.own_key(id), None);
+        fs::remove_file(path).map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
+                if let Ok(mut writes) = OWN_WRITES.get_or_init(Default::default).lock() {
+                    writes.remove(&self.own_key(id));
+                }
                 StorageError::new(StorageErrorCode::NotFound, format!("Record {id} not found"))
             } else {
+                if let Ok(mut writes) = OWN_WRITES.get_or_init(Default::default).lock() {
+                    writes.remove(&self.own_key(id));
+                }
                 StorageError::new(StorageErrorCode::Io, e.to_string())
             }
-        })
+        })?;
+        Ok(())
     }
 }
+
+static OWN_WRITES: std::sync::OnceLock<Mutex<std::collections::HashMap<String, Option<[u8; 32]>>>> =
+    std::sync::OnceLock::new();
 
 #[cfg(test)]
 mod tests {
@@ -295,6 +412,28 @@ mod tests {
     };
     use std::sync::Arc;
     use tempfile::tempdir;
+
+    #[test]
+    fn ensure_cairn_dir_creates_default_ignore_only_once() {
+        let d = tempdir().unwrap();
+        let ignore = d.path().join(".cairn/.gitignore");
+        ensure_cairn_dir(d.path()).unwrap();
+        let expected = b"cache/\nruns/\ntasks/\nnotes/\n";
+        assert_eq!(fs::read(&ignore).unwrap(), expected);
+        ensure_cairn_dir(d.path()).unwrap();
+        assert_eq!(fs::read(&ignore).unwrap(), expected);
+    }
+
+    #[test]
+    fn ensure_cairn_dir_preserves_custom_ignore() {
+        let d = tempdir().unwrap();
+        let dir = d.path().join(".cairn");
+        fs::create_dir_all(&dir).unwrap();
+        let ignore = dir.join(".gitignore");
+        fs::write(&ignore, "custom\n").unwrap();
+        ensure_cairn_dir(d.path()).unwrap();
+        assert_eq!(fs::read_to_string(ignore).unwrap(), "custom\n");
+    }
 
     #[test]
     fn create_get_starts_at_one() {
