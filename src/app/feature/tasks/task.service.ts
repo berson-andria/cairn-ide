@@ -3,7 +3,7 @@ import { TaskStore } from '../../core/store/task.store';
 import { WorkApiService, type ApiError } from '../../core/services/tauri/work-api.service';
 import { handleApiError as reportApiError } from '../../core/services/tauri/api-error';
 import { NoticeManager } from '../../core/services/notification/notification.service';
-import { RunService, type RunResult } from '../runs/run.service';
+import { RunService, RunResult } from '../../core/services/runs/run.service';
 
 export type TaskStatus = 'ready' | 'running' | 'blocked' | 'needs_review' | 'completed' | 'failed';
 export interface TaskAnchor {
@@ -140,8 +140,7 @@ export class TaskService {
         ];
       case 'running': {
         const currentRun = this.runService.current();
-        const activeRunForTask =
-          this.runService.isRunning() && currentRun?.taskId === task.id;
+        const activeRunForTask = this.runService.isRunning() && currentRun?.taskId === task.id;
         return activeRunForTask
           ? [
               { action: 'cancelRun', enabled: true },
@@ -173,7 +172,9 @@ export class TaskService {
   ): Promise<TaskItem | RunResult | void> {
     if (action === 'run') {
       if (!this.runService.canRun(task, options?.workflow)) return;
-    } else if (!this.availableActions(task).some(item => item.action === action && item.enabled)) {
+    } else if (
+      !this.availableActions(task).some((item) => item.action === action && item.enabled)
+    ) {
       return;
     }
     switch (action) {

@@ -1,26 +1,73 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { TaskService, type TaskItem } from '../task.service';
 import { NoteService } from '../../notes/note.service';
 import { LayoutService } from '../../../core/services/layout.service';
 import { AutoExpandDirective } from '../../../shared/directives/auto-expand';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideNotebook, lucidePlus } from '@ng-icons/lucide';
+import {
+  lucideNotebook,
+  lucidePanelLeft,
+  lucidePanelRight,
+  lucidePlus,
+  lucideX,
+} from '@ng-icons/lucide';
+import { ResizeHandle } from '../../../shared/components/resize-handle/resize-handle';
 
 @Component({
   selector: 'app-task-view',
   templateUrl: './task-view.html',
   styleUrl: './task-view.scss',
-  imports: [AutoExpandDirective, NgIcon],
-  providers: [provideIcons({ lucideNotebook, lucidePlus })],
+  imports: [AutoExpandDirective, NgIcon, ResizeHandle],
+  providers: [
+    provideIcons({ lucideNotebook, lucidePanelLeft, lucidePanelRight, lucidePlus, lucideX }),
+  ],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TaskView {
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   readonly taskInput = input<TaskItem | null>(null, { alias: 'task' });
   readonly taskId = input<string | undefined>();
   readonly taskService = inject(TaskService);
   private readonly noteService = inject(NoteService);
   private readonly layoutService = inject(LayoutService);
+  protected readonly mainWidth = signal<number | null>(null);
+  protected readonly mainCollapsed = signal(false);
+  protected readonly asideCollapsed = signal(false);
+  protected readonly minColumnWidth = 240;
+  protected readonly maxMainWidth = () => {
+    const width = this.host.nativeElement.querySelector('.task-detail')?.clientWidth ?? 0;
+    return Math.max(this.minColumnWidth, width - this.minColumnWidth);
+  };
+
+  protected closeMain(): void {
+    this.mainWidth.set(null);
+    this.mainCollapsed.set(true);
+  }
+
+  protected showMain(): void {
+    this.mainWidth.set(null);
+    this.mainCollapsed.set(false);
+  }
+
+  protected closeAside(): void {
+    this.mainWidth.set(null);
+    this.asideCollapsed.set(true);
+  }
+
+  protected showAside(): void {
+    this.mainWidth.set(null);
+    this.asideCollapsed.set(false);
+  }
+
   readonly task = computed(() => {
     const id = this.taskId();
     return id
@@ -62,6 +109,14 @@ export class TaskView {
         )
       : candidates;
   });
+
+  toggleMain() {
+    this.mainCollapsed.update((v) => !v);
+  }
+
+  toggleAside() {
+    this.asideCollapsed.update((v) => !v);
+  }
 
   async updateTitle(title: string): Promise<void> {
     const task = this.task();
@@ -121,7 +176,11 @@ export class TaskView {
   closeDependencyPickerOnBlur(event: FocusEvent): void {
     const section = event.currentTarget;
     const nextTarget = event.relatedTarget;
-    if (section instanceof HTMLElement && nextTarget instanceof Node && section.contains(nextTarget)) {
+    if (
+      section instanceof HTMLElement &&
+      nextTarget instanceof Node &&
+      section.contains(nextTarget)
+    ) {
       return;
     }
     this.showDependencyPicker.set(false);

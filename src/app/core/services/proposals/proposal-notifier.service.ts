@@ -1,6 +1,17 @@
 import { Injectable } from '@angular/core';
-import { Observable, Subject, bufferWhen, debounceTime, filter, groupBy, map, mergeMap, race, timer } from 'rxjs';
-import type { Proposal } from '../../shared/models/agent.model';
+import {
+  Observable,
+  Subject,
+  bufferWhen,
+  debounceTime,
+  filter,
+  groupBy,
+  map,
+  mergeMap,
+  race,
+  timer,
+} from 'rxjs';
+import { Proposal } from '../../../shared/models/agent.model';
 
 export const PROPOSAL_NOTIFIER_QUIET_WINDOW_MS = 1000;
 export const PROPOSAL_NOTIFIER_MAX_WAIT_MS = 5000;
@@ -26,21 +37,19 @@ export class ProposalNotifier {
   }
 
   readonly notifications$: Observable<ProposalNotification> = this.created.pipe(
-    groupBy(proposal => proposal.runId),
-    mergeMap(group =>
+    groupBy((proposal) => proposal.runId),
+    mergeMap((group) =>
       group.pipe(
-        bufferWhen(() =>
-          race(group.pipe(debounceTime(this.quietWindowMs)), timer(this.maxWaitMs)),
-        ),
-        filter(proposals => proposals.length > 0),
-        map(proposals => {
+        bufferWhen(() => race(group.pipe(debounceTime(this.quietWindowMs)), timer(this.maxWaitMs))),
+        filter((proposals) => proposals.length > 0),
+        map((proposals) => {
           const first = proposals[0];
           return {
             runId: first.runId,
             workflow: first.workflow,
             taskId: first.taskId,
-            proposalIds: [...new Set(proposals.map(proposal => proposal.id))],
-            kinds: [...new Set(proposals.map(proposal => proposal.kind))],
+            proposalIds: [...new Set(proposals.map((proposal) => proposal.id))],
+            kinds: [...new Set(proposals.map((proposal) => proposal.kind))],
           };
         }),
       ),

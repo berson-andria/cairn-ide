@@ -1,14 +1,14 @@
 import { Injectable, computed, inject } from '@angular/core';
 import type { Signal } from '@angular/core';
-import { NodeStore } from '../../core/store/node.store';
-import { RunStore } from '../../core/store/run.store';
-import { TaskStore } from '../../core/store/task.store';
-import { NoticeManager } from '../../core/services/notification/notification.service';
-import { handleApiError } from '../../core/services/tauri/api-error';
-import { WorkApiService } from '../../core/services/tauri/work-api.service';
-import type { RunRecord, WorkflowInfo, WorkflowInspect } from '../../shared/models/agent.model';
-import type { TaskItem } from '../tasks/task.service';
 import { WorkflowService } from './workflow.service';
+import { RunRecord, WorkflowInfo, WorkflowInspect } from '../../../shared/models/agent.model';
+import { TaskItem } from '../../../feature/tasks/task.service';
+import { NodeStore } from '../../store/node.store';
+import { RunStore } from '../../store/run.store';
+import { TaskStore } from '../../store/task.store';
+import { NoticeManager } from '../notification/notification.service';
+import { handleApiError } from '../tauri/api-error';
+import { WorkApiService } from '../tauri/work-api.service';
 
 export type RunResult =
   | { kind: 'started'; run: RunRecord }
@@ -90,26 +90,33 @@ export class RunService {
 
     const selectedWorkflow = this.selectWorkflow(workflow, workflows);
     if (selectedWorkflow === undefined) return 'Choose a workflow.';
-    if (!workflows.some(item => item.name === selectedWorkflow)) {
+    if (!workflows.some((item) => item.name === selectedWorkflow)) {
       return 'Workflow not found.';
     }
     return null;
   }
 
-  private selectWorkflow(workflow: string | undefined, workflows: WorkflowInfo[]): string | undefined {
+  private selectWorkflow(
+    workflow: string | undefined,
+    workflows: WorkflowInfo[],
+  ): string | undefined {
     if (workflow !== undefined) return workflow;
-    if (workflows.some(item => item.name === 'default')) return 'default';
+    if (workflows.some((item) => item.name === 'default')) return 'default';
     return workflows.length === 1 ? workflows[0].name : undefined;
   }
 
   async run(taskId: string, workflow?: string): Promise<RunResult | undefined> {
     const task = this.tasks.records()[taskId];
     if (!task) {
-      await handleApiError({ code: 'NotFound', message: `Task ${taskId} was not found.` }, this.notices);
+      await handleApiError(
+        { code: 'NotFound', message: `Task ${taskId} was not found.` },
+        this.notices,
+      );
       return undefined;
     }
     const workflowName = this.selectWorkflow(workflow, this.workflows.workflows());
-    if (workflowName === undefined || this.runDisabledReason(task, workflow) !== null) return undefined;
+    if (workflowName === undefined || this.runDisabledReason(task, workflow) !== null)
+      return undefined;
     try {
       const run = await this.api.runStart(taskId, task.rev, workflowName);
       return { kind: 'started', run };
@@ -123,7 +130,11 @@ export class RunService {
     }
   }
 
-  async trustAndRun(taskId: string, workflowName: string, hash: string): Promise<RunResult | undefined> {
+  async trustAndRun(
+    taskId: string,
+    workflowName: string,
+    hash: string,
+  ): Promise<RunResult | undefined> {
     try {
       await this.api.workflowTrust(workflowName, hash);
     } catch (error) {

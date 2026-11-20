@@ -7,7 +7,7 @@
 >
   @switch (task().status) {
     @case ('ready') {
-      <button class="btn-action-play task-action" title="run stask">
+      <button class="btn-action-play task-action" title="run stask" (click)="runTask($event)">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -27,7 +27,7 @@
       </button>
     }
     @case ('running') {
-      <button class="task-action btn-action-stop" title="Stop Task">
+      <button class="task-action btn-action-stop" title="Cancel Task" (click)="canceltask($event)">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -41,7 +41,11 @@
       </button>
     }
     @case ('failed') {
-      <button class="task-action btn-action-rerun" title="Retry failed task">
+      <button
+        class="task-action btn-action-rerun"
+        title="Retry failed task"
+        (click)="rerunTask($event)"
+      >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -115,7 +119,7 @@
     class="icon-btn task-row__delete"
     aria-label="Delete task"
     title="Delete task"
-    (click)="deleteTask($event); $event.stopPropagation()"
+    (click)="deleteTask($event)"
   >
     <ng-icon name="lucideTrash" />
   </button>

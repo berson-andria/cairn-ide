@@ -1,15 +1,15 @@
 import { Injectable, computed, inject } from '@angular/core';
-import { NoticeManager } from '../../core/services/notification/notification.service';
-import { handleApiError } from '../../core/services/tauri/api-error';
-import { WorkApiService } from '../../core/services/tauri/work-api.service';
-import { ProposalStore } from '../../core/store/proposal.store';
-import type {
-  AcceptResult,
+import {
+  TasksProposal,
   Proposal,
   ProposalPayload,
   SourceAction,
-  TasksProposal,
-} from '../../shared/models/agent.model';
+  AcceptResult,
+} from '../../../shared/models/agent.model';
+import { ProposalStore } from '../../store/proposal.store';
+import { NoticeManager } from '../notification/notification.service';
+import { handleApiError } from '../tauri/api-error';
+import { WorkApiService } from '../tauri/work-api.service';
 
 export type BatchEditPayload = TasksProposal['payload'];
 export type SubtaskEditPayload = Extract<Proposal, { kind: 'subtasks' }>['payload'];
@@ -23,13 +23,13 @@ export function editablePayload<T extends Proposal>(proposal: T): T['payload'] {
 
 export function removeBatchItem(payload: BatchEditPayload, key: string): BatchRemoval {
   const dependents = payload.items
-    .filter(item => item.dependsOnKey === key)
-    .map(item => item.key);
+    .filter((item) => item.dependsOnKey === key)
+    .map((item) => item.key);
   if (dependents.length) return { error: 'has-dependents', keys: dependents };
   return {
     payload: {
       ...structuredClone(payload),
-      items: payload.items.filter(item => item.key !== key),
+      items: payload.items.filter((item) => item.key !== key),
     },
   };
 }
@@ -48,15 +48,15 @@ export class ProposalService {
   private readonly notices = inject(NoticeManager);
 
   readonly all = this.store.all;
-  readonly pending = computed(() => this.all().filter(proposal => proposal.status === 'pending'));
+  readonly pending = computed(() => this.all().filter((proposal) => proposal.status === 'pending'));
   readonly display = computed(() =>
-    this.pending().filter(proposal => proposal.presentation === 'display'),
+    this.pending().filter((proposal) => proposal.presentation === 'display'),
   );
   readonly notifications = computed(() =>
-    this.pending().filter(proposal => proposal.presentation === 'notify'),
+    this.pending().filter((proposal) => proposal.presentation === 'notify'),
   );
-  readonly unseenCount = computed(() =>
-    this.notifications().filter(proposal => !proposal.seenAt).length,
+  readonly unseenCount = computed(
+    () => this.notifications().filter((proposal) => !proposal.seenAt).length,
   );
   readonly byRun = computed(() =>
     this.all().reduce<Record<string, Proposal[]>>((groups, proposal) => {
@@ -66,7 +66,7 @@ export class ProposalService {
   );
 
   refresh(): Promise<void> {
-    return this.store.refresh().catch(error => handleApiError(error, this.notices));
+    return this.store.refresh().catch((error) => handleApiError(error, this.notices));
   }
 
   async accept(
@@ -79,7 +79,10 @@ export class ProposalService {
     }
     const latest = this.store.records()[proposal.id];
     if (!latest) {
-      await handleApiError({ code: 'NotFound', message: `Proposal ${proposal.id} was not found.` }, this.notices);
+      await handleApiError(
+        { code: 'NotFound', message: `Proposal ${proposal.id} was not found.` },
+        this.notices,
+      );
       return undefined;
     }
     try {
@@ -136,7 +139,10 @@ export class ProposalService {
     if (!this.store.records()[proposal.id]) await this.refresh();
     const latest = this.store.records()[proposal.id];
     if (!latest) {
-      await handleApiError({ code: 'NotFound', message: `Proposal ${proposal.id} was not found.` }, this.notices);
+      await handleApiError(
+        { code: 'NotFound', message: `Proposal ${proposal.id} was not found.` },
+        this.notices,
+      );
     }
     return latest;
   }

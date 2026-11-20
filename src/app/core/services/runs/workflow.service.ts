@@ -1,8 +1,8 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { NoticeManager } from '../../core/services/notification/notification.service';
-import { handleApiError } from '../../core/services/tauri/api-error';
-import { WorkApiService } from '../../core/services/tauri/work-api.service';
-import type { WorkflowInfo, WorkflowInspect } from '../../shared/models/agent.model';
+import { WorkflowInfo, WorkflowInspect } from '../../../shared/models/agent.model';
+import { NoticeManager } from '../notification/notification.service';
+import { handleApiError } from '../tauri/api-error';
+import { WorkApiService } from '../tauri/work-api.service';
 
 @Injectable({ providedIn: 'root' })
 export class WorkflowService {
@@ -20,10 +20,10 @@ export class WorkflowService {
     let request: Promise<void>;
     request = this.api
       .workflowList()
-      .then(workflows => {
+      .then((workflows) => {
         if (generation === this.generation) this._workflows.set(workflows);
       })
-      .catch(error => handleApiError(error, this.notices))
+      .catch((error) => handleApiError(error, this.notices))
       .finally(() => {
         if (this.refreshPromise === request) this.refreshPromise = undefined;
       });

@@ -10,7 +10,7 @@ import { AfterViewInit, Directive, ElementRef, input, output } from '@angular/co
 export class AutoExpandDirective implements AfterViewInit {
   submit = output();
   autoExpandSubmitOnEnter = input(true);
-  private readonly maxHeight = 160;
+  autoExpandMaxHeight = input<number | null>(160);
 
   constructor(private el: ElementRef<HTMLTextAreaElement>) {}
 
@@ -31,7 +31,9 @@ export class AutoExpandDirective implements AfterViewInit {
   onInput(): void {
     const textarea = this.el.nativeElement;
     textarea.style.height = 'auto'; // reset
-    textarea.style.height =
-      Math.min(textarea.scrollHeight, this.maxHeight) + 'px';
+    const maxHeight = this.autoExpandMaxHeight();
+    const height =
+      maxHeight === null ? textarea.scrollHeight : Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${height}px`;
   }
 }

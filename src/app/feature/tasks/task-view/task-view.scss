@@ -1,8 +1,20 @@
 :host {
+  position: relative;
   display: flex;
   flex: 1;
   min-width: 0;
   min-height: 0;
+}
+.layout-handle {
+  position: absolute;
+  top: 0;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  height: fit-content;
+  width: 100%;
+  padding: var(--space-2) var(--space-10);
+  z-index: 10;
 }
 .task-detail {
   display: flex;
@@ -10,16 +22,43 @@
   min-width: 0;
   min-height: 0;
 }
+.task-details {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
 .task-detail__main {
-  flex: 1;
+  position: relative;
+  flex: 0 0 50%;
+  min-width: 0;
   padding: var(--space-24) 36px;
 }
+.task-detail__main--resized {
+  flex-basis: auto;
+}
+.task-detail__main--aside-collapsed {
+  flex: 1 1 100%;
+}
+.task-detail__main--collapsed {
+  flex: 0 0 0;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+}
 .task-detail__aside {
-  width: var(--inspector-width);
-  flex: none;
+  flex: 1 1 50%;
+  min-width: 0;
   padding: var(--space-24) 20px;
   border-left: 1px solid var(--color-divider);
 }
+.task-detail__aside--collapsed {
+  flex: 0 0 0;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+}
+
 .muted {
   color: var(--color-text-muted);
   font-size: var(--font-size-small);
@@ -28,7 +67,7 @@
   cursor: default;
 }
 .task-readonly-banner {
-  max-width: 620px;
+  width: 100%;
   margin: var(--space-8) 0;
   padding: var(--space-8) var(--space-12);
   border: 1px solid var(--color-attention);
@@ -40,14 +79,20 @@
 .task-title-input {
   display: block;
   width: 100%;
+  min-height: 0;
   margin: var(--space-8) 0 var(--space-16);
   padding: 0;
+  overflow: hidden;
+  resize: none;
   border: 0;
   background: transparent;
   color: var(--color-text-primary);
   font: inherit;
   font-size: var(--font-size-page-title);
   font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 .status-line {
   display: flex;
@@ -108,7 +153,7 @@
   letter-spacing: 0;
 }
 .description {
-  max-width: 620px;
+  width: 100%;
   margin: 0;
   color: var(--color-text-prose);
   font-size: var(--font-size-prose);
@@ -118,7 +163,6 @@
 .description-input {
   display: block;
   width: 100%;
-  max-width: 620px;
   min-height: 100px;
   padding: var(--space-8);
   border: 1px solid var(--color-border);
@@ -133,7 +177,7 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--space-8);
-  max-width: 620px;
+  width: 100%;
   margin-top: var(--space-8);
 }
 .text-button {
@@ -202,7 +246,7 @@
   gap: var(--space-6);
 }
 .dependency-picker {
-  max-width: 620px;
+  width: 100%;
   margin-top: var(--space-8);
   padding: var(--space-8);
   border: 1px solid var(--color-border);
@@ -252,7 +296,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  max-width: 620px;
+  width: 100%;
   margin-bottom: var(--space-8);
 }
 .subtask-input {
@@ -275,7 +319,6 @@
     padding: var(--space-16);
   }
   .task-detail__aside {
-    width: 240px;
     padding: var(--space-16);
   }
   .status-line__action {

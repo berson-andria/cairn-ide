@@ -2,14 +2,13 @@ import { ChangeDetectionStrategy, Component, inject, input, output } from '@angu
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucidePlay,
-  lucidePlayCircle,
-  lucidePlayOff,
   lucideReply,
   lucideRotateCcw,
   lucideSquare,
   lucideTrash,
 } from '@ng-icons/lucide';
 import { TaskService, type TaskItem, type TaskStatus } from '../task.service';
+import { RunService } from '../../../core/services/runs/run.service';
 
 @Component({
   selector: 'app-task',
@@ -26,10 +25,28 @@ export class Task {
   readonly task = input.required<TaskItem>();
   readonly selected = input(false);
   readonly taskSelected = output<TaskItem>();
+  readonly runService = inject(RunService);
 
   deleteTask(event: MouseEvent): void {
     event.stopPropagation();
     this.taskService.delete(this.task().id);
+  }
+
+  runTask(event: MouseEvent) {
+    event.stopPropagation();
+    this.runService.run(this.task().id);
+  }
+
+  canceltask(event: MouseEvent) {
+    event.stopPropagation();
+    this.runService.cancel();
+  }
+
+  rerunTask(event: MouseEvent) {
+    event.stopPropagation();
+    this.taskService
+      .setStatus(this.task().id, 'ready')
+      .then((_) => this.runService.run(this.task().id));
   }
 
   statusLabel(status: TaskStatus): string {
