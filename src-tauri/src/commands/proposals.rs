@@ -1,11 +1,11 @@
 use crate::{
     services::{
         project::ProjectState,
+        proposal_service::{AcceptResult, SourceAction},
         service_error::{Actor, ServiceError},
         storage::ListReport,
-        task_service::NewTask,
     },
-    types::{proposal::Proposal, task::TaskItem},
+    types::proposal::{Proposal, ProposalPayload},
 };
 use tauri::State;
 
@@ -26,12 +26,25 @@ pub async fn proposal_list(
 pub async fn proposal_accept(
     id: String,
     expected_rev: u64,
-    task: Option<NewTask>,
+    payload: Option<ProposalPayload>,
+    source_action: Option<SourceAction>,
     state: State<'_, ProjectState>,
-) -> Result<(Proposal, TaskItem), ServiceError> {
-    service(&state)?
-        .proposals
-        .accept(Actor::Ui, &id, expected_rev, task)
+) -> Result<AcceptResult, ServiceError> {
+    service(&state)?.proposals.accept_with_options(
+        Actor::Ui,
+        &id,
+        expected_rev,
+        payload,
+        source_action,
+    )
+}
+
+#[tauri::command]
+pub async fn proposal_mark_seen(
+    ids: Vec<String>,
+    state: State<'_, ProjectState>,
+) -> Result<Vec<Proposal>, ServiceError> {
+    service(&state)?.proposals.mark_seen(Actor::Ui, &ids)
 }
 
 #[tauri::command]

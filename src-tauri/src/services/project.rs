@@ -297,7 +297,10 @@ mod tests {
         },
         types::{
             note::NoteItem,
-            proposal::{Proposal, ProposalKind, ProposalStatus},
+            proposal::{
+                BatchTaskItem, Presentation, Proposal, ProposalKind, ProposalPayload,
+                ProposalStatus, TasksPayload,
+            },
             task::{TaskItem, TaskStatus},
         },
     };
@@ -421,7 +424,7 @@ mod tests {
             run_id: "run-id".into(),
             task_id: Some("task-id".into()),
             workflow: "default".into(),
-            payload: crate::services::task_service::NewTask {
+            payload: ProposalPayload::Task(crate::services::task_service::NewTask {
                 title: "title".into(),
                 description: None,
                 anchor: None,
@@ -430,13 +433,48 @@ mod tests {
                 depends_on: None,
                 acceptance_criteria: None,
                 branch: None,
-            },
+            }),
+            presentation: Presentation::Notify,
+            seen_at: None,
             created_task_id: None,
+            created_task_ids: None,
             created_at: 5,
             decided_at: None,
             schema_version: 1,
             rev: 7,
         };
+        let batch_proposal = Proposal {
+            id: "batch-id".into(),
+            kind: ProposalKind::Tasks,
+            status: ProposalStatus::Pending,
+            run_id: "run-id".into(),
+            task_id: Some("task-id".into()),
+            workflow: "default".into(),
+            payload: ProposalPayload::Tasks(TasksPayload {
+                source_task_id: None,
+                items: vec![BatchTaskItem {
+                    key: "one".into(),
+                    title: "first".into(),
+                    description: None,
+                    anchor: None,
+                    linked_note_ids: None,
+                    sub_tasks: None,
+                    depends_on: None,
+                    depends_on_key: None,
+                    acceptance_criteria: None,
+                    branch: None,
+                }],
+            }),
+            presentation: Presentation::Notify,
+            seen_at: None,
+            created_task_id: None,
+            created_task_ids: None,
+            created_at: 5,
+            decided_at: None,
+            schema_version: 1,
+            rev: 7,
+        };
+        let batch_event_json = r#"{"createdAt":5,"id":"batch-id","kind":"tasks","payload":{"items":[{"acceptanceCriteria":null,"anchor":null,"branch":null,"dependsOn":null,"dependsOnKey":null,"description":null,"key":"one","linkedNoteIds":null,"subTasks":null,"title":"first"}],"sourceTaskId":null},"presentation":"notify","rev":7,"runId":"run-id","schemaVersion":1,"status":"pending","taskId":"task-id","workflow":"default"}"#;
         let cases = vec![
             (
                 ChangeEvent::TaskCreated(t.clone()),
@@ -519,12 +557,22 @@ mod tests {
             (
                 ChangeEvent::ProposalCreated(proposal.clone()),
                 "proposal:created",
-                r#"{"createdAt":5,"id":"proposal-id","kind":"task","payload":{"acceptanceCriteria":null,"anchor":null,"branch":null,"dependsOn":null,"description":null,"linkedNoteIds":null,"subTasks":null,"title":"title"},"rev":7,"runId":"run-id","schemaVersion":1,"status":"pending","taskId":"task-id","workflow":"default"}"#,
+                r#"{"createdAt":5,"id":"proposal-id","kind":"task","payload":{"acceptanceCriteria":null,"anchor":null,"branch":null,"dependsOn":null,"description":null,"linkedNoteIds":null,"subTasks":null,"title":"title"},"presentation":"notify","rev":7,"runId":"run-id","schemaVersion":1,"status":"pending","taskId":"task-id","workflow":"default"}"#,
             ),
             (
                 ChangeEvent::ProposalUpdated(proposal.clone()),
                 "proposal:updated",
-                r#"{"createdAt":5,"id":"proposal-id","kind":"task","payload":{"acceptanceCriteria":null,"anchor":null,"branch":null,"dependsOn":null,"description":null,"linkedNoteIds":null,"subTasks":null,"title":"title"},"rev":7,"runId":"run-id","schemaVersion":1,"status":"pending","taskId":"task-id","workflow":"default"}"#,
+                r#"{"createdAt":5,"id":"proposal-id","kind":"task","payload":{"acceptanceCriteria":null,"anchor":null,"branch":null,"dependsOn":null,"description":null,"linkedNoteIds":null,"subTasks":null,"title":"title"},"presentation":"notify","rev":7,"runId":"run-id","schemaVersion":1,"status":"pending","taskId":"task-id","workflow":"default"}"#,
+            ),
+            (
+                ChangeEvent::ProposalCreated(batch_proposal.clone()),
+                "proposal:created",
+                batch_event_json,
+            ),
+            (
+                ChangeEvent::ProposalUpdated(batch_proposal),
+                "proposal:updated",
+                batch_event_json,
             ),
             (
                 ChangeEvent::ProposalDeleted("proposal-id".into()),

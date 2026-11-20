@@ -311,6 +311,51 @@ impl TaskService {
         }
         self.create_locked(Self::task_from_input(id, input))
     }
+    pub(crate) fn add_subtasks_locked(
+        &self,
+        id: &str,
+        items: Vec<SubTask>,
+    ) -> Result<Option<TaskItem>, ServiceError> {
+        let mut task = self.get(id).map_err(|error| {
+            if error.code == ServiceErrorCode::NotFound {
+                ServiceError::validation(format!("taskId: task {id} not found"))
+            } else {
+                error
+            }
+        })?;
+        let subtasks = task.sub_tasks.get_or_insert_with(Vec::new);
+        let mut changed = false;
+        for item in items {
+            if !subtasks.iter().any(|existing| existing.id == item.id) {
+                subtasks.push(item);
+                changed = true;
+            }
+        }
+        if !changed {
+            return Ok(None);
+        }
+        task.updated_at = Some(now_ms());
+        Ok(Some(self.tasks.update(task.clone(), task.rev)?))
+    }
+    pub(crate) fn delete_locked(&self, id: &str) -> Result<Vec<TaskItem>, ServiceError> {
+        self.tasks.delete(id)?;
+        let mut changed_records = Vec::new();
+        for mut task in self.all()? {
+            if task.depends_on.as_deref() == Some(id) {
+                task.depends_on = None;
+                task.updated_at = Some(now_ms());
+                let updated = self.tasks.update(task.clone(), task.rev)?;
+                changed_records.push(updated);
+            }
+        }
+        match self.reconcile_locked() {
+            Ok(changed) => changed_records.extend(changed),
+            Err(error) => {
+                tauri_plugin_log::log::error!("Task reconcile failed after delete: {error}")
+            }
+        }
+        Ok(changed_records)
+    }
     pub fn create(&self, task: TaskItem) -> Result<TaskItem, ServiceError> {
         let _g = self.lock()?;
         let (result, changed) = self.create_locked(task)?;
@@ -580,20 +625,7 @@ impl TaskService {
     }
     pub fn delete(&self, id: &str) -> Result<(), ServiceError> {
         let _g = self.lock()?;
-        self.tasks.delete(id)?;
-        let mut changed_records = Vec::new();
-        for mut t in self.all()? {
-            if t.depends_on.as_deref() == Some(id) {
-                t.depends_on = None;
-                t.updated_at = Some(now_ms());
-                let x = self.tasks.update(t.clone(), t.rev)?;
-                changed_records.push(x);
-            }
-        }
-        match self.reconcile_locked() {
-            Ok(v) => changed_records.extend(v),
-            Err(e) => tauri_plugin_log::log::error!("Task reconcile failed after delete: {e}"),
-        }
+        let changed_records = self.delete_locked(id)?;
         drop(_g);
         self.sink.emit(ChangeEvent::TaskDeleted(id.into()));
         for task in changed_records {

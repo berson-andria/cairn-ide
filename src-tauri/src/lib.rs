@@ -80,6 +80,7 @@ pub fn run() {
             commands::project::project_close,
             commands::proposals::proposal_list,
             commands::proposals::proposal_accept,
+            commands::proposals::proposal_mark_seen,
             commands::proposals::proposal_reject,
             commands::proposals::proposal_delete,
             commands::runs::run_start,

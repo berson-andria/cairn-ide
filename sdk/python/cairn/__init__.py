@@ -78,6 +78,7 @@ class _Tasks:
         sub_tasks=None,
         depends_on=None,
         acceptance_criteria=None,
+        presentation="notify",
     ):
         params = {"title": title}
         optional = {
@@ -87,9 +88,24 @@ class _Tasks:
             "subTasks": sub_tasks,
             "dependsOn": depends_on,
             "acceptanceCriteria": acceptance_criteria,
+            "presentation": presentation,
         }
         params.update({key: value for key, value in optional.items() if value is not None})
         return call("tasks.propose", params)["proposalId"]
+
+    @staticmethod
+    def propose_batch(items, source_task_id=None, presentation="notify"):
+        params = {"items": items, "presentation": presentation}
+        if source_task_id is not None:
+            params["sourceTaskId"] = source_task_id
+        return call("tasks.propose_batch", params)["proposalId"]
+
+    @staticmethod
+    def propose_subtasks(task_id, items, presentation="notify"):
+        return call(
+            "tasks.propose_subtasks",
+            {"taskId": task_id, "items": items, "presentation": presentation},
+        )["proposalId"]
 
 
 class _Proposals:

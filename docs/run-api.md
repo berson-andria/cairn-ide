@@ -48,7 +48,9 @@ The first SDK call automatically performs the `hello` handshake. API version
 | `run.context` | `{}` | `{ "runId", "taskId", "workflow" }` |
 | `tasks.get` | `{ "id": string }` | one camelCase task record |
 | `tasks.list` | `{}` | array of camelCase task records |
-| `tasks.propose` | `NewTask` fields (camelCase) | `{ "proposalId": string }` |
+| `tasks.propose` | `NewTask` fields (camelCase), optional `presentation` | `{ "proposalId": string }` |
+| `tasks.propose_batch` | `{ "items", "sourceTaskId"?, "presentation"? }` | `{ "proposalId": string }` |
+| `tasks.propose_subtasks` | `{ "taskId", "items", "presentation"? }` | `{ "proposalId": string }` |
 | `proposals.list` | `{}` | `{ "id", "title", "status" }[]` |
 | `notes.get` | `{ "id": string }` | one camelCase note record |
 | `notes.for_task` | `{ "taskId": string }` | linked note records; missing linked ids are skipped |
@@ -61,12 +63,14 @@ For example, the request and response for a task read are each one line:
 {"jsonrpc":"2.0","id":1,"result":{"id":"task-123","title":"Example","status":"ready","createdAt":1,"schemaVersion":1,"rev":1}}
 ```
 
-The host exposes only the methods in the table. Scripts may propose a task and
-list proposals, but mutating task or note methods, including `tasks.create`,
-`tasks.update`, `tasks.set_status`, `proposals.accept`, and `notes.create`,
-return method-not-found. `run.finish` cannot complete a task; any outcome
-other than `needs_review` or `failed` returns `Forbidden`. Proposal records,
-validation limits, and UI decisions are documented in
+The host exposes only the methods in the table. Scripts may propose one or
+more tasks or subtasks and list proposals, but mutating task or note methods,
+including `tasks.create`, `tasks.update`, `tasks.set_status`,
+`proposals.accept`, and `notes.create`, return method-not-found.
+`presentation` is an optional `display` or `notify` UI hint and defaults to
+`notify`; it does not change script permissions. `run.finish` cannot complete
+a task; any outcome other than `needs_review` or `failed` returns `Forbidden`.
+Proposal records, validation limits, and UI decisions are documented in
 [proposal-api.md](./proposal-api.md).
 
 ## Errors

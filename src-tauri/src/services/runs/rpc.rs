@@ -2,9 +2,16 @@ use crate::{
     services::{
         project::ProjectServices,
         service_error::{Actor, RunOutcome, ServiceError},
-        task_service::NewTask,
+        task_service::{NewSubTask, NewTask},
     },
-    types::{note::NoteItem, proposal::ProposalStatus, task::TaskItem},
+    types::{
+        note::NoteItem,
+        proposal::{
+            BatchTaskItem, Presentation, ProposalKind, ProposalPayload, ProposalStatus,
+            SubtasksPayload, TasksPayload,
+        },
+        task::TaskItem,
+    },
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -21,6 +28,22 @@ use std::{
 
 const MAX_LINE_BYTES: usize = 1024 * 1024;
 const MAX_TRACE_BYTES: u64 = 5 * 1024 * 1024;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProposeBatchParams {
+    items: Vec<BatchTaskItem>,
+    source_task_id: Option<String>,
+    presentation: Option<Presentation>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProposeSubtasksParams {
+    task_id: String,
+    items: Vec<NewSubTask>,
+    presentation: Option<Presentation>,
+}
 
 #[derive(Debug, Default)]
 pub struct LineBuffer {
@@ -148,23 +171,62 @@ pub fn dispatch(ctx: &RpcContext, request: RpcRequest) -> Value {
                 .map(|report| serde_json::to_value(report.records).unwrap_or(Value::Null))
                 .map_err(domain_error)
         }),
-        "tasks.propose" => serde_json::from_value::<NewTask>(request.params.clone())
-            .map_err(|error| invalid_params(error.to_string()))
-            .and_then(|payload| {
+        "tasks.propose" => {
+            parse_propose_task(&request.params).and_then(|(payload, presentation)| {
+                let context = proposal_run_context(ctx);
                 ctx.project
                     .proposals
-                    .create(
+                    .create_proposal(
                         Actor::Script,
-                        &super::RunContext {
-                            run_id: ctx.run_id.clone(),
-                            task_id: ctx.task_id.clone(),
-                            workflow: ctx.workflow.clone(),
-                        },
-                        payload,
+                        &context,
+                        ProposalKind::Task,
+                        ProposalPayload::Task(payload),
+                        presentation,
                     )
                     .map(|proposal| json!({"proposalId":proposal.id}))
                     .map_err(domain_error)
-            }),
+            })
+        }
+        "tasks.propose_batch" => {
+            serde_json::from_value::<ProposeBatchParams>(request.params.clone())
+                .map_err(|error| invalid_params(error.to_string()))
+                .and_then(|params| {
+                    ctx.project
+                        .proposals
+                        .create_proposal(
+                            Actor::Script,
+                            &proposal_run_context(ctx),
+                            ProposalKind::Tasks,
+                            ProposalPayload::Tasks(TasksPayload {
+                                source_task_id: params.source_task_id,
+                                items: params.items,
+                            }),
+                            params.presentation.unwrap_or_default(),
+                        )
+                        .map(|proposal| json!({"proposalId":proposal.id}))
+                        .map_err(domain_error)
+                })
+        }
+        "tasks.propose_subtasks" => {
+            serde_json::from_value::<ProposeSubtasksParams>(request.params.clone())
+                .map_err(|error| invalid_params(error.to_string()))
+                .and_then(|params| {
+                    ctx.project
+                        .proposals
+                        .create_proposal(
+                            Actor::Script,
+                            &proposal_run_context(ctx),
+                            ProposalKind::Subtasks,
+                            ProposalPayload::Subtasks(SubtasksPayload {
+                                task_id: params.task_id,
+                                items: params.items,
+                            }),
+                            params.presentation.unwrap_or_default(),
+                        )
+                        .map(|proposal| json!({"proposalId":proposal.id}))
+                        .map_err(domain_error)
+                })
+        }
         "proposals.list" => empty_params(&request.params).and_then(|()| {
             ctx.project
                 .proposals
@@ -181,7 +243,7 @@ pub fn dispatch(ctx: &RpcContext, request: RpcRequest) -> Value {
                             };
                             json!({
                                 "id":proposal.id,
-                                "title":proposal.payload.title,
+                                "title":proposal.payload.title(),
                                 "status":status
                             })
                         })
@@ -225,6 +287,30 @@ pub fn dispatch(ctx: &RpcContext, request: RpcRequest) -> Value {
             error
         }
     }
+}
+
+fn proposal_run_context(ctx: &RpcContext) -> super::RunContext {
+    super::RunContext {
+        run_id: ctx.run_id.clone(),
+        task_id: ctx.task_id.clone(),
+        workflow: ctx.workflow.clone(),
+    }
+}
+
+fn parse_propose_task(params: &Value) -> Result<(NewTask, Presentation), Value> {
+    let mut task_params = params.clone();
+    let presentation = match task_params
+        .as_object_mut()
+        .and_then(|object| object.remove("presentation"))
+    {
+        Some(Value::Null) | None => Presentation::Notify,
+        Some(value) => {
+            serde_json::from_value(value).map_err(|error| invalid_params(error.to_string()))?
+        }
+    };
+    serde_json::from_value::<NewTask>(task_params)
+        .map(|payload| (payload, presentation))
+        .map_err(|error| invalid_params(error.to_string()))
 }
 
 fn dispatch_hello(ctx: &RpcContext, params: &Value) -> Result<Value, Value> {
@@ -509,6 +595,8 @@ mod tests {
             "tasks.get",
             "tasks.list",
             "tasks.propose",
+            "tasks.propose_batch",
+            "tasks.propose_subtasks",
             "proposals.list",
             "notes.get",
             "notes.for_task",
@@ -523,6 +611,10 @@ mod tests {
                 json!({"taskId":"missing"})
             } else if method == "tasks.propose" {
                 json!({"title":"proposed task"})
+            } else if method == "tasks.propose_batch" {
+                json!({"items":[{"key":"first","title":"first task"}]})
+            } else if method == "tasks.propose_subtasks" {
+                json!({"taskId":"missing","items":[{"title":"subtask"}]})
             } else if method == "run.finish" {
                 json!({"outcome":"needs_review"})
             } else {
@@ -626,8 +718,73 @@ mod tests {
     }
 
     #[test]
+    fn workflow_can_propose_each_kind_with_a_presentation_hint() {
+        let (_directory, ctx) = context();
+        let mut current = TaskItem::new("current");
+        current.id = ctx.task_id.clone();
+        let current = ctx.project.tasks.create(current).unwrap();
+
+        let task = dispatch(
+            &ctx,
+            request(
+                1,
+                "tasks.propose",
+                json!({"title":"single","presentation":"display"}),
+            ),
+        );
+        assert_eq!(task["error"]["code"], Value::Null);
+
+        let batch = dispatch(
+            &ctx,
+            request(
+                2,
+                "tasks.propose_batch",
+                json!({
+                    "sourceTaskId":current.id,
+                    "presentation":"notify",
+                    "items":[
+                        {"key":"first","title":"First step"},
+                        {"key":"second","title":"Second step","dependsOnKey":"first"}
+                    ]
+                }),
+            ),
+        );
+        assert_eq!(batch["error"]["code"], Value::Null);
+
+        let subtasks = dispatch(
+            &ctx,
+            request(
+                3,
+                "tasks.propose_subtasks",
+                json!({
+                    "taskId":current.id,
+                    "items":[{"title":"child"}],
+                    "presentation":"display"
+                }),
+            ),
+        );
+        assert_eq!(subtasks["error"]["code"], Value::Null);
+
+        let records = ctx.project.proposals.list().unwrap().records;
+        assert_eq!(records.len(), 3);
+        assert!(records
+            .iter()
+            .any(|proposal| proposal.presentation == Presentation::Display));
+        assert!(records
+            .iter()
+            .any(|proposal| proposal.kind == ProposalKind::Tasks));
+        assert!(records
+            .iter()
+            .any(|proposal| proposal.kind == ProposalKind::Subtasks));
+        assert!(records
+            .iter()
+            .all(|proposal| proposal.status == ProposalStatus::Pending));
+        assert_eq!(ctx.project.tasks.list().unwrap().records.len(), 1);
+    }
+
+    #[test]
     #[ignore = "requires uv and Python"]
-    fn propose_script_persists_proposal_without_creating_a_task() {
+    fn propose_split_script_persists_proposal_without_creating_tasks() {
         let directory = tempdir().unwrap();
         let state = ProjectState::default();
         state.open(directory.path(), NoopSink).unwrap();
@@ -640,7 +797,7 @@ mod tests {
             .join("..")
             .join("sdk")
             .join("python");
-        let script = sdk_dir.join("examples").join("propose.py");
+        let script = sdk_dir.join("examples").join("propose_split.py");
         let mut child = Command::new("uv")
             .arg("run")
             .arg("--script")
@@ -690,6 +847,8 @@ mod tests {
         let proposals = project.proposals.list().unwrap().records;
         assert_eq!(proposals.len(), 1);
         assert_eq!(proposals[0].status, ProposalStatus::Pending);
+        assert_eq!(proposals[0].kind, ProposalKind::Tasks);
+        assert_eq!(proposals[0].payload.title(), "First step");
         assert!(project
             .root
             .join(".cairn/runs/proposals")
