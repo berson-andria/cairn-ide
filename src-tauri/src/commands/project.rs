@@ -1,5 +1,6 @@
 use crate::services::{
     project::{ProjectState, TauriEventSink},
+    runs::RunManager,
     service_error::ServiceError,
 };
 use tauri::{AppHandle, State};
@@ -9,7 +10,9 @@ pub async fn project_open(
     path: String,
     app: AppHandle,
     state: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
 ) -> Result<String, ServiceError> {
+    runs.cancel_for_project_change("project closed")?;
     project_open_impl(&state, path, TauriEventSink(app))
 }
 pub fn project_open_impl(
@@ -22,7 +25,11 @@ pub fn project_open_impl(
         .map(|p| p.to_string_lossy().into_owned())
 }
 #[tauri::command]
-pub async fn project_close(state: State<'_, ProjectState>) -> Result<(), ServiceError> {
+pub async fn project_close(
+    state: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
+) -> Result<(), ServiceError> {
+    runs.cancel_for_project_change("project closed")?;
     project_close_impl(&state)
 }
 pub fn project_close_impl(state: &ProjectState) -> Result<(), ServiceError> {

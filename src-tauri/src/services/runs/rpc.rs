@@ -1,0 +1,702 @@
+use crate::{
+    services::{
+        project::ProjectServices,
+        service_error::{Actor, RunOutcome, ServiceError},
+        task_service::NewTask,
+    },
+    types::{note::NoteItem, proposal::ProposalStatus, task::TaskItem},
+};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+    path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+    time::Instant,
+};
+
+const MAX_LINE_BYTES: usize = 1024 * 1024;
+const MAX_TRACE_BYTES: u64 = 5 * 1024 * 1024;
+
+#[derive(Debug, Default)]
+pub struct LineBuffer {
+    bytes: Vec<u8>,
+    dropping_oversize: bool,
+}
+
+pub fn split_lines(buffer: &mut LineBuffer, chunk: &[u8]) -> Vec<Result<String, Value>> {
+    let mut lines = Vec::new();
+    for byte in chunk {
+        if *byte == b'\n' {
+            if buffer.dropping_oversize {
+                buffer.dropping_oversize = false;
+                buffer.bytes.clear();
+                continue;
+            }
+            if buffer.bytes.last() == Some(&b'\r') {
+                buffer.bytes.pop();
+            }
+            match String::from_utf8(std::mem::take(&mut buffer.bytes)) {
+                Ok(line) => lines.push(Ok(line)),
+                Err(_) => lines.push(Err(error_response(
+                    Value::Null,
+                    -32600,
+                    "Invalid UTF-8 request",
+                    None,
+                ))),
+            }
+            continue;
+        }
+        if buffer.dropping_oversize {
+            continue;
+        }
+        buffer.bytes.push(*byte);
+        if buffer.bytes.len() > MAX_LINE_BYTES {
+            buffer.bytes.clear();
+            buffer.dropping_oversize = true;
+            lines.push(Err(error_response(
+                Value::Null,
+                -32600,
+                "Request line exceeds 1 MB",
+                None,
+            )));
+        }
+    }
+    lines
+}
+
+#[derive(Debug, Clone)]
+pub struct RpcRequest {
+    pub id: Value,
+    pub method: String,
+    pub params: Value,
+}
+
+pub fn parse_request(line: &str) -> Result<RpcRequest, Value> {
+    let value: Value = serde_json::from_str(line)
+        .map_err(|_| error_response(Value::Null, -32700, "Parse error", None))?;
+    let Some(object) = value.as_object() else {
+        return Err(error_response(Value::Null, -32600, "Invalid Request", None));
+    };
+    let id = object.get("id").cloned().unwrap_or(Value::Null);
+    if object.get("jsonrpc").and_then(Value::as_str) != Some("2.0")
+        || !object.get("method").is_some_and(Value::is_string)
+    {
+        return Err(error_response(id, -32600, "Invalid Request", None));
+    }
+    if object
+        .get("id")
+        .is_some_and(|id| !(id.is_string() || id.is_number() || id.is_null()))
+    {
+        return Err(error_response(id, -32600, "Invalid Request", None));
+    }
+    let params = object.get("params").cloned().unwrap_or_else(|| json!({}));
+    if !params.is_object() {
+        return Err(error_response(id, -32600, "Invalid Request", None));
+    }
+    Ok(RpcRequest {
+        id,
+        method: object["method"].as_str().unwrap().to_owned(),
+        params,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FinishRequest {
+    pub outcome: RunOutcome,
+    pub summary: Option<String>,
+    pub reason: Option<String>,
+}
+
+pub struct RpcContext {
+    pub run_id: String,
+    pub task_id: String,
+    pub workflow: String,
+    pub project: Arc<ProjectServices>,
+    pub finish: Arc<Mutex<Option<FinishRequest>>>,
+    pub version_mismatch: Arc<AtomicBool>,
+    pub trace_path: PathBuf,
+}
+
+pub fn dispatch(ctx: &RpcContext, request: RpcRequest) -> Value {
+    let id = request.id.clone();
+    let response = match request.method.as_str() {
+        "hello" => dispatch_hello(ctx, &request.params),
+        "run.context" => empty_params(&request.params).map(|()| {
+            json!({
+                "runId":ctx.run_id,
+                "taskId":ctx.task_id,
+                "workflow":ctx.workflow
+            })
+        }),
+        "tasks.get" => required_string(&request.params, "id").and_then(|task_id| {
+            ctx.project
+                .tasks
+                .get(task_id)
+                .and_then(serialize_task)
+                .map_err(domain_error)
+        }),
+        "tasks.list" => empty_params(&request.params).and_then(|()| {
+            ctx.project
+                .tasks
+                .list()
+                .map(|report| serde_json::to_value(report.records).unwrap_or(Value::Null))
+                .map_err(domain_error)
+        }),
+        "tasks.propose" => serde_json::from_value::<NewTask>(request.params.clone())
+            .map_err(|error| invalid_params(error.to_string()))
+            .and_then(|payload| {
+                ctx.project
+                    .proposals
+                    .create(
+                        Actor::Script,
+                        &super::RunContext {
+                            run_id: ctx.run_id.clone(),
+                            task_id: ctx.task_id.clone(),
+                            workflow: ctx.workflow.clone(),
+                        },
+                        payload,
+                    )
+                    .map(|proposal| json!({"proposalId":proposal.id}))
+                    .map_err(domain_error)
+            }),
+        "proposals.list" => empty_params(&request.params).and_then(|()| {
+            ctx.project
+                .proposals
+                .list()
+                .map(|report| {
+                    json!(report
+                        .records
+                        .into_iter()
+                        .map(|proposal| {
+                            let status = match proposal.status {
+                                ProposalStatus::Pending => "pending",
+                                ProposalStatus::Accepted => "accepted",
+                                ProposalStatus::Rejected => "rejected",
+                            };
+                            json!({
+                                "id":proposal.id,
+                                "title":proposal.payload.title,
+                                "status":status
+                            })
+                        })
+                        .collect::<Vec<_>>())
+                })
+                .map_err(domain_error)
+        }),
+        "notes.get" => required_string(&request.params, "id").and_then(|note_id| {
+            ctx.project
+                .notes
+                .get(note_id)
+                .and_then(serialize_note)
+                .map_err(domain_error)
+        }),
+        "notes.for_task" => required_string(&request.params, "taskId").and_then(|task_id| {
+            ctx.project
+                .tasks
+                .get(task_id)
+                .and_then(|task| notes_for_task(&ctx.project, task))
+                .map_err(domain_error)
+        }),
+        "run.finish" => parse_finish(&request.params).and_then(|finish| {
+            let mut stored = ctx
+                .finish
+                .lock()
+                .map_err(|error| invalid_params(error.to_string()))?;
+            if stored.is_some() {
+                return Err(domain_error(ServiceError::validation(
+                    "run.finish has already been called",
+                )));
+            }
+            *stored = Some(finish);
+            Ok(Value::Null)
+        }),
+        _ => return error_response(id, -32601, "Method not found", None),
+    };
+    match response {
+        Ok(result) => json!({"jsonrpc":"2.0","id":id,"result":result}),
+        Err(mut error) => {
+            error["id"] = id;
+            error
+        }
+    }
+}
+
+fn dispatch_hello(ctx: &RpcContext, params: &Value) -> Result<Value, Value> {
+    let version = params
+        .as_object()
+        .filter(|object| object.len() == 1)
+        .and_then(|object| object.get("apiVersion"))
+        .and_then(Value::as_u64)
+        .ok_or_else(|| invalid_params("hello requires an integer apiVersion"))?;
+    if version != 1 {
+        ctx.version_mismatch.store(true, Ordering::SeqCst);
+        return Err(invalid_params("SDK API version mismatch"));
+    }
+    Ok(json!({"apiVersion":1}))
+}
+
+fn required_string<'a>(params: &'a Value, key: &str) -> Result<&'a str, Value> {
+    let object = params
+        .as_object()
+        .ok_or_else(|| invalid_params("params must be an object"))?;
+    if object.len() != 1 {
+        return Err(invalid_params(format!(
+            "expected only the '{key}' parameter"
+        )));
+    }
+    object
+        .get(key)
+        .and_then(Value::as_str)
+        .ok_or_else(|| invalid_params(format!("'{key}' must be a string")))
+}
+
+fn empty_params(params: &Value) -> Result<(), Value> {
+    if params.as_object().is_some_and(|object| object.is_empty()) {
+        Ok(())
+    } else {
+        Err(invalid_params("method takes no parameters"))
+    }
+}
+
+fn parse_finish(params: &Value) -> Result<FinishRequest, Value> {
+    let object = params
+        .as_object()
+        .ok_or_else(|| invalid_params("params must be an object"))?;
+    if object
+        .keys()
+        .any(|key| !matches!(key.as_str(), "outcome" | "summary" | "reason"))
+    {
+        return Err(invalid_params("run.finish has an unknown parameter"));
+    }
+    let outcome = match object.get("outcome").and_then(Value::as_str) {
+        Some("needs_review") => RunOutcome::NeedsReview,
+        Some("failed") => RunOutcome::Failed,
+        Some(_) => {
+            return Err(domain_error(ServiceError::new(
+                crate::services::service_error::ServiceErrorCode::Forbidden,
+                "Scripts may finish only as needs_review or failed",
+            )))
+        }
+        None => return Err(invalid_params("'outcome' must be a string")),
+    };
+    let optional_string = |key: &str| -> Result<Option<String>, Value> {
+        match object.get(key) {
+            None | Some(Value::Null) => Ok(None),
+            Some(Value::String(value)) => Ok(Some(value.clone())),
+            Some(_) => Err(invalid_params(format!("'{key}' must be a string or null"))),
+        }
+    };
+    Ok(FinishRequest {
+        outcome,
+        summary: optional_string("summary")?,
+        reason: optional_string("reason")?,
+    })
+}
+
+fn serialize_task(task: TaskItem) -> Result<Value, ServiceError> {
+    serde_json::to_value(task).map_err(|error| {
+        ServiceError::new(
+            crate::services::service_error::ServiceErrorCode::Io,
+            error.to_string(),
+        )
+    })
+}
+
+fn serialize_note(note: NoteItem) -> Result<Value, ServiceError> {
+    serde_json::to_value(note).map_err(|error| {
+        ServiceError::new(
+            crate::services::service_error::ServiceErrorCode::Io,
+            error.to_string(),
+        )
+    })
+}
+
+fn notes_for_task(project: &ProjectServices, task: TaskItem) -> Result<Value, ServiceError> {
+    let mut notes = Vec::new();
+    for id in task.linked_note_ids.unwrap_or_default() {
+        match project.notes.get(&id) {
+            Ok(note) => notes.push(note),
+            Err(error)
+                if error.code == crate::services::service_error::ServiceErrorCode::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    serde_json::to_value(notes).map_err(|error| {
+        ServiceError::new(
+            crate::services::service_error::ServiceErrorCode::Io,
+            error.to_string(),
+        )
+    })
+}
+
+fn domain_error(error: ServiceError) -> Value {
+    error_response(
+        Value::Null,
+        -32000,
+        error.message.clone(),
+        Some(json!({"code":error.code,"message":error.message})),
+    )
+}
+
+fn invalid_params(message: impl Into<String>) -> Value {
+    error_response(Value::Null, -32602, message, None)
+}
+
+fn error_response(id: Value, code: i64, message: impl Into<String>, data: Option<Value>) -> Value {
+    let mut error = json!({"code":code,"message":message.into()});
+    if let Some(data) = data {
+        error["data"] = data;
+    }
+    json!({"jsonrpc":"2.0","id":id,"error":error})
+}
+
+pub fn handle_line(ctx: &RpcContext, line: &str) -> Value {
+    let started = Instant::now();
+    let parsed = parse_request(line);
+    let method = parsed.as_ref().ok().map(|request| request.method.clone());
+    let response = parsed
+        .map(|request| dispatch(ctx, request))
+        .unwrap_or_else(|error| error);
+    append_trace(
+        &ctx.trace_path,
+        method.as_deref(),
+        &response,
+        started.elapsed().as_millis() as u64,
+    );
+    response
+}
+
+pub fn append_trace(path: &Path, method: Option<&str>, response: &Value, ms: u64) {
+    if let Some(parent) = path.parent() {
+        if let Err(error) = fs::create_dir_all(parent) {
+            tauri_plugin_log::log::error!("Could not create run trace directory: {error}");
+            return;
+        }
+    }
+    let error = response.get("error");
+    let mut entry = json!({
+        "t":crate::services::service_error::now_ms(),
+        "method":method,
+        "ok":error.is_none(),
+        "ms":ms
+    });
+    if let Some(error) = error {
+        entry["error"] = error.clone();
+    }
+    let mut options = OpenOptions::new();
+    options.create(true).append(true);
+    match options.open(path) {
+        Ok(mut file) => {
+            let size = match file.metadata() {
+                Ok(metadata) => metadata.len(),
+                Err(error) => {
+                    tauri_plugin_log::log::error!("Could not inspect run trace size: {error}");
+                    return;
+                }
+            };
+            if size >= MAX_TRACE_BYTES {
+                return;
+            }
+            let mut line = match serde_json::to_vec(&entry) {
+                Ok(line) => line,
+                Err(error) => {
+                    tauri_plugin_log::log::error!("Could not encode run trace entry: {error}");
+                    return;
+                }
+            };
+            line.push(b'\n');
+            if line.len() as u64 > MAX_TRACE_BYTES - size {
+                return;
+            }
+            if let Err(error) = file.write_all(&line) {
+                tauri_plugin_log::log::error!("Could not append run trace: {error}");
+            }
+        }
+        Err(error) => tauri_plugin_log::log::error!("Could not open run trace: {error}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        services::{project::ProjectState, service_error::NoopSink},
+        types::{note::NoteItem, task::TaskItem},
+    };
+    use std::{
+        io::{BufRead, BufReader, Read, Write},
+        process::Command,
+        sync::Mutex,
+    };
+    use tempfile::tempdir;
+
+    fn request(id: u64, method: &str, params: Value) -> RpcRequest {
+        RpcRequest {
+            id: json!(id),
+            method: method.into(),
+            params,
+        }
+    }
+
+    fn context() -> (tempfile::TempDir, RpcContext) {
+        let directory = tempdir().unwrap();
+        let project_state = ProjectState::default();
+        project_state.open(directory.path(), NoopSink).unwrap();
+        (
+            directory,
+            RpcContext {
+                run_id: "run-id".into(),
+                task_id: "task-id".into(),
+                workflow: "hello".into(),
+                project: project_state.services().unwrap(),
+                finish: Arc::new(Mutex::new(None)),
+                version_mismatch: Arc::new(AtomicBool::new(false)),
+                trace_path: directory_path_placeholder(),
+            },
+        )
+    }
+
+    fn directory_path_placeholder() -> PathBuf {
+        std::env::temp_dir().join(format!("cairn-rpc-{}.jsonl", uuid::Uuid::new_v4()))
+    }
+
+    #[test]
+    fn split_lines_handles_partial_and_multiple_requests() {
+        let mut buffer = LineBuffer::default();
+        assert!(split_lines(&mut buffer, br#"{"jsonrpc":"2.0","id":1"#).is_empty());
+        let lines = split_lines(
+            &mut buffer,
+            br#","method":"tasks.list","params":{}}
+{"jsonrpc":"2.0","id":2,"method":"run.context","params":{}}
+"#,
+        );
+        assert_eq!(lines.len(), 2);
+        assert!(lines.iter().all(Result::is_ok));
+    }
+
+    #[test]
+    fn malformed_json_is_parse_error_and_invalid_requests_are_rejected() {
+        let error = parse_request("{").unwrap_err();
+        assert_eq!(error["error"]["code"], -32700);
+        assert_eq!(parse_request("[]").unwrap_err()["error"]["code"], -32600);
+    }
+
+    #[test]
+    fn oversize_line_is_reported_and_discarded_until_newline() {
+        let mut buffer = LineBuffer::default();
+        let mut chunk = vec![b'a'; MAX_LINE_BYTES + 1];
+        chunk.extend_from_slice(
+            b"junk\n{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tasks.list\",\"params\":{}}\n",
+        );
+        let lines = split_lines(&mut buffer, &chunk);
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].as_ref().unwrap_err()["error"]["code"], -32600);
+        assert!(lines[1].is_ok());
+    }
+
+    #[test]
+    fn permission_manifest_is_exact_and_forbidden_status_is_structured() {
+        let (_directory, ctx) = context();
+        let allowed = [
+            "hello",
+            "run.context",
+            "tasks.get",
+            "tasks.list",
+            "tasks.propose",
+            "proposals.list",
+            "notes.get",
+            "notes.for_task",
+            "run.finish",
+        ];
+        for method in allowed {
+            let params = if method == "hello" {
+                json!({"apiVersion":1})
+            } else if method.ends_with(".get") {
+                json!({"id":"missing"})
+            } else if method == "notes.for_task" {
+                json!({"taskId":"missing"})
+            } else if method == "tasks.propose" {
+                json!({"title":"proposed task"})
+            } else if method == "run.finish" {
+                json!({"outcome":"needs_review"})
+            } else {
+                json!({})
+            };
+            let response = dispatch(&ctx, request(1, method, params));
+            assert_ne!(response["error"]["code"], -32601, "{method}");
+        }
+        for method in [
+            "tasks.update",
+            "tasks.create",
+            "notes.create",
+            "proposals.accept",
+            "tasks.set_status",
+            "tasks.update",
+        ] {
+            let response = dispatch(&ctx, request(2, method, json!({})));
+            assert_eq!(response["error"]["code"], -32601, "{method}");
+        }
+        let forbidden = dispatch(
+            &ctx,
+            request(3, "run.finish", json!({"outcome":"completed"})),
+        );
+        assert_eq!(forbidden["error"]["code"], -32000);
+        assert_eq!(forbidden["error"]["data"]["code"], "Forbidden");
+    }
+
+    #[test]
+    fn malformed_params_and_unknown_methods_use_standard_errors() {
+        let (_directory, ctx) = context();
+        assert_eq!(
+            dispatch(&ctx, request(1, "tasks.get", json!({})))["error"]["code"],
+            -32602
+        );
+        assert_eq!(
+            dispatch(&ctx, request(1, "bogus", json!({})))["error"]["code"],
+            -32601
+        );
+        assert_eq!(
+            dispatch(&ctx, request(1, "hello", json!({"apiVersion":2})))["error"]["code"],
+            -32602
+        );
+        assert!(ctx.version_mismatch.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn read_methods_return_records_and_skip_dangling_note_links() {
+        let (_directory, ctx) = context();
+        let note = ctx.project.notes.create(NoteItem::new("note")).unwrap();
+        let mut task = TaskItem::new("task");
+        task.id = "task-id".into();
+        let task = ctx.project.tasks.create(task).unwrap();
+        let mut task_with_dangling_note = task.clone();
+        task_with_dangling_note.linked_note_ids = Some(vec![note.id.clone(), "missing".into()]);
+        std::fs::write(
+            ctx.project
+                .root
+                .join(".cairn/tasks")
+                .join(format!("{}.json", task.id)),
+            serde_json::to_vec(&task_with_dangling_note).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            dispatch(&ctx, request(1, "tasks.get", json!({"id":task.id})))["result"]["title"],
+            "task"
+        );
+        assert_eq!(
+            dispatch(&ctx, request(2, "tasks.list", json!({})))["result"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            dispatch(
+                &ctx,
+                request(3, "notes.for_task", json!({"taskId":task.id}))
+            )["result"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn workflow_can_propose_and_list_without_creating_a_task() {
+        let (_directory, ctx) = context();
+        let proposal = dispatch(
+            &ctx,
+            request(1, "tasks.propose", json!({"title":"follow up"})),
+        );
+        assert_eq!(proposal["error"]["code"], Value::Null);
+        let proposal_id = proposal["result"]["proposalId"].as_str().unwrap();
+        assert!(ctx.project.tasks.get(proposal_id).is_err());
+        let listed = dispatch(&ctx, request(2, "proposals.list", json!({})));
+        assert_eq!(
+            listed["result"],
+            json!([{"id":proposal_id,"title":"follow up","status":"pending"}])
+        );
+    }
+
+    #[test]
+    #[ignore = "requires uv and Python"]
+    fn propose_script_persists_proposal_without_creating_a_task() {
+        let directory = tempdir().unwrap();
+        let state = ProjectState::default();
+        state.open(directory.path(), NoopSink).unwrap();
+        let project = state.services().unwrap();
+        let task = project
+            .tasks
+            .create(TaskItem::new("original task"))
+            .unwrap();
+        let sdk_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("sdk")
+            .join("python");
+        let script = sdk_dir.join("examples").join("propose.py");
+        let mut child = Command::new("uv")
+            .arg("run")
+            .arg("--script")
+            .arg(&script)
+            .current_dir(&project.root)
+            .env("PYTHONPATH", &sdk_dir)
+            .env("CAIRN_RUN_ID", "integration-run")
+            .env("CAIRN_API_VERSION", "1")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("uv must be installed to run the ignored integration test");
+        let mut reader = BufReader::new(child.stdout.take().unwrap());
+        let mut input = child.stdin.take().unwrap();
+        let context = RpcContext {
+            run_id: "integration-run".into(),
+            task_id: task.id.clone(),
+            workflow: "propose".into(),
+            project: project.clone(),
+            finish: Arc::new(Mutex::new(None)),
+            version_mismatch: Arc::new(AtomicBool::new(false)),
+            trace_path: project.root.join(".cairn/runs/integration-run/trace.jsonl"),
+        };
+        let mut line = String::new();
+        loop {
+            line.clear();
+            if reader.read_line(&mut line).unwrap() == 0 {
+                break;
+            }
+            let response = handle_line(&context, line.trim_end());
+            serde_json::to_writer(&mut input, &response).unwrap();
+            input.write_all(b"\n").unwrap();
+            input.flush().unwrap();
+        }
+        drop(input);
+        let status = child.wait().unwrap();
+        let mut stderr = String::new();
+        child
+            .stderr
+            .take()
+            .unwrap()
+            .read_to_string(&mut stderr)
+            .unwrap();
+        assert!(status.success(), "workflow failed: {stderr}");
+
+        let proposals = project.proposals.list().unwrap().records;
+        assert_eq!(proposals.len(), 1);
+        assert_eq!(proposals[0].status, ProposalStatus::Pending);
+        assert!(project
+            .root
+            .join(".cairn/runs/proposals")
+            .join(format!("{}.json", proposals[0].id))
+            .is_file());
+        let tasks = project.tasks.list().unwrap().records;
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].id, task.id);
+    }
+}

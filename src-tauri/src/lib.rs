@@ -20,7 +20,7 @@ pub fn run_askpass_helper() -> ExitCode {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(commands::fs::SearchCancellation(Arc::new(AtomicBool::new(
             false,
         ))))
@@ -31,6 +31,8 @@ pub fn run() {
         .manage(services::project::ProjectState::default())
         .setup(|app| {
             let handle = app.handle().clone();
+            let resource_dir = app.path().resource_dir().ok();
+            app.manage(services::runs::RunManager::with_resource_dir(resource_dir));
             app.state::<services::watcher::WorkspaceWatcher>()
                 .subscribe(move |root, paths| {
                     handle
@@ -76,6 +78,15 @@ pub fn run() {
             commands::watcher::watch_stop,
             commands::project::project_open,
             commands::project::project_close,
+            commands::proposals::proposal_list,
+            commands::proposals::proposal_accept,
+            commands::proposals::proposal_reject,
+            commands::proposals::proposal_delete,
+            commands::runs::run_start,
+            commands::runs::run_cancel,
+            commands::runs::run_get,
+            commands::runs::workflow_list,
+            commands::runs::workflow_trust,
             commands::tasks::task_list,
             commands::tasks::task_get,
             commands::tasks::task_create,
@@ -118,6 +129,15 @@ pub fn run() {
             commands::codemap::codemap_missing_languages,
             commands::diagnostics::set_log_level
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+    app.run(|handle, event| {
+        if matches!(event, tauri::RunEvent::Exit) {
+            if let Err(error) = handle.state::<services::runs::RunManager>().run_cancel() {
+                tauri_plugin_log::log::error!(
+                    "Could not stop active workflow on app exit: {error}"
+                );
+            }
+        }
+    });
 }

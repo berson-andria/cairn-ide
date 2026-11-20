@@ -1,0 +1,1978 @@
+pub mod rpc;
+pub mod workflows;
+
+use crate::services::{
+    project::{ProjectServices, ProjectState},
+    service_error::{
+        now_ms, Actor, ChangeEvent, EventSink, RunOutcome, ServiceError, ServiceErrorCode,
+    },
+    storage::ensure_cairn_dir,
+};
+use serde::{Deserialize, Serialize};
+use std::{
+    fs::{self, OpenOptions},
+    io::{self, Read, Write},
+    path::{Path, PathBuf},
+    process::{Child, Command, Stdio},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+    thread,
+    time::{Duration, Instant},
+};
+
+pub const DEFAULT_RUN_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+pub const DEFAULT_FINISH_GRACE: Duration = Duration::from_secs(5);
+const MAX_LOG_BYTES: u64 = 5 * 1024 * 1024;
+const DEFAULT_WORKFLOW: &str = "default";
+
+#[derive(Debug, Clone)]
+pub struct RunContext {
+    pub run_id: String,
+    pub task_id: String,
+    pub workflow: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunRecord {
+    pub run_id: String,
+    pub task_id: String,
+    pub workflow: String,
+    pub source: workflows::WorkflowSource,
+    pub script_hash: String,
+    pub started_at: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ended_at: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<RunOutcome>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+}
+
+pub(crate) fn recover_interrupted_runs(root: &Path) {
+    let runs_directory = root.join(".cairn").join("runs");
+    let entries = match fs::read_dir(&runs_directory) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return,
+        Err(error) => {
+            tauri_plugin_log::log::error!(
+                "Could not scan interrupted runs in {}: {error}",
+                runs_directory.display()
+            );
+            return;
+        }
+    };
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                tauri_plugin_log::log::error!(
+                    "Could not inspect run directory in {}: {error}",
+                    runs_directory.display()
+                );
+                continue;
+            }
+        };
+        let run_directory = entry.path();
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(error) => {
+                tauri_plugin_log::log::error!(
+                    "Could not inspect run directory {}: {error}",
+                    run_directory.display()
+                );
+                continue;
+            }
+        };
+        if !file_type.is_dir() {
+            continue;
+        }
+        let run_path = run_directory.join("run.json");
+        let bytes = match fs::read(&run_path) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                tauri_plugin_log::log::error!(
+                    "Could not read run metadata {}: {error}",
+                    run_path.display()
+                );
+                continue;
+            }
+        };
+        let mut record: RunRecord = match serde_json::from_slice(&bytes) {
+            Ok(record) => record,
+            Err(error) => {
+                tauri_plugin_log::log::error!(
+                    "Skipping malformed run metadata {}: {error}",
+                    run_path.display()
+                );
+                continue;
+            }
+        };
+        if record.ended_at.is_some() {
+            continue;
+        }
+        record.ended_at = Some(now_ms());
+        record.outcome = Some(RunOutcome::Failed);
+        record.reason = Some("interrupted (app closed during run)".into());
+        if let Err(error) = write_run_record(&run_directory, &record) {
+            tauri_plugin_log::log::error!(
+                "Could not recover interrupted run metadata {}: {error}",
+                run_path.display()
+            );
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LaunchConfig {
+    pub script: PathBuf,
+    pub root: PathBuf,
+    pub sdk_dir: PathBuf,
+    pub run_id: String,
+}
+
+pub trait ChildProcess: Send {
+    fn take_stdin(&mut self) -> Option<Box<dyn Write + Send>>;
+    fn take_stdout(&mut self) -> Option<Box<dyn Read + Send>>;
+    fn take_stderr(&mut self) -> Option<Box<dyn Read + Send>>;
+    fn try_wait(&mut self) -> io::Result<Option<i32>>;
+    fn kill(&mut self) -> io::Result<()>;
+}
+
+pub trait ChildLauncher: Send + Sync {
+    fn spawn(&self, config: &LaunchConfig) -> io::Result<Box<dyn ChildProcess>>;
+}
+
+struct SystemLauncher;
+
+impl ChildLauncher for SystemLauncher {
+    fn spawn(&self, config: &LaunchConfig) -> io::Result<Box<dyn ChildProcess>> {
+        let mut command = Command::new("uv");
+        command
+            .arg("run")
+            .arg("--script")
+            .arg(&config.script)
+            .current_dir(&config.root)
+            .env("PYTHONPATH", &config.sdk_dir)
+            .env("CAIRN_RUN_ID", &config.run_id)
+            .env("CAIRN_API_VERSION", "1")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x08000000);
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            command.process_group(0);
+        }
+        let mut child = command.spawn()?;
+        #[cfg(windows)]
+        let process_tree = match WindowsJob::assign(&child) {
+            Ok(job) => job,
+            Err(error) => {
+                let _ = child.kill();
+                return Err(error);
+            }
+        };
+        #[cfg(unix)]
+        let process_tree = UnixProcessGroup { id: child.id() };
+        Ok(Box::new(SystemChild {
+            child,
+            process_tree,
+        }))
+    }
+}
+
+struct SystemChild {
+    child: Child,
+    process_tree: PlatformProcessTree,
+}
+
+#[cfg(windows)]
+type PlatformProcessTree = WindowsJob;
+#[cfg(unix)]
+type PlatformProcessTree = UnixProcessGroup;
+
+#[cfg(windows)]
+struct WindowsJob(windows_sys::Win32::Foundation::HANDLE);
+
+#[cfg(windows)]
+// An owned kernel handle is valid to transfer to the run waiter thread.
+unsafe impl Send for WindowsJob {}
+
+#[cfg(windows)]
+impl WindowsJob {
+    fn assign(child: &Child) -> io::Result<Self> {
+        use std::{mem, os::windows::io::AsRawHandle, ptr};
+        use windows_sys::Win32::{
+            Foundation::{CloseHandle, HANDLE},
+            System::JobObjects::{
+                AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+                SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+                JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            },
+        };
+
+        unsafe {
+            let handle = CreateJobObjectW(ptr::null(), ptr::null());
+            if handle.is_null() {
+                return Err(io::Error::last_os_error());
+            }
+            let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let configured = SetInformationJobObject(
+                handle,
+                JobObjectExtendedLimitInformation,
+                &limits as *const _ as *const _,
+                mem::size_of_val(&limits) as u32,
+            ) != 0;
+            let assigned = configured
+                && AssignProcessToJobObject(handle, child.as_raw_handle() as HANDLE) != 0;
+            if !assigned {
+                let error = io::Error::last_os_error();
+                let _ = CloseHandle(handle);
+                return Err(error);
+            }
+            Ok(Self(handle))
+        }
+    }
+
+    fn kill(&self) -> io::Result<()> {
+        use windows_sys::Win32::System::JobObjects::TerminateJobObject;
+        if unsafe { TerminateJobObject(self.0, 1) } == 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[cfg(windows)]
+impl Drop for WindowsJob {
+    fn drop(&mut self) {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        unsafe {
+            let _ = CloseHandle(self.0);
+        }
+    }
+}
+
+#[cfg(unix)]
+struct UnixProcessGroup {
+    id: u32,
+}
+
+#[cfg(unix)]
+impl UnixProcessGroup {
+    fn kill(&self) -> io::Result<()> {
+        if unsafe { libc::kill(-(self.id as i32), libc::SIGKILL) } == -1 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() != Some(libc::ESRCH) {
+                return Err(error);
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(unix)]
+impl Drop for UnixProcessGroup {
+    fn drop(&mut self) {
+        let _ = self.kill();
+    }
+}
+
+impl ChildProcess for SystemChild {
+    fn take_stdin(&mut self) -> Option<Box<dyn Write + Send>> {
+        self.child.stdin.take().map(|stdin| Box::new(stdin) as _)
+    }
+    fn take_stdout(&mut self) -> Option<Box<dyn Read + Send>> {
+        self.child.stdout.take().map(|stdout| Box::new(stdout) as _)
+    }
+    fn take_stderr(&mut self) -> Option<Box<dyn Read + Send>> {
+        self.child.stderr.take().map(|stderr| Box::new(stderr) as _)
+    }
+    fn try_wait(&mut self) -> io::Result<Option<i32>> {
+        self.child
+            .try_wait()
+            .map(|status| status.map(|value| value.code().unwrap_or(1)))
+    }
+    fn kill(&mut self) -> io::Result<()> {
+        let tree_result = self.process_tree.kill();
+        let child_result = self.child.kill();
+        match (tree_result, child_result) {
+            (Ok(()), _) | (_, Ok(())) => Ok(()),
+            (Err(tree_error), Err(child_error)) => Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("process tree kill failed: {tree_error}; child kill failed: {child_error}"),
+            )),
+        }
+    }
+}
+
+struct ManagerState {
+    starting: bool,
+    active: Option<Arc<RunControl>>,
+    last: Option<RunRecord>,
+}
+
+struct ManagerInner {
+    state: Mutex<ManagerState>,
+    launcher: Arc<dyn ChildLauncher>,
+    timeout: Duration,
+    finish_grace: Duration,
+    trust_data_dir: Option<PathBuf>,
+    manifest_dir: PathBuf,
+    resource_dir: Option<PathBuf>,
+}
+
+struct RunControl {
+    record: Mutex<RunRecord>,
+    project: Arc<ProjectServices>,
+    child: Mutex<Box<dyn ChildProcess>>,
+    finish: Arc<Mutex<Option<rpc::FinishRequest>>>,
+    stop_reason: Mutex<Option<String>>,
+    kill_requested: AtomicBool,
+    finalized: AtomicBool,
+    run_directory: PathBuf,
+    sink: Arc<dyn EventSink>,
+}
+
+pub struct RunManager {
+    inner: Arc<ManagerInner>,
+}
+
+struct StartingGuard {
+    inner: Arc<ManagerInner>,
+}
+
+impl Drop for StartingGuard {
+    fn drop(&mut self) {
+        self.inner
+            .state
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .starting = false;
+    }
+}
+
+impl Drop for RunManager {
+    fn drop(&mut self) {
+        if let Err(error) = self.run_cancel() {
+            tauri_plugin_log::log::error!(
+                "Could not stop workflow during manager shutdown: {error}"
+            );
+        }
+    }
+}
+
+impl Default for RunManager {
+    fn default() -> Self {
+        Self::with_options(
+            Arc::new(SystemLauncher),
+            DEFAULT_RUN_TIMEOUT,
+            None,
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            None,
+        )
+    }
+}
+
+impl RunManager {
+    pub fn with_resource_dir(resource_dir: Option<PathBuf>) -> Self {
+        Self::with_options(
+            Arc::new(SystemLauncher),
+            DEFAULT_RUN_TIMEOUT,
+            None,
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            resource_dir,
+        )
+    }
+
+    pub fn with_options(
+        launcher: Arc<dyn ChildLauncher>,
+        timeout: Duration,
+        trust_data_dir: Option<PathBuf>,
+        manifest_dir: PathBuf,
+        resource_dir: Option<PathBuf>,
+    ) -> Self {
+        Self::with_options_and_grace(
+            launcher,
+            timeout,
+            DEFAULT_FINISH_GRACE,
+            trust_data_dir,
+            manifest_dir,
+            resource_dir,
+        )
+    }
+
+    pub fn with_options_and_grace(
+        launcher: Arc<dyn ChildLauncher>,
+        timeout: Duration,
+        finish_grace: Duration,
+        trust_data_dir: Option<PathBuf>,
+        manifest_dir: PathBuf,
+        resource_dir: Option<PathBuf>,
+    ) -> Self {
+        Self {
+            inner: Arc::new(ManagerInner {
+                state: Mutex::new(ManagerState {
+                    starting: false,
+                    active: None,
+                    last: None,
+                }),
+                launcher,
+                timeout,
+                finish_grace,
+                trust_data_dir,
+                manifest_dir,
+                resource_dir,
+            }),
+        }
+    }
+
+    pub fn run_start(
+        &self,
+        projects: &ProjectState,
+        task_id: String,
+        expected_rev: u64,
+        workflow_name: Option<String>,
+        sink: Arc<dyn EventSink>,
+    ) -> Result<RunRecord, ServiceError> {
+        let project = projects.services()?;
+        {
+            let mut state = self.lock_state()?;
+            if state.active.is_some() || state.starting {
+                return Err(ServiceError::new(
+                    ServiceErrorCode::RunActive,
+                    "A workflow run is already active",
+                ));
+            }
+            state.starting = true;
+        }
+        let _starting = StartingGuard {
+            inner: self.inner.clone(),
+        };
+        self.start_reserved(
+            project,
+            task_id,
+            expected_rev,
+            workflow_name.unwrap_or_else(|| DEFAULT_WORKFLOW.into()),
+            sink,
+        )
+    }
+
+    fn start_reserved(
+        &self,
+        project: Arc<ProjectServices>,
+        task_id: String,
+        expected_rev: u64,
+        workflow_name: String,
+        sink: Arc<dyn EventSink>,
+    ) -> Result<RunRecord, ServiceError> {
+        let workflow = match self.inner.trust_data_dir.as_deref() {
+            Some(data_dir) => workflows::resolve_in(&project.root, &workflow_name, Some(data_dir))?,
+            None => workflows::resolve(&project.root, &workflow_name)?,
+        };
+        workflows::require_trust(&project.root, &workflow)?;
+        let task = project.tasks.start(&task_id, expected_rev, Actor::Ui)?;
+
+        let run_id = uuid::Uuid::new_v4().to_string();
+        let run_directory = project.root.join(".cairn").join("runs").join(&run_id);
+        if let Err(error) =
+            ensure_cairn_dir(&project.root).and_then(|_| fs::create_dir_all(&run_directory))
+        {
+            fail_running_task(
+                &project,
+                &task.id,
+                &format!("Could not create run directory: {error}"),
+            );
+            return Err(ServiceError::new(ServiceErrorCode::Io, error.to_string()));
+        }
+        let record = RunRecord {
+            run_id: run_id.clone(),
+            task_id: task_id.clone(),
+            workflow: workflow_name.clone(),
+            source: workflow.source,
+            script_hash: workflow.script_hash.clone(),
+            started_at: now_ms(),
+            ended_at: None,
+            outcome: None,
+            reason: None,
+            summary: None,
+        };
+        if let Err(error) = write_run_record(&run_directory, &record) {
+            fail_running_task(
+                &project,
+                &task.id,
+                &format!("Could not write run metadata: {error}"),
+            );
+            return Err(ServiceError::new(ServiceErrorCode::Io, error.to_string()));
+        }
+        sink.emit(ChangeEvent::RunStarted {
+            run_id: run_id.clone(),
+            task_id: task_id.clone(),
+            workflow: workflow_name.clone(),
+        });
+
+        let Some(sdk_dir) = sdk_dir(
+            cfg!(debug_assertions),
+            &self.inner.manifest_dir,
+            self.inner.resource_dir.as_deref(),
+        ) else {
+            let reason = "Python SDK resource is unavailable".to_owned();
+            return Err(self.fail_start(
+                &project,
+                &run_directory,
+                record,
+                reason,
+                ServiceErrorCode::RuntimeUnavailable,
+                sink,
+            ));
+        };
+        if !sdk_dir.is_dir() {
+            let reason = format!("Python SDK directory is unavailable: {}", sdk_dir.display());
+            return Err(self.fail_start(
+                &project,
+                &run_directory,
+                record,
+                reason,
+                ServiceErrorCode::RuntimeUnavailable,
+                sink,
+            ));
+        }
+        let launch = LaunchConfig {
+            script: workflow.path,
+            root: project.root.clone(),
+            sdk_dir,
+            run_id: run_id.clone(),
+        };
+        let mut child = match self.inner.launcher.spawn(&launch) {
+            Ok(child) => child,
+            Err(error) => {
+                let reason = format!("Could not start uv: {error}");
+                return Err(self.fail_start(
+                    &project,
+                    &run_directory,
+                    record,
+                    reason,
+                    ServiceErrorCode::RuntimeUnavailable,
+                    sink,
+                ));
+            }
+        };
+        let Some(stdin) = child.take_stdin() else {
+            let _ = child.kill();
+            return Err(self.fail_start(
+                &project,
+                &run_directory,
+                record,
+                "Workflow process has no stdin pipe".into(),
+                ServiceErrorCode::RuntimeUnavailable,
+                sink,
+            ));
+        };
+        let Some(stdout) = child.take_stdout() else {
+            let _ = child.kill();
+            return Err(self.fail_start(
+                &project,
+                &run_directory,
+                record,
+                "Workflow process has no stdout pipe".into(),
+                ServiceErrorCode::RuntimeUnavailable,
+                sink,
+            ));
+        };
+        let Some(stderr) = child.take_stderr() else {
+            let _ = child.kill();
+            return Err(self.fail_start(
+                &project,
+                &run_directory,
+                record,
+                "Workflow process has no stderr pipe".into(),
+                ServiceErrorCode::RuntimeUnavailable,
+                sink,
+            ));
+        };
+        let finish = Arc::new(Mutex::new(None));
+        let control = Arc::new(RunControl {
+            record: Mutex::new(record.clone()),
+            project: project.clone(),
+            child: Mutex::new(child),
+            finish: finish.clone(),
+            stop_reason: Mutex::new(None),
+            kill_requested: AtomicBool::new(false),
+            finalized: AtomicBool::new(false),
+            run_directory: run_directory.clone(),
+            sink: sink.clone(),
+        });
+        {
+            let mut state = self.lock_state()?;
+            state.starting = false;
+            state.active = Some(control.clone());
+        }
+        let rpc_context = Arc::new(rpc::RpcContext {
+            run_id: record.run_id.clone(),
+            task_id: task_id.clone(),
+            workflow: workflow_name,
+            project,
+            finish,
+            version_mismatch: Arc::new(AtomicBool::new(false)),
+            trace_path: run_directory.join("trace.jsonl"),
+        });
+        spawn_rpc_reader(stdout, stdin, rpc_context, control.clone());
+        spawn_log_reader(stderr, run_directory.join("run.log"), run_id, task_id, sink);
+        spawn_waiter(
+            self.inner.clone(),
+            control,
+            self.inner.timeout,
+            self.inner.finish_grace,
+        );
+        Ok(record)
+    }
+
+    fn fail_start(
+        &self,
+        project: &ProjectServices,
+        run_directory: &Path,
+        mut record: RunRecord,
+        reason: String,
+        code: ServiceErrorCode,
+        sink: Arc<dyn EventSink>,
+    ) -> ServiceError {
+        fail_running_task(project, &record.task_id, &reason);
+        record.ended_at = Some(now_ms());
+        record.outcome = Some(RunOutcome::Failed);
+        record.reason = Some(reason.clone());
+        if let Err(error) = write_run_record(run_directory, &record) {
+            tauri_plugin_log::log::error!("Could not persist failed run metadata: {error}");
+        }
+        sink.emit(ChangeEvent::RunFinished {
+            run_id: record.run_id.clone(),
+            task_id: record.task_id.clone(),
+            outcome: RunOutcome::Failed,
+            reason: Some(reason.clone()),
+        });
+        self.inner
+            .state
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .last = Some(record);
+        ServiceError::new(code, reason)
+    }
+
+    pub fn run_cancel(&self) -> Result<(), ServiceError> {
+        if let Some(control) = self.lock_state()?.active.clone() {
+            terminate(&control, "cancelled")?;
+        }
+        Ok(())
+    }
+
+    pub fn cancel_for_project_change(&self, reason: &str) -> Result<(), ServiceError> {
+        if let Some(control) = self.lock_state()?.active.clone() {
+            terminate(&control, reason)?;
+        }
+        Ok(())
+    }
+
+    pub fn run_get(&self) -> Result<Option<RunRecord>, ServiceError> {
+        let state = self.lock_state()?;
+        if let Some(active) = &state.active {
+            return Ok(Some(
+                active
+                    .record
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .clone(),
+            ));
+        }
+        Ok(state.last.clone())
+    }
+
+    pub fn workflow_list(
+        &self,
+        projects: &ProjectState,
+    ) -> Result<Vec<workflows::WorkflowInfo>, ServiceError> {
+        let project = projects.services()?;
+        match self.inner.trust_data_dir.as_deref() {
+            Some(data_dir) => workflows::list_in(&project.root, Some(data_dir)),
+            None => workflows::list(&project.root),
+        }
+    }
+
+    pub fn workflow_trust(
+        &self,
+        projects: &ProjectState,
+        name: &str,
+        hash: &str,
+    ) -> Result<(), ServiceError> {
+        let project = projects.services()?;
+        match self.inner.trust_data_dir.as_deref() {
+            Some(data_dir) => workflows::trust_in(&project.root, name, hash, Some(data_dir)),
+            None => workflows::trust(&project.root, name, hash),
+        }
+    }
+
+    fn lock_state(&self) -> Result<std::sync::MutexGuard<'_, ManagerState>, ServiceError> {
+        Ok(self
+            .inner
+            .state
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()))
+    }
+}
+
+pub fn sdk_dir(
+    debug_build: bool,
+    manifest_dir: &Path,
+    resource_dir: Option<&Path>,
+) -> Option<PathBuf> {
+    if debug_build {
+        Some(manifest_dir.join("..").join("sdk").join("python"))
+    } else {
+        resource_dir.map(|directory| directory.join("sdk").join("python"))
+    }
+}
+
+fn write_run_record(directory: &Path, record: &RunRecord) -> io::Result<()> {
+    fs::create_dir_all(directory)?;
+    let bytes = serde_json::to_vec_pretty(record)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    fs::write(directory.join("run.json"), bytes)
+}
+
+fn fail_running_task(project: &ProjectServices, task_id: &str, reason: &str) {
+    match project.tasks.get(task_id) {
+        Ok(task) if task.status == crate::types::task::TaskStatus::Running => {
+            if let Err(error) = project.tasks.set_status(
+                task_id,
+                crate::types::task::TaskStatus::Failed,
+                task.rev,
+                Actor::System,
+            ) {
+                tauri_plugin_log::log::error!(
+                    "Could not fail task {task_id} after run start error ({reason}): {error}"
+                );
+            }
+        }
+        Ok(_) => {}
+        Err(error) => tauri_plugin_log::log::error!(
+            "Could not read task {task_id} after run start error ({reason}): {error}"
+        ),
+    }
+}
+
+fn terminate(control: &RunControl, reason: &str) -> Result<(), ServiceError> {
+    let mut stop_reason = control
+        .stop_reason
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    if stop_reason.is_none() {
+        *stop_reason = Some(reason.to_owned());
+    }
+    drop(stop_reason);
+    if !control.kill_requested.swap(true, Ordering::SeqCst) {
+        let result = {
+            let mut child = control
+                .child
+                .lock()
+                .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+            match child.kill() {
+                Ok(()) => Ok(()),
+                Err(kill_error) => match child.try_wait() {
+                    Ok(Some(_)) => Ok(()),
+                    Ok(None) => Err(kill_error),
+                    Err(wait_error) => Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("kill failed: {kill_error}; wait failed: {wait_error}"),
+                    )),
+                },
+            }
+        };
+        if let Err(error) = result {
+            control.kill_requested.store(false, Ordering::SeqCst);
+            return Err(ServiceError::new(ServiceErrorCode::Io, error.to_string()));
+        }
+    }
+    Ok(())
+}
+
+fn spawn_rpc_reader(
+    mut stdout: Box<dyn Read + Send>,
+    stdin: Box<dyn Write + Send>,
+    context: Arc<rpc::RpcContext>,
+    control: Arc<RunControl>,
+) {
+    let stdin = Arc::new(Mutex::new(stdin));
+    thread::spawn(move || {
+        let mut lines = rpc::LineBuffer::default();
+        let mut bytes = [0u8; 8192];
+        loop {
+            let size = match stdout.read(&mut bytes) {
+                Ok(0) => break,
+                Ok(size) => size,
+                Err(error) => {
+                    tauri_plugin_log::log::error!("Workflow RPC stdout read failed: {error}");
+                    let _ = terminate(&control, "RPC transport error");
+                    break;
+                }
+            };
+            for line in rpc::split_lines(&mut lines, &bytes[..size]) {
+                let response = match line {
+                    Ok(line) => rpc::handle_line(&context, &line),
+                    Err(response) => {
+                        rpc::append_trace(&context.trace_path, None, &response, 0);
+                        response
+                    }
+                };
+                let encoded = match serde_json::to_vec(&response) {
+                    Ok(encoded) => encoded,
+                    Err(error) => {
+                        tauri_plugin_log::log::error!(
+                            "Could not encode workflow RPC response: {error}"
+                        );
+                        continue;
+                    }
+                };
+                let write_result = stdin
+                    .lock()
+                    .map_err(|error| io::Error::new(io::ErrorKind::Other, error.to_string()))
+                    .and_then(|mut writer| {
+                        writer.write_all(&encoded)?;
+                        writer.write_all(b"\n")?;
+                        writer.flush()
+                    });
+                if let Err(error) = write_result {
+                    tauri_plugin_log::log::error!("Workflow RPC stdin write failed: {error}");
+                    let _ = terminate(&control, "RPC transport error");
+                    break;
+                }
+                if context.version_mismatch.load(Ordering::SeqCst) {
+                    let _ = terminate(&control, "SDK API version mismatch");
+                    break;
+                }
+            }
+        }
+    });
+}
+
+fn spawn_log_reader(
+    mut stderr: Box<dyn Read + Send>,
+    log_path: PathBuf,
+    run_id: String,
+    _task_id: String,
+    sink: Arc<dyn EventSink>,
+) {
+    thread::spawn(move || {
+        let mut log = match OpenOptions::new().create(true).append(true).open(&log_path) {
+            Ok(file) => Some(file),
+            Err(error) => {
+                tauri_plugin_log::log::error!("Could not create workflow log: {error}");
+                None
+            }
+        };
+        let mut logged_bytes = 0;
+        if let Some(file) = log.as_ref() {
+            match file.metadata() {
+                Ok(metadata) => logged_bytes = metadata.len(),
+                Err(error) => {
+                    tauri_plugin_log::log::error!("Could not inspect workflow log size: {error}");
+                    log = None;
+                }
+            }
+        }
+        let mut pending = Vec::new();
+        let mut batch_started = Instant::now();
+        let mut partial = Vec::new();
+        let mut chunk = [0u8; 8192];
+        loop {
+            let size = match stderr.read(&mut chunk) {
+                Ok(0) => break,
+                Ok(size) => size,
+                Err(error) => {
+                    tauri_plugin_log::log::error!("Workflow stderr read failed: {error}");
+                    break;
+                }
+            };
+            let raw = &chunk[..size];
+            if let Some(file) = log.as_mut() {
+                let remaining = MAX_LOG_BYTES.saturating_sub(logged_bytes) as usize;
+                let take = raw.len().min(remaining);
+                if take > 0 {
+                    if let Err(error) = file.write_all(&raw[..take]) {
+                        tauri_plugin_log::log::error!("Could not append workflow log: {error}");
+                        log = None;
+                    } else {
+                        logged_bytes += take as u64;
+                    }
+                }
+            }
+            for byte in raw {
+                if *byte == b'\n' {
+                    if partial.last() == Some(&b'\r') {
+                        partial.pop();
+                    }
+                    pending.push(String::from_utf8_lossy(&partial).into_owned());
+                    partial.clear();
+                } else {
+                    if partial.len() < MAX_LOG_BYTES as usize {
+                        partial.push(*byte);
+                    }
+                }
+            }
+            if batch_started.elapsed() >= Duration::from_millis(200) && !pending.is_empty() {
+                sink.emit(ChangeEvent::RunLog {
+                    run_id: run_id.clone(),
+                    lines: std::mem::take(&mut pending),
+                });
+                batch_started = Instant::now();
+            }
+        }
+        if !partial.is_empty() {
+            pending.push(String::from_utf8_lossy(&partial).into_owned());
+        }
+        if !pending.is_empty() {
+            let interval = Duration::from_millis(200);
+            if let Some(remaining) = interval.checked_sub(batch_started.elapsed()) {
+                thread::sleep(remaining);
+            }
+            sink.emit(ChangeEvent::RunLog {
+                run_id,
+                lines: pending,
+            });
+        }
+    });
+}
+
+fn spawn_waiter(
+    inner: Arc<ManagerInner>,
+    control: Arc<RunControl>,
+    timeout: Duration,
+    finish_grace: Duration,
+) {
+    thread::spawn(move || {
+        let started = Instant::now();
+        let mut finish_deadline = None;
+        let exit_code = loop {
+            let finish_received = control
+                .finish
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .is_some();
+            if finish_received && finish_deadline.is_none() {
+                finish_deadline = Some(Instant::now() + finish_grace);
+            }
+            let stop_reason = control
+                .stop_reason
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .clone();
+            if let Some(reason) = stop_reason {
+                if !control.kill_requested.load(Ordering::SeqCst) {
+                    if let Err(error) = terminate(&control, &reason) {
+                        tauri_plugin_log::log::error!("Could not terminate workflow: {error}");
+                    }
+                }
+            } else if let Some(deadline) = finish_deadline {
+                if Instant::now() >= deadline && !control.kill_requested.load(Ordering::SeqCst) {
+                    if let Err(error) = kill_process_tree(&control) {
+                        tauri_plugin_log::log::error!(
+                            "Could not terminate workflow after run.finish: {error}"
+                        );
+                    }
+                }
+            } else if started.elapsed() >= timeout {
+                if let Err(error) = terminate(&control, "timeout") {
+                    tauri_plugin_log::log::error!(
+                        "Could not terminate timed-out workflow: {error}"
+                    );
+                }
+            }
+            let wait_result = match control.child.lock() {
+                Ok(mut child) => child.try_wait(),
+                Err(error) => Err(io::Error::new(io::ErrorKind::Other, error.to_string())),
+            };
+            match wait_result {
+                Ok(Some(code)) => break code,
+                Ok(None) => {}
+                Err(error) => {
+                    tauri_plugin_log::log::error!("Could not wait for workflow process: {error}");
+                    let _ = terminate(&control, &format!("process wait failed: {error}"));
+                    break 1;
+                }
+            }
+            thread::sleep(Duration::from_millis(50));
+        };
+        finalize(&inner, &control, exit_code);
+    });
+}
+
+fn kill_process_tree(control: &RunControl) -> Result<(), ServiceError> {
+    if control.kill_requested.swap(true, Ordering::SeqCst) {
+        return Ok(());
+    }
+    let result = {
+        let mut child = control
+            .child
+            .lock()
+            .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+        match child.kill() {
+            Ok(()) => Ok(()),
+            Err(kill_error) => match child.try_wait() {
+                Ok(Some(_)) => Ok(()),
+                Ok(None) => Err(kill_error),
+                Err(wait_error) => Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("kill failed: {kill_error}; wait failed: {wait_error}"),
+                )),
+            },
+        }
+    };
+    result.map_err(|error| {
+        control.kill_requested.store(false, Ordering::SeqCst);
+        ServiceError::new(ServiceErrorCode::Io, error.to_string())
+    })
+}
+
+fn finalize(inner: &ManagerInner, control: &Arc<RunControl>, exit_code: i32) {
+    if control.finalized.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    finalize_after_guard(inner, control, exit_code);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::{
+        project::ProjectState,
+        service_error::{NoopSink, RecordingSink, ServiceErrorCode},
+    };
+    use std::{io::Cursor, sync::atomic::AtomicI32};
+    use tempfile::tempdir;
+
+    struct FakeState {
+        exit_code: AtomicI32,
+    }
+
+    struct FakeChild(Arc<FakeState>);
+
+    impl ChildProcess for FakeChild {
+        fn take_stdin(&mut self) -> Option<Box<dyn Write + Send>> {
+            Some(Box::new(io::sink()))
+        }
+        fn take_stdout(&mut self) -> Option<Box<dyn Read + Send>> {
+            Some(Box::new(Cursor::new(Vec::<u8>::new())))
+        }
+        fn take_stderr(&mut self) -> Option<Box<dyn Read + Send>> {
+            Some(Box::new(Cursor::new(Vec::<u8>::new())))
+        }
+        fn try_wait(&mut self) -> io::Result<Option<i32>> {
+            let code = self.0.exit_code.load(Ordering::SeqCst);
+            Ok((code >= 0).then_some(code))
+        }
+        fn kill(&mut self) -> io::Result<()> {
+            self.0.exit_code.store(137, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    struct FakeLauncher {
+        state: Arc<FakeState>,
+        fail: bool,
+    }
+
+    impl ChildLauncher for FakeLauncher {
+        fn spawn(&self, _: &LaunchConfig) -> io::Result<Box<dyn ChildProcess>> {
+            if self.fail {
+                return Err(io::Error::new(io::ErrorKind::NotFound, "uv missing"));
+            }
+            Ok(Box::new(FakeChild(self.state.clone())))
+        }
+    }
+
+    struct Harness {
+        _root: tempfile::TempDir,
+        _data: tempfile::TempDir,
+        project: Arc<ProjectState>,
+        task_id: String,
+        manager: RunManager,
+        fake: Arc<FakeState>,
+        sink: RecordingSink,
+    }
+
+    fn harness(timeout: Duration, fail_spawn: bool) -> Harness {
+        harness_with_grace(timeout, DEFAULT_FINISH_GRACE, fail_spawn)
+    }
+
+    fn harness_with_grace(timeout: Duration, finish_grace: Duration, fail_spawn: bool) -> Harness {
+        let root = tempdir().unwrap();
+        let data = tempdir().unwrap();
+        let workflow_dir = root.path().join(".cairn/workflows");
+        fs::create_dir_all(&workflow_dir).unwrap();
+        fs::write(workflow_dir.join("flow.py"), "pass").unwrap();
+        let workflow = workflows::resolve_in(root.path(), "flow", Some(data.path())).unwrap();
+        workflows::trust_in(
+            root.path(),
+            "flow",
+            &workflow.script_hash,
+            Some(data.path()),
+        )
+        .unwrap();
+        let sink = RecordingSink::default();
+        let project = Arc::new(ProjectState::default());
+        project.open(root.path(), sink.clone()).unwrap();
+        let task = project
+            .services()
+            .unwrap()
+            .tasks
+            .create(crate::types::task::TaskItem::new("task"))
+            .unwrap();
+        let fake = Arc::new(FakeState {
+            exit_code: AtomicI32::new(-1),
+        });
+        let manager = RunManager::with_options_and_grace(
+            Arc::new(FakeLauncher {
+                state: fake.clone(),
+                fail: fail_spawn,
+            }),
+            timeout,
+            finish_grace,
+            Some(data.path().to_path_buf()),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            None,
+        );
+        Harness {
+            _root: root,
+            _data: data,
+            project,
+            task_id: task.id,
+            manager,
+            fake,
+            sink,
+        }
+    }
+
+    fn start(harness: &Harness) -> Result<RunRecord, ServiceError> {
+        let task = harness
+            .project
+            .services()
+            .unwrap()
+            .tasks
+            .get(&harness.task_id)
+            .unwrap();
+        harness.manager.run_start(
+            &harness.project,
+            task.id,
+            task.rev,
+            Some("flow".into()),
+            Arc::new(harness.sink.clone()),
+        )
+    }
+
+    fn wait_outcome(manager: &RunManager) -> RunRecord {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            if let Some(record) = manager.run_get().unwrap() {
+                if record.outcome.is_some() {
+                    return record;
+                }
+            }
+            assert!(Instant::now() < deadline, "run did not finalize");
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    fn wait_inactive(manager: &RunManager) {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            if manager.lock_state().unwrap().active.is_none() {
+                return;
+            }
+            assert!(Instant::now() < deadline, "run did not become inactive");
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    #[test]
+    fn stale_revision_during_finalization_retries_once() {
+        let h = harness(Duration::from_secs(3), false);
+        start(&h).unwrap();
+        let control = h.manager.lock_state().unwrap().active.clone().unwrap();
+        let tasks = h.project.services().unwrap().tasks.clone();
+        let task_id = h.task_id.clone();
+        let mut bumped = false;
+        finalize_after_guard_with_hook(&h.manager.inner, &control, 0, || {
+            if !bumped {
+                let task = tasks.get(&task_id).unwrap();
+                tasks
+                    .set_acceptance_criteria(&task_id, Some("concurrent update".into()), task.rev)
+                    .unwrap();
+                bumped = true;
+            }
+        });
+        control.finalized.store(true, Ordering::SeqCst);
+        h.fake.exit_code.store(0, Ordering::SeqCst);
+        wait_inactive(&h.manager);
+
+        assert_eq!(
+            h.project
+                .services()
+                .unwrap()
+                .tasks
+                .get(&h.task_id)
+                .unwrap()
+                .status,
+            crate::types::task::TaskStatus::NeedsReview
+        );
+        let run = h.manager.run_get().unwrap().unwrap();
+        assert_eq!(run.outcome, Some(RunOutcome::NeedsReview));
+        assert!(run.reason.is_none());
+    }
+
+    #[test]
+    fn repeated_stale_revision_persists_task_update_failure_without_panicking() {
+        let h = harness(Duration::from_secs(3), false);
+        start(&h).unwrap();
+        let control = h.manager.lock_state().unwrap().active.clone().unwrap();
+        let tasks = h.project.services().unwrap().tasks.clone();
+        let task_id = h.task_id.clone();
+        let mut updates = 0;
+        finalize_after_guard_with_hook(&h.manager.inner, &control, 0, || {
+            updates += 1;
+            let task = tasks.get(&task_id).unwrap();
+            tasks
+                .set_acceptance_criteria(
+                    &task_id,
+                    Some(format!("concurrent update {updates}")),
+                    task.rev,
+                )
+                .unwrap();
+        });
+        control.finalized.store(true, Ordering::SeqCst);
+        h.fake.exit_code.store(0, Ordering::SeqCst);
+        wait_inactive(&h.manager);
+
+        let run = h.manager.run_get().unwrap().unwrap();
+        assert_eq!(updates, 2);
+        assert!(run
+            .reason
+            .as_deref()
+            .unwrap()
+            .starts_with("could not update task:"));
+        let path = h
+            ._root
+            .path()
+            .join(".cairn/runs")
+            .join(&run.run_id)
+            .join("run.json");
+        let persisted: RunRecord = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(persisted.reason, run.reason);
+        assert_eq!(
+            h.project
+                .services()
+                .unwrap()
+                .tasks
+                .get(&h.task_id)
+                .unwrap()
+                .status,
+            crate::types::task::TaskStatus::Running
+        );
+    }
+
+    #[test]
+    fn poisoned_record_lock_does_not_prevent_cleanup_or_a_new_run() {
+        let h = harness(Duration::from_secs(3), false);
+        start(&h).unwrap();
+        let control = h.manager.lock_state().unwrap().active.clone().unwrap();
+        let record = control.clone();
+        let poisoner = thread::spawn(move || {
+            let _guard = record.record.lock().unwrap();
+            panic!("poison run record lock");
+        });
+        assert!(poisoner.join().is_err());
+        h.fake.exit_code.store(0, Ordering::SeqCst);
+        wait_inactive(&h.manager);
+        assert_eq!(
+            h.manager.run_get().unwrap().unwrap().outcome,
+            Some(RunOutcome::NeedsReview)
+        );
+
+        h.fake.exit_code.store(-1, Ordering::SeqCst);
+        let task = h.project.services().unwrap().tasks.get(&h.task_id).unwrap();
+        h.project
+            .services()
+            .unwrap()
+            .tasks
+            .set_status(
+                &h.task_id,
+                crate::types::task::TaskStatus::Ready,
+                task.rev,
+                Actor::Ui,
+            )
+            .unwrap();
+        start(&h).unwrap();
+        h.manager.run_cancel().unwrap();
+        wait_inactive(&h.manager);
+    }
+
+    struct StartOnFinishedSink {
+        manager: Arc<ManagerInner>,
+        project: Arc<ProjectState>,
+        attempted: AtomicBool,
+        result: Mutex<Option<Result<(), ServiceErrorCode>>>,
+    }
+
+    impl EventSink for StartOnFinishedSink {
+        fn emit(&self, event: ChangeEvent) {
+            let ChangeEvent::RunFinished { task_id, .. } = event else {
+                return;
+            };
+            if self.attempted.swap(true, Ordering::SeqCst) {
+                return;
+            }
+            let project_services = self.project.services().unwrap();
+            let task = project_services.tasks.get(&task_id).unwrap();
+            project_services
+                .tasks
+                .set_status(
+                    &task_id,
+                    crate::types::task::TaskStatus::Ready,
+                    task.rev,
+                    Actor::Ui,
+                )
+                .unwrap();
+            let task = project_services.tasks.get(&task_id).unwrap();
+            let manager = RunManager {
+                inner: self.manager.clone(),
+            };
+            let result = manager
+                .run_start(
+                    &self.project,
+                    task_id,
+                    task.rev,
+                    Some("flow".into()),
+                    Arc::new(NoopSink),
+                )
+                .map(|_| ())
+                .map_err(|error| error.code);
+            *self.result.lock().unwrap() = Some(result);
+        }
+    }
+
+    #[test]
+    fn run_finished_sink_can_start_another_run() {
+        let h = harness(Duration::from_secs(3), false);
+        let sink = Arc::new(StartOnFinishedSink {
+            manager: h.manager.inner.clone(),
+            project: h.project.clone(),
+            attempted: AtomicBool::new(false),
+            result: Mutex::new(None),
+        });
+        let task = h.project.services().unwrap().tasks.get(&h.task_id).unwrap();
+        h.manager
+            .run_start(
+                &h.project,
+                task.id,
+                task.rev,
+                Some("flow".into()),
+                sink.clone(),
+            )
+            .unwrap();
+        h.fake.exit_code.store(0, Ordering::SeqCst);
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            if sink.result.lock().unwrap().is_some() {
+                break;
+            }
+            assert!(Instant::now() < deadline, "finish sink did not start a run");
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(*sink.result.lock().unwrap(), Some(Ok(())));
+        wait_inactive(&h.manager);
+    }
+
+    #[test]
+    fn run_finish_needs_review_is_applied_after_exit() {
+        let h = harness(Duration::from_secs(3), false);
+        start(&h).unwrap();
+        let control = h.manager.lock_state().unwrap().active.clone().unwrap();
+        *control.finish.lock().unwrap() = Some(rpc::FinishRequest {
+            outcome: RunOutcome::NeedsReview,
+            summary: Some("review".into()),
+            reason: None,
+        });
+        h.fake.exit_code.store(0, Ordering::SeqCst);
+        let record = wait_outcome(&h.manager);
+        assert_eq!(record.outcome, Some(RunOutcome::NeedsReview));
+        assert_eq!(record.summary.as_deref(), Some("review"));
+        assert_eq!(
+            h.project
+                .services()
+                .unwrap()
+                .tasks
+                .get(&h.task_id)
+                .unwrap()
+                .status,
+            crate::types::task::TaskStatus::NeedsReview
+        );
+    }
+
+    #[test]
+    fn run_finish_hang_is_killed_after_grace_and_keeps_requested_status() {
+        let h = harness_with_grace(Duration::from_secs(3), Duration::from_millis(40), false);
+        start(&h).unwrap();
+        let control = h.manager.lock_state().unwrap().active.clone().unwrap();
+        *control.finish.lock().unwrap() = Some(rpc::FinishRequest {
+            outcome: RunOutcome::Failed,
+            summary: Some("finished".into()),
+            reason: Some("workflow requested failure".into()),
+        });
+
+        let record = wait_outcome(&h.manager);
+        assert_eq!(record.outcome, Some(RunOutcome::Failed));
+        assert_eq!(record.reason.as_deref(), Some("workflow requested failure"));
+        assert_eq!(record.summary.as_deref(), Some("finished"));
+        assert_eq!(h.fake.exit_code.load(Ordering::SeqCst), 137);
+        assert_eq!(
+            h.project
+                .services()
+                .unwrap()
+                .tasks
+                .get(&h.task_id)
+                .unwrap()
+                .status,
+            crate::types::task::TaskStatus::Failed
+        );
+    }
+
+    #[test]
+    fn run_finish_outcome_wins_over_nonzero_process_exit() {
+        let h = harness_with_grace(Duration::from_secs(3), Duration::from_millis(100), false);
+        start(&h).unwrap();
+        let control = h.manager.lock_state().unwrap().active.clone().unwrap();
+        *control.finish.lock().unwrap() = Some(rpc::FinishRequest {
+            outcome: RunOutcome::NeedsReview,
+            summary: Some("ready for review".into()),
+            reason: None,
+        });
+        h.fake.exit_code.store(1, Ordering::SeqCst);
+
+        let record = wait_outcome(&h.manager);
+        assert_eq!(record.outcome, Some(RunOutcome::NeedsReview));
+        assert_eq!(record.summary.as_deref(), Some("ready for review"));
+        assert_eq!(
+            h.project
+                .services()
+                .unwrap()
+                .tasks
+                .get(&h.task_id)
+                .unwrap()
+                .status,
+            crate::types::task::TaskStatus::NeedsReview
+        );
+    }
+
+    #[test]
+    fn normal_exit_and_nonzero_exit_finalize_expected_status() {
+        let normal = harness(Duration::from_secs(3), false);
+        start(&normal).unwrap();
+        normal.fake.exit_code.store(0, Ordering::SeqCst);
+        assert_eq!(
+            wait_outcome(&normal.manager).outcome,
+            Some(RunOutcome::NeedsReview)
+        );
+
+        let failed = harness(Duration::from_secs(3), false);
+        start(&failed).unwrap();
+        failed.fake.exit_code.store(1, Ordering::SeqCst);
+        let record = wait_outcome(&failed.manager);
+        assert_eq!(record.outcome, Some(RunOutcome::Failed));
+        assert_eq!(record.reason.as_deref(), Some("exit code 1"));
+    }
+
+    #[test]
+    fn cancel_timeout_and_project_close_fail_the_run() {
+        let cancelled = harness(Duration::from_secs(3), false);
+        start(&cancelled).unwrap();
+        cancelled.manager.run_cancel().unwrap();
+        assert_eq!(
+            wait_outcome(&cancelled.manager).reason.as_deref(),
+            Some("cancelled")
+        );
+
+        let timed = harness(Duration::from_millis(30), false);
+        start(&timed).unwrap();
+        assert_eq!(
+            wait_outcome(&timed.manager).reason.as_deref(),
+            Some("timeout")
+        );
+
+        let closed = harness(Duration::from_secs(3), false);
+        start(&closed).unwrap();
+        closed
+            .manager
+            .cancel_for_project_change("project closed")
+            .unwrap();
+        assert_eq!(
+            wait_outcome(&closed.manager).reason.as_deref(),
+            Some("project closed")
+        );
+    }
+
+    #[test]
+    fn spawn_failure_fails_task_and_returns_runtime_error() {
+        let h = harness(Duration::from_secs(3), true);
+        assert_eq!(
+            start(&h).unwrap_err().code,
+            ServiceErrorCode::RuntimeUnavailable
+        );
+        assert_eq!(
+            h.project
+                .services()
+                .unwrap()
+                .tasks
+                .get(&h.task_id)
+                .unwrap()
+                .status,
+            crate::types::task::TaskStatus::Failed
+        );
+    }
+
+    #[test]
+    fn untrusted_or_edited_workflow_leaves_task_ready() {
+        let h = harness(Duration::from_secs(3), false);
+        fs::remove_file(h._data.path().join("workflow-trust.json")).unwrap();
+        assert_eq!(start(&h).unwrap_err().code, ServiceErrorCode::TrustRequired);
+        assert_eq!(
+            h.project
+                .services()
+                .unwrap()
+                .tasks
+                .get(&h.task_id)
+                .unwrap()
+                .status,
+            crate::types::task::TaskStatus::Ready
+        );
+
+        let workflow = workflows::resolve_in(h._root.path(), "flow", Some(h._data.path())).unwrap();
+        workflows::trust_in(
+            h._root.path(),
+            "flow",
+            &workflow.script_hash,
+            Some(h._data.path()),
+        )
+        .unwrap();
+        fs::write(
+            h._root.path().join(".cairn/workflows/flow.py"),
+            "print('changed')",
+        )
+        .unwrap();
+        assert_eq!(start(&h).unwrap_err().code, ServiceErrorCode::TrustRequired);
+        assert_eq!(
+            h.project
+                .services()
+                .unwrap()
+                .tasks
+                .get(&h.task_id)
+                .unwrap()
+                .status,
+            crate::types::task::TaskStatus::Ready
+        );
+    }
+
+    #[test]
+    fn active_run_blocks_second_start_and_user_status_is_not_overwritten() {
+        let h = harness(Duration::from_secs(3), false);
+        start(&h).unwrap();
+        let task = h.project.services().unwrap().tasks.get(&h.task_id).unwrap();
+        assert_eq!(
+            h.manager
+                .run_start(
+                    &h.project,
+                    task.id.clone(),
+                    task.rev,
+                    Some("flow".into()),
+                    Arc::new(h.sink.clone())
+                )
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::RunActive
+        );
+        h.project
+            .services()
+            .unwrap()
+            .tasks
+            .complete(&h.task_id, task.rev)
+            .unwrap();
+        h.fake.exit_code.store(0, Ordering::SeqCst);
+        wait_outcome(&h.manager);
+        assert_eq!(
+            h.project
+                .services()
+                .unwrap()
+                .tasks
+                .get(&h.task_id)
+                .unwrap()
+                .status,
+            crate::types::task::TaskStatus::Completed
+        );
+    }
+
+    #[test]
+    fn failed_start_clears_a_poisoned_state_reservation() {
+        let h = harness(Duration::from_secs(3), false);
+        let inner = h.manager.inner.clone();
+        let poisoner = thread::spawn(move || {
+            let _state = inner.state.lock().unwrap();
+            panic!("poison run manager state lock");
+        });
+        assert!(poisoner.join().is_err());
+
+        let task = h.project.services().unwrap().tasks.get(&h.task_id).unwrap();
+        assert_eq!(
+            h.manager
+                .run_start(
+                    &h.project,
+                    task.id.clone(),
+                    task.rev,
+                    Some("missing-workflow".into()),
+                    Arc::new(h.sink.clone()),
+                )
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::WorkflowNotFound
+        );
+        assert!(!h.manager.lock_state().unwrap().starting);
+
+        start(&h).unwrap();
+        assert!(h.manager.lock_state().unwrap().active.is_some());
+        h.manager.run_cancel().unwrap();
+        wait_inactive(&h.manager);
+    }
+
+    #[test]
+    #[ignore = "requires uv and a working Python runtime"]
+    fn real_hello_workflow_runs_through_uv_and_the_sdk() {
+        let root = tempdir().unwrap();
+        let data = tempdir().unwrap();
+        let workflow_dir = root.path().join(".cairn/workflows");
+        fs::create_dir_all(&workflow_dir).unwrap();
+        fs::write(
+            workflow_dir.join("hello.py"),
+            include_str!("../../../../sdk/python/examples/hello.py"),
+        )
+        .unwrap();
+        let project_sink = RecordingSink::default();
+        let projects = ProjectState::default();
+        projects.open(root.path(), project_sink.clone()).unwrap();
+        let task = projects
+            .services()
+            .unwrap()
+            .tasks
+            .create(crate::types::task::TaskItem::new("integration"))
+            .unwrap();
+        let workflow = workflows::resolve_in(root.path(), "hello", Some(data.path())).unwrap();
+        workflows::trust_in(
+            root.path(),
+            "hello",
+            &workflow.script_hash,
+            Some(data.path()),
+        )
+        .unwrap();
+        let manager = RunManager::with_options(
+            Arc::new(SystemLauncher),
+            Duration::from_secs(90),
+            Some(data.path().to_path_buf()),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            None,
+        );
+        manager
+            .run_start(
+                &projects,
+                task.id.clone(),
+                task.rev,
+                Some("hello".into()),
+                Arc::new(project_sink),
+            )
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(120);
+        let record = loop {
+            if let Some(record) = manager.run_get().unwrap() {
+                if record.outcome.is_some() {
+                    break record;
+                }
+            }
+            assert!(Instant::now() < deadline, "real uv workflow did not finish");
+            thread::sleep(Duration::from_millis(100));
+        };
+        assert_eq!(record.outcome, Some(RunOutcome::NeedsReview));
+        assert!(record.summary.unwrap().contains("integration"));
+    }
+
+    #[test]
+    fn sdk_dir_selects_development_and_resource_locations() {
+        let manifest = Path::new("repo/src-tauri");
+        assert_eq!(
+            sdk_dir(true, manifest, None).unwrap(),
+            manifest.join("../sdk/python")
+        );
+        assert_eq!(
+            sdk_dir(false, manifest, Some(Path::new("resources"))).unwrap(),
+            Path::new("resources/sdk/python")
+        );
+        assert!(sdk_dir(false, manifest, None).is_none());
+    }
+
+    #[test]
+    #[ignore = "requires uv and a working Python runtime"]
+    fn cancelling_workflow_kills_its_python_process() {
+        let root = tempdir().unwrap();
+        let data = tempdir().unwrap();
+        let workflow_dir = root.path().join(".cairn/workflows");
+        fs::create_dir_all(&workflow_dir).unwrap();
+        let script = workflow_dir.join("sleepy.py");
+        fs::write(
+            &script,
+            "# /// script\n# requires-python = \">=3.10\"\n# dependencies = []\n# ///\nimport cairn\nimport os, time\nprint(os.getpid(), flush=True)\ntime.sleep(120)\n",
+        )
+        .unwrap();
+        let sink = RecordingSink::default();
+        let project = ProjectState::default();
+        project.open(root.path(), sink.clone()).unwrap();
+        let task = project
+            .services()
+            .unwrap()
+            .tasks
+            .create(crate::types::task::TaskItem::new("sleeping integration"))
+            .unwrap();
+        let workflow = workflows::resolve_in(root.path(), "sleepy", Some(data.path())).unwrap();
+        workflows::trust_in(
+            root.path(),
+            "sleepy",
+            &workflow.script_hash,
+            Some(data.path()),
+        )
+        .unwrap();
+        let manager = RunManager::with_options(
+            Arc::new(SystemLauncher),
+            Duration::from_secs(180),
+            Some(data.path().to_path_buf()),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            None,
+        );
+        let run = manager
+            .run_start(
+                &project,
+                task.id,
+                task.rev,
+                Some("sleepy".into()),
+                Arc::new(sink),
+            )
+            .unwrap();
+        let log_path = root
+            .path()
+            .join(".cairn/runs")
+            .join(&run.run_id)
+            .join("run.log");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let pid = loop {
+            if let Ok(log) = fs::read_to_string(&log_path) {
+                if let Some(pid) = log.lines().find_map(|line| line.trim().parse::<u32>().ok()) {
+                    break pid;
+                }
+            }
+            assert!(
+                Instant::now() < deadline,
+                "workflow did not print its PID; log={:?}, run={:?}",
+                fs::read_to_string(&log_path),
+                manager
+                    .run_get()
+                    .ok()
+                    .flatten()
+                    .map(|record| (record.outcome, record.reason))
+            );
+            thread::sleep(Duration::from_millis(100));
+        };
+        assert!(
+            process_is_running(pid),
+            "workflow exited before cancellation"
+        );
+        manager.run_cancel().unwrap();
+        assert_eq!(wait_outcome(&manager).outcome, Some(RunOutcome::Failed));
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while process_is_running(pid) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(50));
+        }
+        assert!(
+            !process_is_running(pid),
+            "workflow Python process survived cancel"
+        );
+    }
+
+    #[cfg(windows)]
+    fn process_is_running(pid: u32) -> bool {
+        use windows_sys::Win32::{
+            Foundation::{CloseHandle, STILL_ACTIVE},
+            System::Threading::{
+                GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+            },
+        };
+        unsafe {
+            let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if process.is_null() {
+                return false;
+            }
+            let mut exit_code = 0;
+            let running = GetExitCodeProcess(process, &mut exit_code) != 0
+                && exit_code == STILL_ACTIVE as u32;
+            let _ = CloseHandle(process);
+            running
+        }
+    }
+
+    #[cfg(unix)]
+    fn process_is_running(pid: u32) -> bool {
+        if unsafe { libc::kill(pid as i32, 0) } == 0 {
+            return true;
+        }
+        io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
+    }
+}
+
+fn finalize_after_guard(inner: &ManagerInner, control: &Arc<RunControl>, exit_code: i32) {
+    finalize_after_guard_with_hook(inner, control, exit_code, || {});
+}
+
+fn finalize_task_status(
+    project: &ProjectServices,
+    task_id: &str,
+    status: crate::types::task::TaskStatus,
+    actor: Actor,
+    mut before_set: impl FnMut(),
+) -> Result<Option<crate::types::task::TaskStatus>, ServiceError> {
+    let mut task = project.tasks.get(task_id)?;
+    if task.status != crate::types::task::TaskStatus::Running {
+        return Ok(Some(task.status));
+    }
+
+    for attempt in 0..=1 {
+        before_set();
+        match project.tasks.set_status(task_id, status, task.rev, actor) {
+            Ok(_) => return Ok(None),
+            Err(error) if error.code == ServiceErrorCode::StaleRev && attempt == 0 => {
+                task = project.tasks.get(task_id)?;
+                if task.status != crate::types::task::TaskStatus::Running {
+                    return Ok(Some(task.status));
+                }
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!("both status update attempts must return or fail")
+}
+
+fn finalize_after_guard_with_hook(
+    inner: &ManagerInner,
+    control: &Arc<RunControl>,
+    exit_code: i32,
+    before_status_set: impl FnMut(),
+) {
+    let stop_reason = control
+        .stop_reason
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone();
+    let finish = control
+        .finish
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone();
+    let (outcome, reason, summary) = if let Some(reason) = stop_reason {
+        (
+            RunOutcome::Failed,
+            Some(reason),
+            finish.and_then(|value| value.summary),
+        )
+    } else if let Some(finish) = finish {
+        (finish.outcome, finish.reason, finish.summary)
+    } else if exit_code == 0 {
+        (RunOutcome::NeedsReview, None, None)
+    } else {
+        (
+            RunOutcome::Failed,
+            Some(format!("exit code {exit_code}")),
+            None,
+        )
+    };
+    let task_id = control
+        .record
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .task_id
+        .clone();
+    let status = match outcome {
+        RunOutcome::NeedsReview => crate::types::task::TaskStatus::NeedsReview,
+        RunOutcome::Failed => crate::types::task::TaskStatus::Failed,
+    };
+    let actor = match outcome {
+        RunOutcome::NeedsReview => Actor::Script,
+        RunOutcome::Failed => Actor::System,
+    };
+    let mut reason = reason;
+    match finalize_task_status(&control.project, &task_id, status, actor, before_status_set) {
+        Ok(Some(status)) => tauri_plugin_log::log::warn!(
+            "Task {task_id} is {status:?}; run finalization will not overwrite it"
+        ),
+        Ok(None) => {}
+        Err(error) => {
+            let message = format!("could not update task: {error}");
+            tauri_plugin_log::log::error!("Could not finalize run task {task_id}: {error}");
+            reason = Some(message);
+        }
+    }
+    let record = {
+        let mut record = control
+            .record
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        record.ended_at = Some(now_ms());
+        record.outcome = Some(outcome);
+        record.reason = reason.clone();
+        record.summary = summary;
+        if let Err(error) = write_run_record(&control.run_directory, &record) {
+            tauri_plugin_log::log::error!("Could not update run metadata: {error}");
+        }
+        record.clone()
+    };
+    {
+        let mut state = inner
+            .state
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        state.last = Some(record.clone());
+        if state
+            .active
+            .as_ref()
+            .is_some_and(|active| Arc::ptr_eq(active, control))
+        {
+            state.active = None;
+        }
+    }
+    control.sink.emit(ChangeEvent::RunFinished {
+        run_id: record.run_id.clone(),
+        task_id: record.task_id.clone(),
+        outcome,
+        reason: record.reason.clone(),
+    });
+}

@@ -2,6 +2,8 @@ pub mod codemap;
 pub mod fs;
 pub mod note_service;
 pub mod project;
+pub mod proposal_service;
+pub mod runs;
 pub mod service_error;
 pub mod storage;
 pub mod task_service;

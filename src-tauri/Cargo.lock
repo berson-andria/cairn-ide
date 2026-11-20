@@ -455,17 +455,20 @@ name = "cairn"
 version = "0.1.0"
 dependencies = [
  "blake3",
+ "dirs 6.0.0",
  "getrandom 0.4.3",
  "grep-regex",
  "grep-searcher",
  "ignore",
  "keyring",
  "lazy_static",
+ "libc",
  "notify",
  "portable-pty",
  "rayon",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -479,6 +482,7 @@ dependencies = [
  "tree-sitter-language-pack",
  "uuid",
  "walkdir",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
