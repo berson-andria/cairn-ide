@@ -50,3 +50,4 @@ git-handoff.md
 CODEMAP_CONTEXT.md
 icon-1024.png
 /.cairn
+**/__pycache__
