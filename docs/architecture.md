@@ -182,3 +182,40 @@ This is the base for the SDK's `codemap` namespace.
 | 8 | Write methods and permission manifest | scripts blocked from undeclared calls |
 
 Do not start slice N+1 before slice N is reviewed.
+
+## 11. Script permissions (decided)
+
+Scripts may: read tasks and notes (codemap later), finish a run, **propose**
+tasks (the user validates before anything is created), and create notes
+(marked as script-created). Scripts may not: create or edit tasks directly,
+edit notes, change a task status other than through `run.finish`, complete a
+task, write files in the workspace, or read settings and secrets. Direct edit
+methods are not exposed; add them one at a time, behind the permission
+manifest, only when a real workflow needs one.
+
+Transport: JSON-RPC 2.0 over the child's stdin/stdout, one message per line. No
+session token is needed because the pipe identifies the run. The SDK exits when
+stdin reaches EOF, so a crashed app does not leave an orphan. The SDK moves
+`print()` to stderr, which becomes the run log.
+
+Run end: `run.finish` sets `needs_review` or `failed`. Exit 0 without a finish
+means `needs_review`. A nonzero exit, a cancel, a timeout or a spawn failure
+means `failed`, with a reason.
+
+Trust: a project workflow runs only after the user approves its SHA-256
+(stored in app data, never in the repo). A changed file asks again. Global
+workflows are trusted.
+
+### Subtask progress and resume (6g, decided)
+
+A script may set the status of the subtasks of ITS OWN run's task to `running`,
+`needs_review` or `failed` through `step.start` / `step.finish`, one open step at
+a time. It can never set `completed`, never touch another task, and never change
+a subtask the user already completed. "Done" for resume means `needs_review` or
+`completed`. Rust computes the resume list (`resume.pending`, in list order) and
+the previous run summary (`previous`) and returns them in `run.context`.
+A subtask still `running` when a run ends, or after a crash, becomes `failed`
+("step not finished" / "interrupted"). Completing a task (UI) also completes
+its `needs_review` subtasks in the same write; other subtasks are untouched.
+Run records keep a `steps` history; the subtask status on the task stays the
+source of truth for resume.

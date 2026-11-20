@@ -405,6 +405,12 @@ impl TaskService {
         subtask: bool,
     ) -> Result<(), ServiceError> {
         if subtask {
+            if actor == Actor::Script && from == TaskStatus::Completed {
+                return Err(ServiceError::new(
+                    ServiceErrorCode::Forbidden,
+                    "Scripts cannot change completed subtasks",
+                ));
+            }
             if to == TaskStatus::Completed && actor == Actor::Script {
                 return Err(ServiceError::new(
                     ServiceErrorCode::Forbidden,
@@ -472,11 +478,32 @@ impl TaskService {
                 "Stale revision",
             ));
         }
-        if t.status == status {
+        let complete_reviewed_subtasks = status == TaskStatus::Completed && actor == Actor::Ui;
+        if t.status == status
+            && !(complete_reviewed_subtasks
+                && t.sub_tasks.as_ref().is_some_and(|items| {
+                    items
+                        .iter()
+                        .any(|item| item.status == TaskStatus::NeedsReview)
+                }))
+        {
             return Ok(t);
         }
-        Self::check_transition(t.status, status, actor, false)?;
-        t.status = status;
+        if t.status != status {
+            Self::check_transition(t.status, status, actor, false)?;
+            t.status = status;
+        }
+        if complete_reviewed_subtasks {
+            if let Some(subtasks) = t.sub_tasks.as_mut() {
+                for subtask in subtasks
+                    .iter_mut()
+                    .filter(|item| item.status == TaskStatus::NeedsReview)
+                {
+                    subtask.status = TaskStatus::Completed;
+                    subtask.updated_at = Some(now_ms());
+                }
+            }
+        }
         t.updated_at = Some(now_ms());
         let t = self.tasks.update(t, expected_rev)?;
         let reconcile_result = self.reconcile_locked();
@@ -778,6 +805,38 @@ impl TaskService {
         drop(_g);
         self.emit_changed(t.clone());
         Ok(t)
+    }
+    pub fn set_subtask_status(
+        &self,
+        task_id: &str,
+        subtask_id: &str,
+        status: TaskStatus,
+        actor: Actor,
+    ) -> Result<TaskItem, ServiceError> {
+        let _g = self.lock()?;
+        let mut task = self.tasks.get(task_id)?;
+        let subtask = task
+            .sub_tasks
+            .as_mut()
+            .and_then(|items| items.iter_mut().find(|item| item.id == subtask_id))
+            .ok_or_else(|| {
+                ServiceError::new(
+                    ServiceErrorCode::NotFound,
+                    format!("subtaskId: subtask {subtask_id} not found"),
+                )
+            })?;
+        Self::check_transition(subtask.status, status, actor, true)?;
+        if subtask.status == status {
+            return Ok(task);
+        }
+        subtask.status = status;
+        subtask.updated_at = Some(now_ms());
+        task.updated_at = Some(now_ms());
+        let revision = task.rev;
+        let task = self.tasks.update(task, revision)?;
+        drop(_g);
+        self.emit_changed(task.clone());
+        Ok(task)
     }
     pub fn patch_subtask(
         &self,
@@ -1416,14 +1475,83 @@ mod tests {
                 .code,
             ServiceErrorCode::Forbidden
         );
+        let completed = s
+            .update_subtask(&t.id, &sub_id, sub, t.rev, Actor::Ui)
+            .unwrap();
         assert_eq!(
-            s.update_subtask(&t.id, &sub_id, sub, t.rev, Actor::Ui)
-                .unwrap()
-                .sub_tasks
-                .unwrap()[0]
-                .status,
+            completed.sub_tasks.unwrap()[0].status,
             TaskStatus::Completed
         );
+        assert_eq!(
+            s.set_subtask_status(&t.id, &sub_id, TaskStatus::Failed, Actor::Script)
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::Forbidden
+        );
+    }
+
+    #[test]
+    fn completing_task_completes_only_review_subtasks_in_one_update() {
+        let d = tempdir().unwrap();
+        let (service, _, sink) = services(d.path());
+        let mut task = TaskItem::new("parent");
+        task.status = TaskStatus::Running;
+        let reviewed = SubTask::new("reviewed");
+        let failed = SubTask::new("failed");
+        let ready = SubTask::new("ready");
+        let completed = SubTask::new("completed");
+        task.sub_tasks = Some(vec![reviewed, failed, ready, completed]);
+        let mut task = service.create(task).unwrap();
+        let statuses = task
+            .sub_tasks
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|subtask| subtask.id.clone())
+            .zip([
+                TaskStatus::NeedsReview,
+                TaskStatus::Failed,
+                TaskStatus::Ready,
+                TaskStatus::Completed,
+            ])
+            .collect::<Vec<_>>();
+        for (subtask_id, status) in statuses {
+            if status != TaskStatus::Ready {
+                task = service
+                    .set_subtask_status(&task.id, &subtask_id, status, Actor::Ui)
+                    .unwrap();
+            }
+        }
+        task = service.start(&task.id, task.rev, Actor::Ui).unwrap();
+        let baseline = task.sub_tasks.clone().unwrap();
+        sink.take();
+
+        let completed_task = service.complete(&task.id, task.rev).unwrap();
+        let subtasks = completed_task.sub_tasks.as_ref().unwrap();
+        assert_eq!(subtasks[0].status, TaskStatus::Completed);
+        assert!(subtasks[0].updated_at.is_some());
+        assert_eq!(subtasks[1], baseline[1]);
+        assert_eq!(subtasks[2], baseline[2]);
+        assert_eq!(subtasks[3], baseline[3]);
+        assert_eq!(completed_task.rev, task.rev + 1);
+        assert_eq!(
+            sink.events()
+                .iter()
+                .filter(|event| matches!(event, ChangeEvent::TaskUpdated(_)))
+                .count(),
+            1
+        );
+
+        sink.take();
+        let reopened = service
+            .set_status(
+                &completed_task.id,
+                TaskStatus::Ready,
+                completed_task.rev,
+                Actor::Ui,
+            )
+            .unwrap();
+        assert_eq!(reopened.sub_tasks, completed_task.sub_tasks);
     }
 
     #[test]

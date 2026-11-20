@@ -153,7 +153,7 @@ impl ProjectState {
             SharedSink(sink.clone()),
         ));
         let notes = NoteService::new(&root, lock.clone(), SharedSink(sink.clone()));
-        let proposals = ProposalService::new(&root, tasks.clone(), lock, SharedSink(sink));
+        let proposals = ProposalService::new(&root, tasks.clone(), lock, SharedSink(sink.clone()));
         let shared = Arc::new(ProjectServices {
             root: root.clone(),
             tasks,
@@ -167,21 +167,39 @@ impl ProjectState {
             Some(shared.clone());
         match shared.tasks.load() {
             Ok(tasks) => {
-                for task in tasks
-                    .into_iter()
-                    .filter(|task| task.status == crate::types::task::TaskStatus::Running)
-                {
-                    if let Err(error) = shared.tasks.set_status(
-                        &task.id,
-                        crate::types::task::TaskStatus::Failed,
-                        task.rev,
-                        Actor::System,
-                    ) {
-                        tauri_plugin_log::log::error!(
-                            "Could not recover running task {} in {}: {error}",
-                            task.id,
-                            root.display()
-                        );
+                for task in tasks {
+                    if task.status == crate::types::task::TaskStatus::Running {
+                        if let Err(error) = shared.tasks.set_status(
+                            &task.id,
+                            crate::types::task::TaskStatus::Failed,
+                            task.rev,
+                            Actor::System,
+                        ) {
+                            tauri_plugin_log::log::error!(
+                                "Could not recover running task {} in {}: {error}",
+                                task.id,
+                                root.display()
+                            );
+                        }
+                    }
+                    for subtask in task
+                        .sub_tasks
+                        .unwrap_or_default()
+                        .into_iter()
+                        .filter(|item| item.status == crate::types::task::TaskStatus::Running)
+                    {
+                        if let Err(error) = shared.tasks.set_subtask_status(
+                            &task.id,
+                            &subtask.id,
+                            crate::types::task::TaskStatus::Failed,
+                            Actor::System,
+                        ) {
+                            tauri_plugin_log::log::error!(
+                                "Could not recover running subtask {} in {}: {error}",
+                                subtask.id,
+                                root.display()
+                            );
+                        }
                     }
                 }
             }
@@ -189,7 +207,7 @@ impl ProjectState {
                 tauri_plugin_log::log::error!("Failed to load project {}: {error}", root.display());
             }
         }
-        recover_interrupted_runs(&root);
+        recover_interrupted_runs(&root, &shared.tasks, sink.as_ref());
         Ok(root)
     }
     pub fn services(&self) -> Result<Arc<ProjectServices>, ServiceError> {
@@ -279,6 +297,28 @@ pub fn event_parts(e: &ChangeEvent) -> Option<(&'static str, Value)> {
             }
             ("run:finished", Ok(payload))
         }
+        ChangeEvent::RunStep {
+            run_id,
+            task_id,
+            subtask_id,
+            status,
+            summary,
+            reason,
+        } => {
+            let mut payload = json!({
+                "runId":run_id,
+                "taskId":task_id,
+                "subtaskId":subtask_id,
+                "status":status,
+            });
+            if let Some(summary) = summary {
+                payload["summary"] = json!(summary);
+            }
+            if let Some(reason) = reason {
+                payload["reason"] = json!(reason);
+            }
+            ("run:step", Ok(payload))
+        }
         ChangeEvent::ProposalCreated(x) => ("proposal:created", serde_json::to_value(x)),
         ChangeEvent::ProposalUpdated(x) => ("proposal:updated", serde_json::to_value(x)),
         ChangeEvent::ProposalDeleted(id) => ("proposal:deleted", Ok(json!({"id":id}))),
@@ -299,7 +339,7 @@ mod tests {
     use super::*;
     use crate::{
         services::{
-            runs::{workflows::WorkflowSource, RunRecord},
+            runs::{workflows::WorkflowSource, RunRecord, RunStep},
             service_error::{RecordingSink, RunOutcome},
             storage::{FileRepository, Repository},
         },
@@ -323,6 +363,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let repository = FileRepository::for_tasks(dir.path());
         let mut task_ids = Vec::new();
+        let mut interrupted_subtask_id = None;
         for (title, status) in [
             ("running one", TaskStatus::Running),
             ("running two", TaskStatus::Running),
@@ -331,6 +372,12 @@ mod tests {
         ] {
             let mut task = TaskItem::new(title);
             task.status = status;
+            if title == "running one" {
+                let mut subtask = crate::types::task::SubTask::new("interrupted step");
+                subtask.status = TaskStatus::Running;
+                interrupted_subtask_id = Some(subtask.id.clone());
+                task.sub_tasks = Some(vec![subtask]);
+            }
             task_ids.push((repository.create(task).unwrap().id, status));
         }
 
@@ -347,6 +394,14 @@ mod tests {
             outcome: None,
             reason: None,
             summary: None,
+            steps: vec![RunStep {
+                subtask_id: interrupted_subtask_id.clone().unwrap(),
+                started_at: 1,
+                ended_at: None,
+                outcome: None,
+                summary: None,
+                reason: None,
+            }],
         };
         fs::write(
             run_directory.join("run.json"),
@@ -362,12 +417,12 @@ mod tests {
         state.open(dir.path(), sink.clone()).unwrap();
 
         let project = state.services().unwrap();
-        for (task_id, original_status) in task_ids {
-            let recovered = project.tasks.get(&task_id).unwrap();
-            let expected = if original_status == TaskStatus::Running {
+        for (task_id, original_status) in &task_ids {
+            let recovered = project.tasks.get(task_id).unwrap();
+            let expected = if *original_status == TaskStatus::Running {
                 TaskStatus::Failed
             } else {
-                original_status
+                *original_status
             };
             assert_eq!(recovered.status, expected);
         }
@@ -377,7 +432,7 @@ mod tests {
                 .iter()
                 .filter(|event| matches!(event, ChangeEvent::TaskUpdated(task) if task.status == TaskStatus::Failed))
                 .count(),
-            2
+            3
         );
 
         let recovered_run: RunRecord =
@@ -388,6 +443,21 @@ mod tests {
             recovered_run.reason.as_deref(),
             Some("interrupted (app closed during run)")
         );
+        assert_eq!(recovered_run.steps[0].outcome, Some(RunOutcome::Failed));
+        assert_eq!(
+            recovered_run.steps[0].reason.as_deref(),
+            Some("interrupted")
+        );
+        let recovered_task = project.tasks.get(&task_ids[0].0).unwrap();
+        assert_eq!(
+            recovered_task.sub_tasks.as_ref().unwrap()[0].status,
+            TaskStatus::Failed
+        );
+        assert!(events.iter().any(|event| matches!(
+            event,
+            ChangeEvent::RunStep { subtask_id, status: TaskStatus::Failed, reason: Some(reason), .. }
+                if Some(subtask_id) == interrupted_subtask_id.as_ref() && reason == "interrupted"
+        )));
         assert_eq!(
             fs::read_to_string(malformed_directory.join("run.json")).unwrap(),
             "{"
@@ -561,6 +631,18 @@ mod tests {
                 },
                 "run:finished",
                 r#"{"outcome":"failed","runId":"run-id","taskId":"task-id"}"#,
+            ),
+            (
+                ChangeEvent::RunStep {
+                    run_id: "run-id".into(),
+                    task_id: "task-id".into(),
+                    subtask_id: "subtask-id".into(),
+                    status: TaskStatus::Failed,
+                    summary: Some("last".into()),
+                    reason: Some("why".into()),
+                },
+                "run:step",
+                r#"{"reason":"why","runId":"run-id","status":"failed","subtaskId":"subtask-id","summary":"last","taskId":"task-id"}"#,
             ),
             (
                 ChangeEvent::ProposalCreated(proposal.clone()),

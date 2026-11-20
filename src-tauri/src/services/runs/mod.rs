@@ -51,9 +51,30 @@ pub struct RunRecord {
     pub reason: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
+    #[serde(default)]
+    pub steps: Vec<RunStep>,
 }
 
-pub(crate) fn recover_interrupted_runs(root: &Path) {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunStep {
+    pub subtask_id: String,
+    pub started_at: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ended_at: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<RunOutcome>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+pub(crate) fn recover_interrupted_runs(
+    root: &Path,
+    tasks: &super::task_service::TaskService,
+    sink: &dyn EventSink,
+) {
     let runs_directory = root.join(".cairn").join("runs");
     let entries = match fs::read_dir(&runs_directory) {
         Ok(entries) => entries,
@@ -117,6 +138,32 @@ pub(crate) fn recover_interrupted_runs(root: &Path) {
         if record.ended_at.is_some() {
             continue;
         }
+        let open_steps = record
+            .steps
+            .iter_mut()
+            .filter(|step| step.ended_at.is_none())
+            .map(|step| {
+                step.ended_at = Some(now_ms());
+                step.outcome = Some(RunOutcome::Failed);
+                step.reason = Some("interrupted".into());
+                (step.subtask_id.clone(), step.summary.clone())
+            })
+            .collect::<Vec<_>>();
+        for (subtask_id, _) in &open_steps {
+            if let Err(error) = tasks.set_subtask_status(
+                &record.task_id,
+                subtask_id,
+                crate::types::task::TaskStatus::Failed,
+                Actor::System,
+            ) {
+                if error.code != ServiceErrorCode::NotFound {
+                    tauri_plugin_log::log::error!(
+                        "Could not recover interrupted subtask {subtask_id} in run {}: {error}",
+                        record.run_id
+                    );
+                }
+            }
+        }
         record.ended_at = Some(now_ms());
         record.outcome = Some(RunOutcome::Failed);
         record.reason = Some("interrupted (app closed during run)".into());
@@ -125,6 +172,16 @@ pub(crate) fn recover_interrupted_runs(root: &Path) {
                 "Could not recover interrupted run metadata {}: {error}",
                 run_path.display()
             );
+        }
+        for (subtask_id, summary) in open_steps {
+            sink.emit(ChangeEvent::RunStep {
+                run_id: record.run_id.clone(),
+                task_id: record.task_id.clone(),
+                subtask_id,
+                status: crate::types::task::TaskStatus::Failed,
+                summary,
+                reason: Some("interrupted".into()),
+            });
         }
     }
 }
@@ -339,7 +396,7 @@ struct ManagerInner {
 }
 
 struct RunControl {
-    record: Mutex<RunRecord>,
+    record: Arc<Mutex<RunRecord>>,
     project: Arc<ProjectServices>,
     child: Mutex<Box<dyn ChildProcess>>,
     finish: Arc<Mutex<Option<rpc::FinishRequest>>>,
@@ -548,6 +605,7 @@ impl RunManager {
             outcome: None,
             reason: None,
             summary: None,
+            steps: Vec::new(),
         };
         if let Err(error) = write_run_record(&run_directory, &record) {
             fail_running_task(
@@ -649,7 +707,7 @@ impl RunManager {
         };
         let finish = Arc::new(Mutex::new(None));
         let control = Arc::new(RunControl {
-            record: Mutex::new(record.clone()),
+            record: Arc::new(Mutex::new(record.clone())),
             project: project.clone(),
             child: Mutex::new(child),
             finish: finish.clone(),
@@ -689,6 +747,9 @@ impl RunManager {
             workflow: workflow_name,
             project,
             finish,
+            record: control.record.clone(),
+            run_directory: run_directory.clone(),
+            sink: sink.clone(),
             version_mismatch: Arc::new(AtomicBool::new(false)),
             trace_path: run_directory.join("trace.jsonl"),
         });
@@ -1351,6 +1412,7 @@ mod tests {
         project::ProjectState,
         service_error::{NoopSink, RecordingSink, ServiceErrorCode},
     };
+    use crate::types::task::{SubTask, TaskStatus};
     use std::{io::Cursor, sync::atomic::AtomicI32};
     use tempfile::tempdir;
 
@@ -1476,6 +1538,7 @@ mod tests {
                 outcome: Some(RunOutcome::NeedsReview),
                 reason: None,
                 summary: None,
+                steps: Vec::new(),
             },
             RunRecord {
                 run_id: "active".into(),
@@ -1488,6 +1551,7 @@ mod tests {
                 outcome: None,
                 reason: None,
                 summary: None,
+                steps: Vec::new(),
             },
             RunRecord {
                 run_id: "middle".into(),
@@ -1500,6 +1564,7 @@ mod tests {
                 outcome: Some(RunOutcome::Failed),
                 reason: Some("failure".into()),
                 summary: Some("summary".into()),
+                steps: Vec::new(),
             },
         ] {
             write_run_record(&runs_directory.join(&record.run_id), &record).unwrap();
@@ -1533,7 +1598,8 @@ mod tests {
                 "workflow": "default",
                 "source": "global",
                 "scriptHash": "global-hash",
-                "startedAt": 30
+                "startedAt": 30,
+                "steps": []
             })
         );
     }
@@ -1603,6 +1669,7 @@ mod tests {
             outcome: Some(RunOutcome::NeedsReview),
             reason: None,
             summary: None,
+            steps: Vec::new(),
         };
         write_run_record(
             &root
@@ -1635,6 +1702,22 @@ mod tests {
                 .code,
             ServiceErrorCode::NotFound
         );
+    }
+
+    #[test]
+    fn legacy_run_json_without_steps_deserializes_with_empty_steps() {
+        let legacy = serde_json::json!({
+            "runId":"old-run",
+            "taskId":"task-id",
+            "workflow":"default",
+            "source":"global",
+            "scriptHash":"hash",
+            "startedAt":1,
+            "endedAt":2,
+            "outcome":"needs_review"
+        });
+        let record: RunRecord = serde_json::from_value(legacy).unwrap();
+        assert!(record.steps.is_empty());
     }
 
     fn start(harness: &Harness) -> Result<RunRecord, ServiceError> {
@@ -1685,6 +1768,14 @@ mod tests {
             workflow: run.workflow.clone(),
             project: harness.project.services().unwrap(),
             finish: Arc::new(Mutex::new(None)),
+            record: Arc::new(Mutex::new(run.clone())),
+            run_directory: harness
+                ._root
+                .path()
+                .join(".cairn")
+                .join("runs")
+                .join(&run.run_id),
+            sink: Arc::new(NoopSink),
             version_mismatch: Arc::new(AtomicBool::new(false)),
             trace_path: harness._root.path().join("trace.jsonl"),
         };
@@ -1899,6 +1990,228 @@ mod tests {
                 .map_err(|error| error.code);
             *self.result.lock().unwrap() = Some(result);
         }
+    }
+
+    fn active_rpc_context(harness: &Harness, run: &RunRecord) -> rpc::RpcContext {
+        let control = harness
+            .manager
+            .lock_state()
+            .unwrap()
+            .active
+            .clone()
+            .unwrap();
+        rpc::RpcContext {
+            run_id: run.run_id.clone(),
+            task_id: run.task_id.clone(),
+            workflow: run.workflow.clone(),
+            project: control.project.clone(),
+            finish: control.finish.clone(),
+            record: control.record.clone(),
+            run_directory: control.run_directory.clone(),
+            sink: control.sink.clone(),
+            version_mismatch: Arc::new(AtomicBool::new(false)),
+            trace_path: harness._root.path().join("trace.jsonl"),
+        }
+    }
+
+    fn rpc_request(id: u64, method: &str, params: serde_json::Value) -> rpc::RpcRequest {
+        rpc::RpcRequest {
+            id: serde_json::json!(id),
+            method: method.into(),
+            params,
+        }
+    }
+
+    #[test]
+    fn fake_launcher_steps_fail_then_retry_resumes_unfinished_subtasks() {
+        let harness = harness(Duration::from_secs(3), false);
+        let mut task = harness
+            .project
+            .services()
+            .unwrap()
+            .tasks
+            .get(&harness.task_id)
+            .unwrap();
+        let mut subtasks = Vec::new();
+        for title in ["first", "second", "third"] {
+            let subtask = SubTask::new(title);
+            task = harness
+                .project
+                .services()
+                .unwrap()
+                .tasks
+                .add_subtask(&task.id, subtask, task.rev)
+                .unwrap();
+            subtasks.push(task.sub_tasks.as_ref().unwrap().last().unwrap().clone());
+        }
+
+        let first = start(&harness).unwrap();
+        let context = active_rpc_context(&harness, &first);
+        for (request_id, method, params) in [
+            (
+                1,
+                "step.start",
+                serde_json::json!({"subtaskId":subtasks[0].id}),
+            ),
+            (
+                2,
+                "step.finish",
+                serde_json::json!({"subtaskId":subtasks[0].id,"outcome":"needs_review"}),
+            ),
+            (
+                3,
+                "step.start",
+                serde_json::json!({"subtaskId":subtasks[1].id}),
+            ),
+            (
+                4,
+                "step.finish",
+                serde_json::json!({"subtaskId":subtasks[1].id,"outcome":"failed","reason":"step 2 failed"}),
+            ),
+            (
+                5,
+                "run.finish",
+                serde_json::json!({"outcome":"failed","reason":"step 2 failed"}),
+            ),
+        ] {
+            let response = rpc::dispatch(&context, rpc_request(request_id, method, params));
+            assert!(response.get("error").is_none(), "{response}");
+        }
+        harness.fake.exit_code.store(0, Ordering::SeqCst);
+        let first_result = wait_outcome(&harness.manager);
+        wait_inactive(&harness.manager);
+        assert_eq!(first_result.outcome, Some(RunOutcome::Failed));
+        let failed_task = harness
+            .project
+            .services()
+            .unwrap()
+            .tasks
+            .get(&harness.task_id)
+            .unwrap();
+        assert_eq!(failed_task.status, TaskStatus::Failed);
+        assert_eq!(
+            failed_task
+                .sub_tasks
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|item| item.status)
+                .collect::<Vec<_>>(),
+            [
+                TaskStatus::NeedsReview,
+                TaskStatus::Failed,
+                TaskStatus::Ready
+            ]
+        );
+
+        harness
+            .project
+            .services()
+            .unwrap()
+            .tasks
+            .set_status(
+                &harness.task_id,
+                TaskStatus::Ready,
+                failed_task.rev,
+                Actor::Ui,
+            )
+            .unwrap();
+        harness.fake.exit_code.store(-1, Ordering::SeqCst);
+        let retry = start(&harness).unwrap();
+        let retry_context = active_rpc_context(&harness, &retry);
+        let resume = rpc::dispatch(
+            &retry_context,
+            rpc_request(6, "run.context", serde_json::json!({})),
+        )["result"]["resume"]
+            .clone();
+        assert_eq!(
+            resume["pending"],
+            serde_json::json!([
+                {"id":subtasks[1].id,"title":"second","status":"failed"},
+                {"id":subtasks[2].id,"title":"third","status":"ready"}
+            ])
+        );
+        assert_eq!(
+            rpc::dispatch(
+                &retry_context,
+                rpc_request(7, "run.context", serde_json::json!({})),
+            )["result"]["previous"]["outcome"],
+            "failed"
+        );
+        harness.fake.exit_code.store(0, Ordering::SeqCst);
+        wait_outcome(&harness.manager);
+        wait_inactive(&harness.manager);
+    }
+
+    #[test]
+    fn finalization_fails_running_subtask_and_closes_open_step() {
+        let harness = harness(Duration::from_secs(3), false);
+        let mut task = harness
+            .project
+            .services()
+            .unwrap()
+            .tasks
+            .get(&harness.task_id)
+            .unwrap();
+        let subtask = SubTask::new("unfinished");
+        task = harness
+            .project
+            .services()
+            .unwrap()
+            .tasks
+            .add_subtask(&task.id, subtask.clone(), task.rev)
+            .unwrap();
+        let subtask = task.sub_tasks.as_ref().unwrap()[0].clone();
+
+        let run = start(&harness).unwrap();
+        let context = active_rpc_context(&harness, &run);
+        let response = rpc::dispatch(
+            &context,
+            rpc_request(1, "step.start", serde_json::json!({"subtaskId":subtask.id})),
+        );
+        assert!(response.get("error").is_none());
+        let control = harness
+            .manager
+            .lock_state()
+            .unwrap()
+            .active
+            .clone()
+            .unwrap();
+        finalize_after_guard(&harness.manager.inner, &control, 9);
+        control.finalized.store(true, Ordering::SeqCst);
+        harness.fake.exit_code.store(0, Ordering::SeqCst);
+        wait_inactive(&harness.manager);
+
+        let finalized_task = harness
+            .project
+            .services()
+            .unwrap()
+            .tasks
+            .get(&harness.task_id)
+            .unwrap();
+        assert_eq!(finalized_task.status, TaskStatus::Failed);
+        assert_eq!(
+            finalized_task.sub_tasks.as_ref().unwrap()[0].status,
+            TaskStatus::Failed
+        );
+        let finalized_run: RunRecord = serde_json::from_slice(
+            &fs::read(
+                harness
+                    ._root
+                    .path()
+                    .join(".cairn/runs")
+                    .join(run.run_id)
+                    .join("run.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            finalized_run.steps[0].reason.as_deref(),
+            Some("step not finished")
+        );
+        assert_eq!(finalized_run.steps[0].outcome, Some(RunOutcome::Failed));
+        assert_eq!(task.sub_tasks.unwrap()[0].status, TaskStatus::Ready);
     }
 
     #[test]
@@ -2592,6 +2905,8 @@ fn finalize_after_guard_with_hook(
         .unwrap_or_else(|error| error.into_inner())
         .task_id
         .clone();
+    fail_running_subtasks(control, &task_id);
+    close_open_steps(control);
     let status = match outcome {
         RunOutcome::NeedsReview => crate::types::task::TaskStatus::NeedsReview,
         RunOutcome::Failed => crate::types::task::TaskStatus::Failed,
@@ -2646,4 +2961,65 @@ fn finalize_after_guard_with_hook(
         outcome,
         reason: record.reason.clone(),
     });
+}
+
+fn fail_running_subtasks(control: &RunControl, task_id: &str) {
+    let task = match control.project.tasks.get(task_id) {
+        Ok(task) => task,
+        Err(error) => {
+            tauri_plugin_log::log::error!("Could not inspect subtasks for run {task_id}: {error}");
+            return;
+        }
+    };
+    for subtask in task
+        .sub_tasks
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|subtask| subtask.status == crate::types::task::TaskStatus::Running)
+    {
+        if let Err(error) = control.project.tasks.set_subtask_status(
+            task_id,
+            &subtask.id,
+            crate::types::task::TaskStatus::Failed,
+            Actor::System,
+        ) {
+            tauri_plugin_log::log::error!(
+                "Could not fail running subtask {} for run {task_id}: {error}",
+                subtask.id
+            );
+        }
+    }
+}
+
+fn close_open_steps(control: &RunControl) {
+    let mut events = Vec::new();
+    {
+        let mut record = control
+            .record
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        for index in 0..record.steps.len() {
+            if record.steps[index].ended_at.is_some() {
+                continue;
+            }
+            let subtask_id = record.steps[index].subtask_id.clone();
+            record.steps[index].ended_at = Some(now_ms());
+            record.steps[index].outcome = Some(RunOutcome::Failed);
+            record.steps[index].reason = Some("step not finished".into());
+            if let Err(error) = write_run_record(&control.run_directory, &record) {
+                tauri_plugin_log::log::error!("Could not persist failed run step: {error}");
+            }
+            events.push(ChangeEvent::RunStep {
+                run_id: record.run_id.clone(),
+                task_id: record.task_id.clone(),
+                subtask_id,
+                status: crate::types::task::TaskStatus::Failed,
+                summary: record.steps[index].summary.clone(),
+                reason: Some("step not finished".into()),
+            });
+        }
+    }
+    for event in events {
+        control.sink.emit(event);
+    }
 }

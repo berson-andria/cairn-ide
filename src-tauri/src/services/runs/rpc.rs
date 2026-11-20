@@ -1,7 +1,9 @@
 use crate::{
     services::{
         project::ProjectServices,
-        service_error::{Actor, RunOutcome, ServiceError},
+        service_error::{
+            now_ms, Actor, ChangeEvent, EventSink, RunOutcome, ServiceError, ServiceErrorCode,
+        },
         task_service::{NewSubTask, NewTask},
     },
     types::{
@@ -10,7 +12,7 @@ use crate::{
             BatchTaskItem, Presentation, ProposalKind, ProposalPayload, ProposalStatus,
             SubtasksPayload, TasksPayload,
         },
-        task::TaskItem,
+        task::{TaskItem, TaskStatus},
     },
 };
 use serde::{Deserialize, Serialize};
@@ -28,6 +30,9 @@ use std::{
 
 const MAX_LINE_BYTES: usize = 1024 * 1024;
 const MAX_TRACE_BYTES: u64 = 5 * 1024 * 1024;
+const MAX_RUN_STEPS: usize = 200;
+const MAX_STEP_SUMMARY_CHARS: usize = 2000;
+const MAX_STEP_REASON_CHARS: usize = 500;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -142,6 +147,9 @@ pub struct RpcContext {
     pub workflow: String,
     pub project: Arc<ProjectServices>,
     pub finish: Arc<Mutex<Option<FinishRequest>>>,
+    pub record: Arc<Mutex<super::RunRecord>>,
+    pub run_directory: PathBuf,
+    pub sink: Arc<dyn EventSink>,
     pub version_mismatch: Arc<AtomicBool>,
     pub trace_path: PathBuf,
 }
@@ -157,13 +165,47 @@ pub fn dispatch(ctx: &RpcContext, request: RpcRequest) -> Value {
                 .as_ref()
                 .and_then(|runs| runs.iter().position(|run_id| run_id == &ctx.run_id))
                 .map_or(1, |index| index + 1);
-            Ok(json!({
+            let subtasks = task.sub_tasks.unwrap_or_default();
+            let done = subtasks
+                .iter()
+                .filter(|item| {
+                    matches!(item.status, TaskStatus::NeedsReview | TaskStatus::Completed)
+                })
+                .count();
+            let pending = subtasks
+                .iter()
+                .filter(|item| {
+                    !matches!(item.status, TaskStatus::NeedsReview | TaskStatus::Completed)
+                })
+                .map(|item| json!({"id":item.id,"title":item.title,"status":item.status}))
+                .collect::<Vec<_>>();
+            let previous = task
+                .runs
+                .as_ref()
+                .and_then(|runs| runs.iter().position(|run_id| run_id == &ctx.run_id))
+                .and_then(|index| index.checked_sub(1))
+                .and_then(|index| task.runs.as_ref()?.get(index))
+                .and_then(|run_id| previous_run(ctx, run_id));
+            let mut result = json!({
                 "runId":ctx.run_id,
                 "taskId":ctx.task_id,
                 "workflow":ctx.workflow,
-                "attempt":attempt
-            }))
+                "attempt":attempt,
+                "resume":{"total":subtasks.len(),"done":done,"pending":pending}
+            });
+            if let Some(previous) = previous {
+                result["previous"] = previous;
+            }
+            Ok(result)
         }),
+        "step.start" => {
+            parse_step_start(&request.params).and_then(|subtask_id| start_step(ctx, subtask_id))
+        }
+        "step.finish" => {
+            parse_step_finish(&request.params).and_then(|(subtask_id, outcome, summary, reason)| {
+                finish_step(ctx, subtask_id, outcome, summary, reason)
+            })
+        }
         "tasks.get" => required_string(&request.params, "id").and_then(|task_id| {
             ctx.project
                 .tasks
@@ -294,6 +336,226 @@ pub fn dispatch(ctx: &RpcContext, request: RpcRequest) -> Value {
             error
         }
     }
+}
+
+fn parse_step_start(params: &Value) -> Result<String, Value> {
+    let object = params
+        .as_object()
+        .filter(|object| object.len() == 1 && object.contains_key("subtaskId"))
+        .ok_or_else(|| invalid_params("step.start requires only 'subtaskId'"))?;
+    object["subtaskId"]
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| invalid_params("'subtaskId' must be a string"))
+}
+
+fn parse_step_finish(
+    params: &Value,
+) -> Result<(String, TaskStatus, Option<String>, Option<String>), Value> {
+    let object = params
+        .as_object()
+        .ok_or_else(|| invalid_params("params must be an object"))?;
+    if object
+        .keys()
+        .any(|key| !matches!(key.as_str(), "subtaskId" | "outcome" | "summary" | "reason"))
+    {
+        return Err(invalid_params("step.finish has an unknown parameter"));
+    }
+    let subtask_id = object
+        .get("subtaskId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| invalid_params("'subtaskId' must be a string"))?
+        .to_owned();
+    let outcome = match object.get("outcome").and_then(Value::as_str) {
+        Some("needs_review") => TaskStatus::NeedsReview,
+        Some("failed") => TaskStatus::Failed,
+        Some(_) => {
+            return Err(domain_error(ServiceError::new(
+                ServiceErrorCode::Forbidden,
+                "Scripts may finish steps only as needs_review or failed",
+            )))
+        }
+        None => return Err(invalid_params("'outcome' must be a string")),
+    };
+    let optional_string = |key: &str| -> Result<Option<String>, Value> {
+        match object.get(key) {
+            None | Some(Value::Null) => Ok(None),
+            Some(Value::String(value)) => Ok(Some(value.clone())),
+            Some(_) => Err(invalid_params(format!("'{key}' must be a string or null"))),
+        }
+    };
+    let summary = optional_string("summary")?;
+    let reason = optional_string("reason")?;
+    if summary
+        .as_ref()
+        .is_some_and(|value| value.chars().count() > MAX_STEP_SUMMARY_CHARS)
+    {
+        return Err(domain_error(ServiceError::validation(
+            "summary must be at most 2000 characters",
+        )));
+    }
+    if reason
+        .as_ref()
+        .is_some_and(|value| value.chars().count() > MAX_STEP_REASON_CHARS)
+    {
+        return Err(domain_error(ServiceError::validation(
+            "reason must be at most 500 characters",
+        )));
+    }
+    Ok((subtask_id, outcome, summary, reason))
+}
+
+fn start_step(ctx: &RpcContext, subtask_id: String) -> Result<Value, Value> {
+    let mut record = ctx.record.lock().map_err(|error| {
+        domain_error(ServiceError::new(ServiceErrorCode::Io, error.to_string()))
+    })?;
+    let task = ctx.project.tasks.get(&ctx.task_id).map_err(domain_error)?;
+    let subtask = task
+        .sub_tasks
+        .as_ref()
+        .and_then(|items| items.iter().find(|item| item.id == subtask_id))
+        .ok_or_else(|| {
+            domain_error(ServiceError::new(
+                ServiceErrorCode::NotFound,
+                format!("subtaskId: subtask {subtask_id} not found in this run's task"),
+            ))
+        })?;
+    if record.steps.iter().any(|step| step.ended_at.is_none()) {
+        return Err(domain_error(ServiceError::validation(
+            "finish the current step first",
+        )));
+    }
+    if record.steps.len() >= MAX_RUN_STEPS {
+        return Err(domain_error(ServiceError::validation(
+            "steps may contain at most 200 entries",
+        )));
+    }
+    if subtask.status == TaskStatus::Completed {
+        return Err(domain_error(ServiceError::new(
+            ServiceErrorCode::InvalidTransition,
+            "A completed subtask cannot be restarted",
+        )));
+    }
+    if !matches!(
+        subtask.status,
+        TaskStatus::Ready | TaskStatus::Failed | TaskStatus::NeedsReview
+    ) {
+        return Err(domain_error(ServiceError::new(
+            ServiceErrorCode::InvalidTransition,
+            "Subtask is not startable",
+        )));
+    }
+
+    ctx.project
+        .tasks
+        .set_subtask_status(
+            &ctx.task_id,
+            &subtask_id,
+            TaskStatus::Running,
+            Actor::Script,
+        )
+        .map_err(domain_error)?;
+    record.steps.push(super::RunStep {
+        subtask_id: subtask_id.clone(),
+        started_at: now_ms(),
+        ended_at: None,
+        outcome: None,
+        summary: None,
+        reason: None,
+    });
+    super::write_run_record(&ctx.run_directory, &record).map_err(|error| {
+        domain_error(ServiceError::new(ServiceErrorCode::Io, error.to_string()))
+    })?;
+    ctx.sink.emit(ChangeEvent::RunStep {
+        run_id: ctx.run_id.clone(),
+        task_id: ctx.task_id.clone(),
+        subtask_id,
+        status: TaskStatus::Running,
+        summary: None,
+        reason: None,
+    });
+    Ok(Value::Null)
+}
+
+fn finish_step(
+    ctx: &RpcContext,
+    subtask_id: String,
+    outcome: TaskStatus,
+    summary: Option<String>,
+    reason: Option<String>,
+) -> Result<Value, Value> {
+    let mut record = ctx.record.lock().map_err(|error| {
+        domain_error(ServiceError::new(ServiceErrorCode::Io, error.to_string()))
+    })?;
+    let step = record
+        .steps
+        .iter()
+        .rposition(|step| step.ended_at.is_none())
+        .ok_or_else(|| domain_error(ServiceError::validation("there is no open step to finish")))?;
+    if record.steps[step].subtask_id != subtask_id {
+        return Err(domain_error(ServiceError::validation(
+            "subtaskId does not match the open step",
+        )));
+    }
+    ctx.project
+        .tasks
+        .set_subtask_status(&ctx.task_id, &subtask_id, outcome, Actor::Script)
+        .map_err(domain_error)?;
+    let entry = &mut record.steps[step];
+    entry.ended_at = Some(now_ms());
+    entry.outcome = Some(if outcome == TaskStatus::NeedsReview {
+        RunOutcome::NeedsReview
+    } else {
+        RunOutcome::Failed
+    });
+    entry.summary = summary.clone();
+    entry.reason = reason.clone();
+    super::write_run_record(&ctx.run_directory, &record).map_err(|error| {
+        domain_error(ServiceError::new(ServiceErrorCode::Io, error.to_string()))
+    })?;
+    ctx.sink.emit(ChangeEvent::RunStep {
+        run_id: ctx.run_id.clone(),
+        task_id: ctx.task_id.clone(),
+        subtask_id,
+        status: outcome,
+        summary,
+        reason,
+    });
+    Ok(Value::Null)
+}
+
+fn previous_run(ctx: &RpcContext, run_id: &str) -> Option<Value> {
+    if run_id.is_empty()
+        || run_id.len() > 64
+        || !run_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    {
+        return None;
+    }
+    let path = ctx
+        .project
+        .root
+        .join(".cairn")
+        .join("runs")
+        .join(run_id)
+        .join("run.json");
+    let previous: super::RunRecord = serde_json::from_slice(&fs::read(path).ok()?).ok()?;
+    if previous.run_id != run_id {
+        return None;
+    }
+    let outcome = previous.outcome?;
+    let mut result = json!({
+        "runId":previous.run_id,
+        "outcome":serde_json::to_value(outcome).ok()?
+    });
+    if let Some(reason) = previous.reason {
+        result["reason"] = json!(reason);
+    }
+    if let Some(summary) = previous.summary {
+        result["summary"] = json!(summary);
+    }
+    Some(result)
 }
 
 fn proposal_run_context(ctx: &RpcContext) -> super::RunContext {
@@ -519,8 +781,14 @@ pub fn append_trace(path: &Path, method: Option<&str>, response: &Value, ms: u64
 mod tests {
     use super::*;
     use crate::{
-        services::{project::ProjectState, service_error::NoopSink},
-        types::{note::NoteItem, task::TaskItem},
+        services::{
+            project::ProjectState,
+            service_error::{NoopSink, RecordingSink},
+        },
+        types::{
+            note::NoteItem,
+            task::{SubTask, TaskItem},
+        },
     };
     use std::{
         io::{BufRead, BufReader, Read, Write},
@@ -538,21 +806,43 @@ mod tests {
     }
 
     fn context() -> (tempfile::TempDir, RpcContext) {
+        let (directory, context, _) = context_with_sink();
+        (directory, context)
+    }
+
+    fn context_with_sink() -> (tempfile::TempDir, RpcContext, RecordingSink) {
         let directory = tempdir().unwrap();
         let project_state = ProjectState::default();
-        project_state.open(directory.path(), NoopSink).unwrap();
-        (
-            directory,
-            RpcContext {
-                run_id: "run-id".into(),
-                task_id: "task-id".into(),
-                workflow: "hello".into(),
-                project: project_state.services().unwrap(),
-                finish: Arc::new(Mutex::new(None)),
-                version_mismatch: Arc::new(AtomicBool::new(false)),
-                trace_path: directory_path_placeholder(),
-            },
-        )
+        let sink = RecordingSink::default();
+        project_state.open(directory.path(), sink.clone()).unwrap();
+        let run_directory = directory.path().join(".cairn/runs/run-id");
+        let record = super::super::RunRecord {
+            run_id: "run-id".into(),
+            task_id: "task-id".into(),
+            workflow: "hello".into(),
+            source: super::super::workflows::WorkflowSource::Project,
+            script_hash: "hash".into(),
+            started_at: 1,
+            ended_at: None,
+            outcome: None,
+            reason: None,
+            summary: None,
+            steps: Vec::new(),
+        };
+        super::super::write_run_record(&run_directory, &record).unwrap();
+        let context = RpcContext {
+            run_id: "run-id".into(),
+            task_id: "task-id".into(),
+            workflow: "hello".into(),
+            project: project_state.services().unwrap(),
+            finish: Arc::new(Mutex::new(None)),
+            record: Arc::new(Mutex::new(record)),
+            run_directory,
+            sink: Arc::new(sink.clone()),
+            version_mismatch: Arc::new(AtomicBool::new(false)),
+            trace_path: directory_path_placeholder(),
+        };
+        (directory, context, sink)
     }
 
     fn directory_path_placeholder() -> PathBuf {
@@ -599,6 +889,8 @@ mod tests {
         let allowed = [
             "hello",
             "run.context",
+            "step.start",
+            "step.finish",
             "tasks.get",
             "tasks.list",
             "tasks.propose",
@@ -624,6 +916,10 @@ mod tests {
                 json!({"taskId":"missing","items":[{"title":"subtask"}]})
             } else if method == "run.finish" {
                 json!({"outcome":"needs_review"})
+            } else if method == "step.start" {
+                json!({"subtaskId":"missing"})
+            } else if method == "step.finish" {
+                json!({"subtaskId":"missing","outcome":"failed"})
             } else {
                 json!({})
             };
@@ -715,10 +1011,9 @@ mod tests {
         task.runs = Some(vec![ctx.run_id.clone()]);
         ctx.project.tasks.create(task.clone()).unwrap();
 
-        assert_eq!(
-            dispatch(&ctx, request(1, "run.context", json!({})))["result"]["attempt"],
-            1
-        );
+        let first_context = dispatch(&ctx, request(1, "run.context", json!({})))["result"].clone();
+        assert_eq!(first_context["attempt"], 1);
+        assert!(first_context.get("previous").is_none());
 
         ctx.run_id = "retry-run".into();
         task.runs = Some(vec!["run-id".into(), ctx.run_id.clone()]);
@@ -735,6 +1030,334 @@ mod tests {
             dispatch(&ctx, request(2, "run.context", json!({})))["result"]["attempt"],
             2
         );
+    }
+
+    #[test]
+    fn step_rpc_updates_subtasks_persists_steps_and_enforces_step_rules() {
+        let (_directory, ctx, sink) = context_with_sink();
+        let mut task = TaskItem::new("task");
+        task.id = ctx.task_id.clone();
+        let first = SubTask::new("first");
+        let failed = SubTask::new("failed");
+        let reviewed = SubTask::new("reviewed");
+        let completed = SubTask::new("completed");
+        task.sub_tasks = Some(vec![
+            first.clone(),
+            failed.clone(),
+            reviewed.clone(),
+            completed.clone(),
+        ]);
+        let mut task = ctx.project.tasks.create(task).unwrap();
+        let first = task.sub_tasks.as_ref().unwrap()[0].clone();
+        let failed = task.sub_tasks.as_ref().unwrap()[1].clone();
+        let reviewed = task.sub_tasks.as_ref().unwrap()[2].clone();
+        let completed = task.sub_tasks.as_ref().unwrap()[3].clone();
+        for (subtask, status) in [
+            (&failed, TaskStatus::Failed),
+            (&reviewed, TaskStatus::NeedsReview),
+            (&completed, TaskStatus::Completed),
+        ] {
+            task = ctx
+                .project
+                .tasks
+                .set_subtask_status(&task.id, &subtask.id, status, Actor::Ui)
+                .unwrap();
+        }
+        let mut other_task = TaskItem::new("other task");
+        let foreign = SubTask::new("foreign");
+        other_task.sub_tasks = Some(vec![foreign.clone()]);
+        let foreign = ctx
+            .project
+            .tasks
+            .create(other_task)
+            .unwrap()
+            .sub_tasks
+            .unwrap()[0]
+            .clone();
+        sink.take();
+
+        assert_eq!(
+            dispatch(
+                &ctx,
+                request(1, "step.start", json!({"subtaskId":first.id}))
+            )["result"],
+            Value::Null
+        );
+        let events = sink.take();
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| matches!(event, ChangeEvent::TaskUpdated(_)))
+                .count(),
+            1
+        );
+        assert_eq!(
+            ctx.project
+                .tasks
+                .get(&ctx.task_id)
+                .unwrap()
+                .sub_tasks
+                .unwrap()[0]
+                .status,
+            TaskStatus::Running
+        );
+        assert_eq!(ctx.record.lock().unwrap().steps.len(), 1);
+
+        for id in ["unknown", foreign.id.as_str()] {
+            let response = dispatch(&ctx, request(2, "step.start", json!({"subtaskId":id})));
+            assert_eq!(response["error"]["data"]["code"], "NotFound");
+            assert!(response["error"]["data"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("subtaskId"));
+        }
+        assert_eq!(
+            dispatch(
+                &ctx,
+                request(3, "step.start", json!({"subtaskId":failed.id}))
+            )["error"]["data"]["code"],
+            "Validation"
+        );
+        assert!(
+            dispatch(
+                &ctx,
+                request(
+                    4,
+                    "step.finish",
+                    json!({"subtaskId":first.id,"outcome":"completed"})
+                )
+            )["error"]["data"]["code"]
+                == "Forbidden"
+        );
+        for (field, value) in [("summary", "s".repeat(2001)), ("reason", "r".repeat(501))] {
+            let mut params = json!({"subtaskId":first.id,"outcome":"failed"});
+            params[field] = json!(value);
+            let error = dispatch(&ctx, request(4, "step.finish", params))["error"].clone();
+            assert_eq!(error["data"]["code"], "Validation");
+            assert!(error["data"]["message"].as_str().unwrap().contains(field));
+        }
+        assert_eq!(
+            dispatch(
+                &ctx,
+                request(
+                    5,
+                    "step.finish",
+                    json!({"subtaskId":failed.id,"outcome":"failed"})
+                )
+            )["error"]["data"]["code"],
+            "Validation"
+        );
+
+        sink.take();
+        assert_eq!(
+            dispatch(
+                &ctx,
+                request(
+                    6,
+                    "step.finish",
+                    json!({"subtaskId":first.id,"outcome":"needs_review","summary":"ok"})
+                )
+            )["result"],
+            Value::Null
+        );
+        let events = sink.take();
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| matches!(event, ChangeEvent::TaskUpdated(_)))
+                .count(),
+            1
+        );
+        let persisted: super::super::RunRecord =
+            serde_json::from_slice(&std::fs::read(ctx.run_directory.join("run.json")).unwrap())
+                .unwrap();
+        assert_eq!(persisted.steps[0].outcome, Some(RunOutcome::NeedsReview));
+        assert_eq!(persisted.steps[0].summary.as_deref(), Some("ok"));
+        assert!(persisted.steps[0].ended_at.is_some());
+        assert_eq!(
+            ctx.project
+                .tasks
+                .get(&ctx.task_id)
+                .unwrap()
+                .sub_tasks
+                .unwrap()[0]
+                .status,
+            TaskStatus::NeedsReview
+        );
+        assert_eq!(
+            dispatch(
+                &ctx,
+                request(
+                    7,
+                    "step.finish",
+                    json!({"subtaskId":first.id,"outcome":"failed"})
+                )
+            )["error"]["data"]["code"],
+            "Validation"
+        );
+
+        assert_eq!(
+            dispatch(
+                &ctx,
+                request(8, "step.start", json!({"subtaskId":first.id}))
+            )["result"],
+            Value::Null
+        );
+        assert_eq!(
+            dispatch(
+                &ctx,
+                request(
+                    9,
+                    "step.finish",
+                    json!({"subtaskId":first.id,"outcome":"failed","reason":"retry failed"})
+                )
+            )["result"],
+            Value::Null
+        );
+        assert_eq!(
+            dispatch(
+                &ctx,
+                request(10, "step.start", json!({"subtaskId":failed.id}))
+            )["result"],
+            Value::Null
+        );
+        dispatch(
+            &ctx,
+            request(
+                11,
+                "step.finish",
+                json!({"subtaskId":failed.id,"outcome":"needs_review"}),
+            ),
+        );
+        assert_eq!(
+            dispatch(
+                &ctx,
+                request(12, "step.start", json!({"subtaskId":reviewed.id}))
+            )["result"],
+            Value::Null
+        );
+        dispatch(
+            &ctx,
+            request(
+                13,
+                "step.finish",
+                json!({"subtaskId":reviewed.id,"outcome":"failed"}),
+            ),
+        );
+        assert_eq!(
+            dispatch(
+                &ctx,
+                request(14, "step.start", json!({"subtaskId":completed.id}))
+            )["error"]["data"]["code"],
+            "InvalidTransition"
+        );
+        assert_eq!(ctx.record.lock().unwrap().steps.len(), 4);
+
+        let task = ctx.project.tasks.get(&ctx.task_id).unwrap();
+        let mut steps_full = ctx.record.lock().unwrap();
+        steps_full.steps = (0..200)
+            .map(|index| super::super::RunStep {
+                subtask_id: format!("closed-{index}"),
+                started_at: 1,
+                ended_at: Some(2),
+                outcome: Some(RunOutcome::NeedsReview),
+                summary: None,
+                reason: None,
+            })
+            .collect();
+        drop(steps_full);
+        let error = dispatch(
+            &ctx,
+            request(
+                15,
+                "step.start",
+                json!({"subtaskId":task.sub_tasks.unwrap()[0].id}),
+            ),
+        )["error"]
+            .clone();
+        assert_eq!(error["data"]["code"], "Validation");
+        assert!(error["data"]["message"].as_str().unwrap().contains("steps"));
+    }
+
+    #[test]
+    fn run_context_reports_resume_and_previous_run() {
+        let (_directory, ctx) = context();
+        let mut task = TaskItem::new("task");
+        task.id = ctx.task_id.clone();
+        let statuses = [
+            TaskStatus::NeedsReview,
+            TaskStatus::Failed,
+            TaskStatus::Ready,
+            TaskStatus::Completed,
+        ]
+        .into_iter()
+        .map(|_| SubTask::new("step"))
+        .collect::<Vec<_>>();
+        task.sub_tasks = Some(statuses.clone());
+        task.runs = Some(vec!["previous-run".into(), ctx.run_id.clone()]);
+        let mut task = ctx.project.tasks.create(task).unwrap();
+        let statuses_for_subtasks = task
+            .sub_tasks
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|subtask| subtask.id.clone())
+            .zip([
+                TaskStatus::NeedsReview,
+                TaskStatus::Failed,
+                TaskStatus::Ready,
+                TaskStatus::Completed,
+            ])
+            .collect::<Vec<_>>();
+        for (subtask_id, status) in statuses_for_subtasks {
+            if status != TaskStatus::Ready {
+                task = ctx
+                    .project
+                    .tasks
+                    .set_subtask_status(&task.id, &subtask_id, status, Actor::Ui)
+                    .unwrap();
+            }
+        }
+        let statuses = task.sub_tasks.unwrap();
+        let previous_dir = ctx.project.root.join(".cairn/runs/previous-run");
+        let previous = super::super::RunRecord {
+            run_id: "previous-run".into(),
+            task_id: ctx.task_id.clone(),
+            workflow: "hello".into(),
+            source: super::super::workflows::WorkflowSource::Project,
+            script_hash: "hash".into(),
+            started_at: 1,
+            ended_at: Some(2),
+            outcome: Some(RunOutcome::Failed),
+            reason: Some("last failure".into()),
+            summary: Some("partial".into()),
+            steps: Vec::new(),
+        };
+        super::super::write_run_record(&previous_dir, &previous).unwrap();
+
+        let result = dispatch(&ctx, request(1, "run.context", json!({})))["result"].clone();
+        assert_eq!(result["resume"]["total"], 4);
+        assert_eq!(result["resume"]["done"], 2);
+        assert_eq!(
+            result["resume"]["pending"],
+            json!([
+                {"id":statuses[1].id,"title":"step","status":"failed"},
+                {"id":statuses[2].id,"title":"step","status":"ready"}
+            ])
+        );
+        assert_eq!(
+            result["previous"],
+            json!({"runId":"previous-run","outcome":"failed","reason":"last failure","summary":"partial"})
+        );
+
+        let mut empty = TaskItem::new("empty");
+        empty.id = ctx.task_id.clone();
+        empty.runs = None;
+        ctx.project.tasks.delete(&ctx.task_id).unwrap();
+        ctx.project.tasks.create(empty).unwrap();
+        let result = dispatch(&ctx, request(2, "run.context", json!({})))["result"].clone();
+        assert_eq!(result["resume"], json!({"total":0,"done":0,"pending":[]}));
+        assert!(result.get("previous").is_none());
     }
 
     #[test]
@@ -856,6 +1479,21 @@ mod tests {
             workflow: "propose".into(),
             project: project.clone(),
             finish: Arc::new(Mutex::new(None)),
+            record: Arc::new(Mutex::new(super::super::RunRecord {
+                run_id: "integration-run".into(),
+                task_id: task.id.clone(),
+                workflow: "propose".into(),
+                source: super::super::workflows::WorkflowSource::Project,
+                script_hash: "hash".into(),
+                started_at: 1,
+                ended_at: None,
+                outcome: None,
+                reason: None,
+                summary: None,
+                steps: Vec::new(),
+            })),
+            run_directory: project.root.join(".cairn/runs/integration-run"),
+            sink: Arc::new(NoopSink),
             version_mismatch: Arc::new(AtomicBool::new(false)),
             trace_path: project.root.join(".cairn/runs/integration-run/trace.jsonl"),
         };
@@ -894,5 +1532,186 @@ mod tests {
         let tasks = project.tasks.list().unwrap().records;
         assert_eq!(tasks.len(), 1);
         assert_eq!(tasks[0].id, task.id);
+    }
+
+    #[test]
+    #[ignore = "requires uv and Python"]
+    fn steps_script_fails_second_subtask_and_retry_resume_lists_remaining_steps() {
+        let directory = tempdir().unwrap();
+        let state = ProjectState::default();
+        let sink = RecordingSink::default();
+        state.open(directory.path(), sink.clone()).unwrap();
+        let project = state.services().unwrap();
+        let mut task = TaskItem::new("step integration");
+        let mut first = SubTask::new("first");
+        first.description = Some("succeeds".into());
+        let second = SubTask::new("FAIL: second");
+        let third = SubTask::new("third");
+        task.sub_tasks = Some(vec![first, second, third]);
+        let task = project.tasks.create(task).unwrap();
+        let step_ids = task
+            .sub_tasks
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|item| item.id.clone())
+            .collect::<Vec<_>>();
+        let run_id = "integration-run";
+        let task = project
+            .tasks
+            .start_with_run(&task.id, task.rev, run_id.into(), Actor::Ui)
+            .unwrap();
+        let run_directory = project.root.join(".cairn/runs").join(run_id);
+        let record = super::super::RunRecord {
+            run_id: run_id.into(),
+            task_id: task.id.clone(),
+            workflow: "steps".into(),
+            source: super::super::workflows::WorkflowSource::Project,
+            script_hash: "test-hash".into(),
+            started_at: 1,
+            ended_at: None,
+            outcome: None,
+            reason: None,
+            summary: None,
+            steps: Vec::new(),
+        };
+        super::super::write_run_record(&run_directory, &record).unwrap();
+        let sdk_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("sdk")
+            .join("python");
+        let script = sdk_dir.join("examples").join("steps.py");
+        let mut child = Command::new("uv")
+            .arg("run")
+            .arg("--script")
+            .arg(&script)
+            .current_dir(&project.root)
+            .env("PYTHONPATH", &sdk_dir)
+            .env("CAIRN_RUN_ID", run_id)
+            .env("CAIRN_API_VERSION", "1")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("uv must be installed to run the ignored integration test");
+        let mut reader = BufReader::new(child.stdout.take().unwrap());
+        let mut input = child.stdin.take().unwrap();
+        let context = RpcContext {
+            run_id: run_id.into(),
+            task_id: task.id.clone(),
+            workflow: "steps".into(),
+            project: project.clone(),
+            finish: Arc::new(Mutex::new(None)),
+            record: Arc::new(Mutex::new(record)),
+            run_directory: run_directory.clone(),
+            sink: Arc::new(sink),
+            version_mismatch: Arc::new(AtomicBool::new(false)),
+            trace_path: run_directory.join("trace.jsonl"),
+        };
+        let mut line = String::new();
+        loop {
+            line.clear();
+            if reader.read_line(&mut line).unwrap() == 0 {
+                break;
+            }
+            let response = handle_line(&context, line.trim_end());
+            serde_json::to_writer(&mut input, &response).unwrap();
+            input.write_all(b"\n").unwrap();
+            input.flush().unwrap();
+        }
+        drop(input);
+        let status = child.wait().unwrap();
+        let mut stderr = String::new();
+        child
+            .stderr
+            .take()
+            .unwrap()
+            .read_to_string(&mut stderr)
+            .unwrap();
+        assert!(status.success(), "workflow failed: {stderr}");
+        assert_eq!(
+            context.finish.lock().unwrap().as_ref().unwrap().outcome,
+            RunOutcome::Failed
+        );
+        let first_run_task = project.tasks.get(&task.id).unwrap();
+        assert_eq!(
+            first_run_task
+                .sub_tasks
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|item| item.status)
+                .collect::<Vec<_>>(),
+            [
+                TaskStatus::NeedsReview,
+                TaskStatus::Failed,
+                TaskStatus::Ready
+            ]
+        );
+        {
+            let mut record = context.record.lock().unwrap();
+            record.ended_at = Some(now_ms());
+            record.outcome = Some(RunOutcome::Failed);
+            record.reason = Some("Step failed: second".into());
+            super::super::write_run_record(&run_directory, &record).unwrap();
+        }
+        let failed_task = project
+            .tasks
+            .set_status(
+                &task.id,
+                TaskStatus::Failed,
+                first_run_task.rev,
+                Actor::System,
+            )
+            .unwrap();
+        let ready_task = project
+            .tasks
+            .set_status(&task.id, TaskStatus::Ready, failed_task.rev, Actor::Ui)
+            .unwrap();
+        let retry_id = "integration-retry";
+        let retry_task = project
+            .tasks
+            .start_with_run(&task.id, ready_task.rev, retry_id.into(), Actor::Ui)
+            .unwrap();
+        let retry_dir = project.root.join(".cairn/runs").join(retry_id);
+        let retry_record = super::super::RunRecord {
+            run_id: retry_id.into(),
+            task_id: task.id.clone(),
+            workflow: "steps".into(),
+            source: super::super::workflows::WorkflowSource::Project,
+            script_hash: "test-hash".into(),
+            started_at: 3,
+            ended_at: None,
+            outcome: None,
+            reason: None,
+            summary: None,
+            steps: Vec::new(),
+        };
+        super::super::write_run_record(&retry_dir, &retry_record).unwrap();
+        let retry_context = RpcContext {
+            run_id: retry_id.into(),
+            task_id: task.id,
+            workflow: "steps".into(),
+            project: project.clone(),
+            finish: Arc::new(Mutex::new(None)),
+            record: Arc::new(Mutex::new(retry_record)),
+            run_directory: retry_dir,
+            sink: Arc::new(NoopSink),
+            version_mismatch: Arc::new(AtomicBool::new(false)),
+            trace_path: project
+                .root
+                .join(".cairn/runs/integration-retry/trace.jsonl"),
+        };
+        let result =
+            dispatch(&retry_context, request(20, "run.context", json!({})))["result"].clone();
+        assert_eq!(
+            result["resume"]["pending"],
+            json!([
+                {"id":step_ids[1],"title":"FAIL: second","status":"failed"},
+                {"id":step_ids[2],"title":"third","status":"ready"}
+            ])
+        );
+        assert_eq!(result["previous"]["outcome"], "failed");
+        assert_eq!(retry_task.status, TaskStatus::Running);
     }
 }

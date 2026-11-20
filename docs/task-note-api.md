@@ -122,6 +122,12 @@ All input structs reject unknown fields. Fields are camelCase. Optional means th
 
 Status command behavior (the UI is the fixed actor): `task_set_status` accepts same-status as a no-op, `ready → running`, `running → completed`, `needs_review → completed/ready`, `failed → ready`, and `completed → ready`; a transition reserved for another actor returns `Forbidden`, and a transition absent from the policy returns `InvalidTransition`. `task_start` accepts only `ready` tasks with completed or no dependency; otherwise `InvalidTransition`. `task_complete` accepts `running` and `needs_review`, and `completed` as a same-status no-op; other source statuses return `InvalidTransition`.
 
+When the UI completes a task, every subtask currently in `needs_review` is
+changed to `completed` as part of the same task write, revision bump, and
+`task:updated` event. Subtasks in other statuses are unchanged. Reopening the
+task (`completed → ready`) leaves all subtask statuses as they are; the UI may
+still send an individual subtask back to `ready`.
+
 ### JSON examples
 
 `task_create`:

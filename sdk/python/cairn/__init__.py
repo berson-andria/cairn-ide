@@ -130,6 +130,27 @@ class _Run:
         return call("run.context")
 
     @staticmethod
+    def pending_steps():
+        return _Run.context()["resume"]["pending"]
+
+    @staticmethod
+    def step_start(subtask_id):
+        return call("step.start", {"subtaskId": subtask_id})
+
+    @staticmethod
+    def step_finish(subtask_id, outcome, summary=None, reason=None):
+        params = {"subtaskId": subtask_id, "outcome": outcome}
+        if summary is not None:
+            params["summary"] = summary
+        if reason is not None:
+            params["reason"] = reason
+        return call("step.finish", params)
+
+    @staticmethod
+    def step(subtask_id):
+        return _Step(subtask_id)
+
+    @staticmethod
     def finish(outcome, summary=None, reason=None):
         params = {"outcome": outcome}
         if summary is not None:
@@ -137,6 +158,27 @@ class _Run:
         if reason is not None:
             params["reason"] = reason
         return call("run.finish", params)
+
+
+class _Step:
+    def __init__(self, subtask_id):
+        self.subtask_id = subtask_id
+        self.summary = None
+
+    def __enter__(self):
+        run.step_start(self.subtask_id)
+        return self
+
+    def __exit__(self, exception_type, exception, traceback):
+        if exception is None:
+            run.step_finish(self.subtask_id, "needs_review", summary=self.summary)
+        else:
+            run.step_finish(
+                self.subtask_id,
+                "failed",
+                reason=str(exception)[:500],
+            )
+        return False
 
 
 tasks = _Tasks()

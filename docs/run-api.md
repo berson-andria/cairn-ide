@@ -61,7 +61,7 @@ The first SDK call automatically performs the `hello` handshake. API version
 | Method | Parameters | Result |
 |---|---|---|
 | `hello` | `{ "apiVersion": 1 }` | `{ "apiVersion": 1 }` |
-| `run.context` | `{}` | `{ "runId", "taskId", "workflow", "attempt" }` |
+| `run.context` | `{}` | `{ "runId", "taskId", "workflow", "attempt", "resume", "previous"? }` |
 | `tasks.get` | `{ "id": string }` | one camelCase task record |
 | `tasks.list` | `{}` | array of camelCase task records |
 | `tasks.propose` | `NewTask` fields (camelCase), optional `presentation` | `{ "proposalId": string }` |
@@ -71,10 +71,28 @@ The first SDK call automatically performs the `hello` handshake. API version
 | `notes.get` | `{ "id": string }` | one camelCase note record |
 | `notes.for_task` | `{ "taskId": string }` | linked note records; missing linked ids are skipped |
 | `run.finish` | `{ "outcome": "needs_review" \| "failed", "summary"?: string, "reason"?: string }` | `null` |
+| `step.start` | `{ "subtaskId": string }` | `null` |
+| `step.finish` | `{ "subtaskId": string, "outcome": "needs_review" \| "failed", "summary"?: string, "reason"?: string }` | `null` |
 
 `run.context.attempt` is the current run id's 1-based position in the task's
 `runs` history. It is `1` when the history is absent or does not contain that
 id. Every retry creates a new run and appends a new id.
+
+`run.context.resume` contains `total`, `done`, and `pending`. `done` counts
+subtasks in `needs_review` or `completed`; `pending` contains every other
+subtask, preserving task order, as `{ "id", "title", "status" }`. A task with
+no subtasks returns zero counts and an empty pending list. When a previous run
+id exists in the task's run history, `previous` contains that run's `runId`,
+`outcome`, and optional `reason` and `summary`. Missing or unreadable previous
+run metadata omits `previous`.
+
+`step.start` accepts a subtask belonging to the current run's task. Only one
+step may be open at a time. Subtasks in `ready`, `failed`, or `needs_review`
+may start; completed subtasks cannot be restarted. Each run stores up to 200
+steps. `step.finish` must match the open step; its outcome is `needs_review`
+or `failed` (scripts cannot complete subtasks), `summary` is limited to 2000
+characters, and `reason` to 500. Both methods update the subtask through the
+task service and emit one `task:updated` event plus a `run:step` event.
 
 For example, the request and response for a task read are each one line:
 
@@ -87,6 +105,9 @@ The host exposes only the methods in the table. Scripts may propose one or
 more tasks or subtasks and list proposals, but mutating task or note methods,
 including `tasks.create`, `tasks.update`, `tasks.set_status`,
 `proposals.accept`, and `notes.create`, return method-not-found.
+The `step.start` and `step.finish` methods are the only direct subtask-progress
+operations exposed to scripts; they cannot complete a subtask or edit its
+title or description.
 `presentation` is an optional `display` or `notify` UI hint and defaults to
 `notify`; it does not change script permissions. `run.finish` cannot complete
 a task; any outcome other than `needs_review` or `failed` returns `Forbidden`.
@@ -122,6 +143,7 @@ Events are emitted through the application's event sink:
 | `run:started` | `{ "runId", "taskId", "workflow" }` |
 | `run:log` | `{ "runId", "lines": string[] }` |
 | `run:finished` | `{ "runId", "taskId", "outcome": "needs_review" \| "failed", "reason"?: string }` |
+| `run:step` | `{ "runId", "taskId", "subtaskId", "status": "running" \| "needs_review" \| "failed", "summary"?: string, "reason"?: string }` |
 
 `run:log` batches are emitted no more often than five times per second.
 
@@ -146,7 +168,7 @@ Run data is stored under `.cairn/runs/<runId>/`:
 
 | File | Contents |
 |---|---|
-| `run.json` | run id, task id, workflow, source, hash (project workflows folder hash; global workflow file hash), start/end timestamps, outcome, reason, and summary |
+| `run.json` | run id, task id, workflow, source, hash (project workflows folder hash; global workflow file hash), start/end timestamps, outcome, reason, summary, and ordered `steps` |
 | `run.log` | workflow stderr and redirected `print()` output, capped at 5 MB |
 | `trace.jsonl` | one timing/success/error record per RPC call, capped at 5 MB |
 
@@ -164,13 +186,16 @@ return `RuntimeUnavailable`.
 Finalization reads the task's current revision and changes its status only if
 it is still `running`; a status changed by the user during execution is not
 overwritten. `needs_review` is applied as the script actor and `failed` as the
-system actor. The application kills the active child on shutdown.
+system actor. Before finalizing the task, any subtask still `running` is changed
+to `failed` as the system actor, and an open step is closed as `failed` with
+reason `step not finished`. The application kills the active child on shutdown.
 
 ## Recovery
 
-When a project opens, any task still marked `running` is changed to `failed`
-through the task service, and each unfinished `.cairn/runs/*/run.json` record is
-ended as `failed` with reason `interrupted (app closed during run)`. Malformed
-run records are skipped and logged; recovery errors do not prevent the project
+When a project opens, any task or subtask still marked `running` is changed to
+`failed` through the task service. Each unfinished `.cairn/runs/*/run.json`
+record is ended as `failed` with reason `interrupted (app closed during run)`;
+open steps are closed as `failed` with reason `interrupted`. Malformed run
+records are skipped and logged; recovery errors do not prevent the project
 from opening. Run finalization retries a task status update once after
 `StaleRev`, and only if a re-read shows the task is still `running`.
