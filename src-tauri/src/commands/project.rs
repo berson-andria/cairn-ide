@@ -2,8 +2,62 @@ use crate::services::{
     project::{ProjectState, TauriEventSink},
     runs::RunManager,
     service_error::ServiceError,
+    session_history::{self, HistorySnapshot},
 };
-use tauri::{AppHandle, State};
+use serde::Serialize;
+use std::{
+    path::PathBuf,
+    process::{Command, Stdio},
+};
+use tauri::{AppHandle, Manager, State};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchArgs {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
+    pub new_window: bool,
+}
+
+#[tauri::command]
+pub fn launch_args() -> LaunchArgs {
+    let mut args = std::env::args_os().skip(1);
+    let mut folder = None;
+    let mut new_window = false;
+    while let Some(arg) = args.next() {
+        if arg == "--new-window" {
+            new_window = true;
+        } else if arg == "--folder" {
+            folder = args
+                .next()
+                .map(|value| value.to_string_lossy().into_owned());
+        }
+    }
+    LaunchArgs { folder, new_window }
+}
+
+#[tauri::command]
+pub fn window_new(folder: Option<String>) -> Result<(), String> {
+    let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+    let mut command = Command::new(executable);
+    command
+        .arg("--new-window")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    if let Some(folder) = folder {
+        command.args(["--folder", &folder]);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x00000008);
+    }
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
 
 #[tauri::command]
 pub async fn project_open(
@@ -13,7 +67,20 @@ pub async fn project_open(
     runs: State<'_, RunManager>,
 ) -> Result<String, ServiceError> {
     runs.cancel_for_project_change("project closed")?;
-    project_open_impl(&state, path, TauriEventSink(app))
+    let opened = project_open_impl(&state, path, TauriEventSink(app.clone()))?;
+    let data_dir = app.path().app_data_dir().map_err(|error| {
+        ServiceError::new(
+            crate::services::service_error::ServiceErrorCode::Io,
+            error.to_string(),
+        )
+    })?;
+    session_history::record_open(&data_dir, &PathBuf::from(&opened)).map_err(|error| {
+        ServiceError::new(
+            crate::services::service_error::ServiceErrorCode::Io,
+            error.to_string(),
+        )
+    })?;
+    Ok(opened)
 }
 pub fn project_open_impl(
     state: &ProjectState,
@@ -26,14 +93,58 @@ pub fn project_open_impl(
 }
 #[tauri::command]
 pub async fn project_close(
+    app: AppHandle,
     state: State<'_, ProjectState>,
     runs: State<'_, RunManager>,
 ) -> Result<(), ServiceError> {
     runs.cancel_for_project_change("project closed")?;
-    project_close_impl(&state)
+    let root = state.root_path()?;
+    project_close_impl(&state)?;
+    if let Some(root) = root {
+        let data_dir = app.path().app_data_dir().map_err(|error| {
+            ServiceError::new(
+                crate::services::service_error::ServiceErrorCode::Io,
+                error.to_string(),
+            )
+        })?;
+        session_history::clear_last_project(&data_dir, &root).map_err(|error| {
+            ServiceError::new(
+                crate::services::service_error::ServiceErrorCode::Io,
+                error.to_string(),
+            )
+        })?;
+    }
+    Ok(())
 }
 pub fn project_close_impl(state: &ProjectState) -> Result<(), ServiceError> {
     state.close()
+}
+
+#[tauri::command]
+pub fn project_history(app: AppHandle) -> Result<HistorySnapshot, String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    Ok(session_history::snapshot(&data_dir))
+}
+
+#[tauri::command]
+pub fn project_history_remove(path: String, app: AppHandle) -> Result<(), String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    session_history::remove_project(&data_dir, &path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn project_history_clear(app: AppHandle) -> Result<(), String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    session_history::clear_projects(&data_dir).map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

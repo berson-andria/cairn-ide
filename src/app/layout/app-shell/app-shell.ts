@@ -49,6 +49,7 @@ import { GitClient } from '../../feature/git/services/git-client.service';
 import { ChatService } from '../../feature/chat/chat.service';
 import { ChatHistory } from '../../feature/chat/component/history/chat-history';
 import { NoticeList } from '../../core/services/notification/notification-list';
+import { ProjectHistoryService } from '../../core/services/project-history.service';
 
 @Component({
   selector: 'app-shell',
@@ -92,6 +93,7 @@ export class AppShell {
   protected tabStore = inject(TabStore);
   readonly monitoring = inject(MonitoringService);
   readonly chatService = inject(ChatService);
+  readonly projectHistory = inject(ProjectHistoryService);
 
   protected readonly project = computed(() => {
     return this.nodeStore.rootName() ? this.nodeStore.rootName() : 'cairn-ide';
@@ -124,6 +126,7 @@ export class AppShell {
       col: this.monitoring.editorData()?.cursorPosition?.col,
     };
   });
+  // openedFolderHistory = computed(() => this.projectHistory.history().projects);
 
   constructor() {
     this.currentWindow = getCurrentWindow();
@@ -187,6 +190,10 @@ export class AppShell {
     for (const id of files) {
       this.commands.openFile(id);
     }
+  }
+
+  protected openRecent(path: string): void {
+    void this.commands.openProject(path);
   }
 
   private async withWindow(

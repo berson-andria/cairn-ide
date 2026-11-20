@@ -5,6 +5,7 @@ pub mod project;
 pub mod proposal_service;
 pub mod runs;
 pub mod service_error;
+pub mod session_history;
 pub mod storage;
 pub mod task_service;
 pub mod watcher;

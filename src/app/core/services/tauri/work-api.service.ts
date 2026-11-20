@@ -35,6 +35,23 @@ export interface ListResult<T> {
   errors: StorageError[];
 }
 
+export interface ProjectHistoryEntry {
+  path: string;
+  name: string;
+  lastOpenedAt: number;
+  missing: boolean;
+}
+
+export interface ProjectHistorySnapshot {
+  lastProject: string | null;
+  projects: ProjectHistoryEntry[];
+}
+
+export interface LaunchArgs {
+  folder?: string;
+  newWindow: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class WorkApiService {
   private async call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
@@ -57,6 +74,21 @@ export class WorkApiService {
   }
   projectClose() {
     return this.call<void>('project_close');
+  }
+  launchArgs() {
+    return this.call<LaunchArgs>('launch_args');
+  }
+  windowNew(folder?: string) {
+    return this.call<void>('window_new', { folder });
+  }
+  projectHistory() {
+    return this.call<ProjectHistorySnapshot>('project_history');
+  }
+  projectHistoryRemove(path: string) {
+    return this.call<void>('project_history_remove', { path });
+  }
+  projectHistoryClear() {
+    return this.call<void>('project_history_clear');
   }
   taskList() {
     return this.call<ListResult<TaskItem>>('task_list');

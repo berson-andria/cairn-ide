@@ -199,6 +199,14 @@ impl ProjectState {
             .clone()
             .ok_or_else(|| ServiceError::new(ServiceErrorCode::NoProject, "No project is open"))
     }
+    pub fn root_path(&self) -> Result<Option<PathBuf>, ServiceError> {
+        Ok(self
+            .0
+            .read()
+            .map_err(|e| ServiceError::new(ServiceErrorCode::Io, e.to_string()))?
+            .as_ref()
+            .map(|project| project.root.clone()))
+    }
     pub fn close(&self) -> Result<(), ServiceError> {
         *self
             .0

@@ -161,7 +161,7 @@ export const NodeStore = signalStore(
      * Replaces the workspace with the folder at `path`. Close the tabs first (EditorCommands.openFolder does).
      * The file watcher restarts on its own when rootPath changes.
      */
-    async loadFolder(path: string): Promise<void> {
+    async loadFolder(path: string, options: { silentFailure?: boolean } = {}): Promise<void> {
       patchState(store, { isWorkspaceLoading: true });
       try {
         const result = await fileService.getRootFolder(path);
@@ -176,10 +176,26 @@ export const NodeStore = signalStore(
           activeNodeId: null,
         });
       } catch (error) {
-        console.error('Unable to open the folder', error);
+        if (!options.silentFailure) console.error('Unable to open the folder', error);
       } finally {
         patchState(store, { isWorkspaceLoading: false });
       }
+    },
+    closeFolder(): void {
+      patchState(store, {
+        rootPath: null,
+        rootName: null,
+        rootInlineCreation: 'none',
+        rootNodes: {},
+        nodes: {},
+        explorerUiState: {},
+        activeNodeId: null,
+        isWorkspaceLoading: false,
+        renamingNodeId: null,
+        selectionAnchorId: null,
+        clipboard: null,
+        selectedNodeIds: [],
+      });
     },
     /** Re-reads the workspace. Every node gets a new id, so close the tabs first (EditorCommands.refreshExplorer). */
     async refreshExplorer(): Promise<void> {

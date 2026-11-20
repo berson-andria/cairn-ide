@@ -13,6 +13,7 @@ import { DiagnosticsService } from '../../core/services/diagnostics.service';
 import { SettingsService } from '../../feature/setting/settings.service';
 import { WorkspaceStateService } from '../../core/services/workspace-state.service';
 import { samePath } from '../../core/services/file-system/external-watcher.utils';
+import { ProjectHistoryService } from '../../core/services/project-history.service';
 
 export type SaveChoice = 'save' | 'discard' | 'cancel';
 
@@ -30,6 +31,7 @@ export class EditorCommands {
   private readonly diagnostic = inject(DiagnosticsService);
   private readonly settings = inject(SettingsService);
   private readonly workspaceState = inject(WorkspaceStateService);
+  private readonly projectHistory = inject(ProjectHistoryService);
   private readonly autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private windowSaveTimer?: ReturnType<typeof setTimeout>;
   // private readonly terminalService = inject(TerminalService);
@@ -286,7 +288,12 @@ export class EditorCommands {
   async openFolder(): Promise<void> {
     const path = await this.nodes.pickFolder();
     if (!path) return;
+    await this.openProject(path);
+  }
+
+  async openProject(path: string): Promise<void> {
     const previousRoot = this.nodes.rootPath();
+    if (previousRoot && samePath(previousRoot, path)) return;
     if (!(await this.workspaceState.prepareProjectSwitch())) return;
     if (!(await this.closeAll())) {
       this.workspaceState.cancelProjectSwitch();
@@ -300,6 +307,20 @@ export class EditorCommands {
       return;
     }
     await this.workspaceState.restoreProject(openedRoot, (id) => this.openFile(id));
+  }
+
+  async closeFolder(): Promise<void> {
+    if (!this.nodes.rootPath()) return;
+    if (!(await this.workspaceState.prepareProjectSwitch())) return;
+    if (!(await this.closeAll())) {
+      this.workspaceState.cancelProjectSwitch();
+      return;
+    }
+    this.nodes.closeFolder();
+  }
+
+  async newWindow(path?: string): Promise<void> {
+    await this.projectHistory.openInNewWindow(path);
   }
 
   /** Refreshing gives every node a new id, so the open tabs would be lost: ask about them first. */

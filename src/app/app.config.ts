@@ -16,6 +16,7 @@ import { SettingsService } from './feature/setting/settings.service';
 import { SettingsRuntimeService } from './core/services/settings-runtime.service';
 import { WorkSyncService } from './core/services/tauri/work-sync.service';
 import { WorkspaceStateService } from './core/services/workspace-state.service';
+import { ProjectStartupService } from './core/services/project-startup.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -29,11 +30,12 @@ export const appConfig: ApplicationConfig = {
         _settingsRuntime = inject(SettingsRuntimeService),
         _workSync = inject(WorkSyncService),
         _workspaceState = inject(WorkspaceStateService),
+        projectStartup = inject(ProjectStartupService),
       ) => {
         registerAppCommands();
         keybinding.init();
         gitAskpassService.init();
-        return settings.load();
+        return settings.load().then(() => projectStartup.initialize());
       },
     ),
     provideEnvironmentInitializer(async () => {

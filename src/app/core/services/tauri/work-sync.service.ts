@@ -13,6 +13,7 @@ import { ProposalNotifier } from '../proposals/proposal-notifier.service';
 import type { RunFinishedEvent } from '../../../shared/models/agent.model';
 import { RunService } from '../runs/run.service';
 import { WorkflowService } from '../runs/workflow.service';
+import { ProjectHistoryService } from '../project-history.service';
 
 export function refreshFinishedRun(
   event: RunFinishedEvent,
@@ -37,6 +38,7 @@ export class WorkSyncService {
   private readonly proposalNotifier = inject(ProposalNotifier);
   private readonly runService = inject(RunService);
   private readonly workflowService = inject(WorkflowService);
+  private readonly projectHistory = inject(ProjectHistoryService);
   private currentPath: string | null = null;
   private currentLoad: Promise<boolean> = Promise.resolve(false);
   constructor() {
@@ -92,9 +94,11 @@ export class WorkSyncService {
       await eventsReady;
       if (!path) {
         await this.api.projectClose();
+        await this.projectHistory.refresh();
         return true;
       }
       await this.api.projectOpen(path);
+      await this.projectHistory.refresh();
       await Promise.all([this.taskService.refresh(), this.noteService.refresh()]);
       void Promise.all([
         this.proposals.refresh(),

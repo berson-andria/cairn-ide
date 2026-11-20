@@ -10,15 +10,15 @@
       type="button"
       aria-label="Cairn menu"
       [appMenu]="main_menu"
-      [menuPosition]="['left', 'bottom']"
+      [menuPosition]="'bottom left'"
     >
       <ng-icon name="lucideTextAlignJustify" />
     </button>
     <ng-template #main_menu>
       <div class="menu actions-menu" role="menu">
         <div class="menu-item-group">
-          <button class="menu-item" role="menuitem">
-            New Windows <span class="chip">Ctrl + Shift + N</span>
+          <button class="menu-item" role="menuitem" (click)="commands.newWindow()">
+            New Window <span class="chip">Ctrl + Shift + N</span>
           </button>
           <button class="menu-item" role="menuitem">
             New Task <span class="chip">Ctrl + Alt + T</span>
@@ -37,17 +37,32 @@
           <button
             class="menu-item menu-accordion-btn"
             [appMenu]="history"
-            [menuPosition]="['right', 'center']"
-            [disabled]="true"
+            [menuPosition]="'bottom right'"
+            [disabled]="projectHistory.history().projects.length === 0"
           >
             <span>Open Recent</span> <ng-icon name="lucideChevronRight" />
           </button>
           <ng-template #history>
             <div class="menu">
               <div class="menu-item-group">
-                <!-- <button class="menu-item" role="menuitem">Commit</button>
-                <button class="menu-item" role="menuitem">Commit Staged</button>
-                <button class="menu-item" role="menuitem">Commit All</button> -->
+                @for (project of projectHistory.history().projects; track project.path) {
+                  <button
+                    class="menu-item"
+                    role="menuitem"
+                    [disabled]="project.missing"
+                    (click)="openRecent(project.path)"
+                  >
+                    {{ project.path }}
+                    @if (project.missing) {
+                      <span class="chip">Missing</span>
+                    }
+                  </button>
+                }
+              </div>
+              <div class="menu-item-group">
+                <button class="menu-item" role="menuitem" (click)="projectHistory.clear()">
+                  Clear Recent Projects
+                </button>
               </div>
             </div>
           </ng-template>
@@ -64,7 +79,9 @@
           </button>
         </div>
         <div class="menu-item-group">
-          <button class="menu-item" role="menuitem">Close Folder</button>
+          <button class="menu-item" role="menuitem" (click)="commands.closeFolder()">
+            Close Folder
+          </button>
           <button class="menu-item" role="menuitem">
             Setting <span class="chip" (click)="layoutService.openSettingDialog()">Ctrl + ,</span>
           </button>
@@ -132,7 +149,7 @@
         aria-label="Chat list"
         title="Chat list"
         [appMenu]="chatMenu"
-        [menuPosition]="['right', 'bottom']"
+        [menuPosition]="'bottom right'"
       >
         <ng-icon name="lucideChevronDown" />
       </button>

@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
 import { NodeStore } from '../../../core/store/node.store';
+import { ProjectHistoryService } from '../../../core/services/project-history.service';
 
 @Component({
   selector: 'no-folder',
@@ -14,22 +15,35 @@ import { NodeStore } from '../../../core/store/node.store';
             travel with your git history.
           </div>
           <div style="display:flex;gap:10px">
-            <button class="btn-primary" (click)="commands.openFolder()">Open Folder</button
-            ><button class="btn-primary" (click)="openFile()">Open File</button
-            ><button class="btn-primary">New Window</button>
+            <button class="btn-primary" (click)="commands.openFolder()">Open Folder</button>
+            <button class="btn-primary" (click)="openFile()">Open File</button>
+            <button class="btn-primary" (click)="commands.newWindow()">New Window</button>
           </div>
-          <div class="s" style="letter-spacing:.08em;text-transform:uppercase;margin:34px 0 4px">
-            Recent
-          </div>
-          <div class="action-list">
-            <span>auth-client</span><span class="s">~/dev/auth-client</span>
-          </div>
-          <div class="action-list">
-            <span>cairn-ide</span><span class="s">~/dev/cairn-ide</span>
-          </div>
-          <div class="action-list">
-            <span>portfolio-site</span><span class="s">~/dev/portfolio-site</span>
-          </div>
+          @if (history.history().projects.length) {
+            <div class="s" style="letter-spacing:.08em;text-transform:uppercase;margin:34px 0 4px">
+              Recent
+              <button class="s" type="button" (click)="history.clear()">Clear</button>
+            </div>
+            @for (project of history.history().projects; track project.path) {
+              <div class="action-list">
+                <button type="button" [disabled]="project.missing" (click)="openRecent(project.path)">
+                  {{ project.name }} @if (project.missing) { <span class="s">(Missing)</span> }
+                </button>
+                <span class="s">{{ project.path }}</span>
+                <button
+                  type="button"
+                  [disabled]="project.missing"
+                  [attr.aria-label]="'Open ' + project.name + ' in new window'"
+                  (click)="commands.newWindow(project.path)"
+                >New window</button>
+                <button
+                  type="button"
+                  [attr.aria-label]="'Remove ' + project.name + ' from history'"
+                  (click)="history.remove(project.path)"
+                >Remove</button>
+              </div>
+            }
+          }
         </div>
       </div>
     </div>
@@ -48,6 +62,11 @@ import { NodeStore } from '../../../core/store/node.store';
 export class NoFolderOpen {
   readonly commands = inject(EditorCommands);
   readonly nodeStore = inject(NodeStore);
+  readonly history = inject(ProjectHistoryService);
+
+  openRecent(path: string): void {
+    void this.commands.openProject(path);
+  }
 
   async openFile() {
     const files = await this.nodeStore.addStandaloneFiles();

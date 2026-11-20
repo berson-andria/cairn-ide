@@ -13,9 +13,45 @@ import {
   signal,
 } from '@angular/core';
 
-export type MenuX = 'left' | 'right';
-export type MenuY = 'top' | 'bottom' | 'center';
-export type MenuPosition = readonly [x: MenuX, y: MenuY];
+export type MenuPosition =
+  | 'top'
+  | 'bottom'
+  | 'top left'
+  | 'top right'
+  | 'bottom left'
+  | 'bottom right'
+  | 'center left'
+  | 'center right'
+  | 'left' // alias of 'center left'
+  | 'right'; // alias of 'center right'
+
+type Side = 'top' | 'bottom' | 'left' | 'right';
+type Align = 'start' | 'center' | 'end';
+interface Placement {
+  side: Side;
+  align: Align;
+}
+
+/** Maps every public position to a side of the host + an alignment along that side. */
+const PLACEMENTS: Record<MenuPosition, Placement> = {
+  top: { side: 'top', align: 'center' },
+  bottom: { side: 'bottom', align: 'center' },
+  'top left': { side: 'top', align: 'start' },
+  'top right': { side: 'top', align: 'end' },
+  'bottom left': { side: 'bottom', align: 'start' },
+  'bottom right': { side: 'bottom', align: 'end' },
+  'center left': { side: 'left', align: 'center' },
+  left: { side: 'left', align: 'center' },
+  'center right': { side: 'right', align: 'center' },
+  right: { side: 'right', align: 'center' },
+};
+
+const OPPOSITE_SIDE: Record<Side, Side> = {
+  top: 'bottom',
+  bottom: 'top',
+  left: 'right',
+  right: 'left',
+};
 
 const PANEL_CLASS = 'app-menu-panel';
 /** Open panel → its directive, so a child menu can be found from its panel. */
@@ -29,20 +65,19 @@ const VIEWPORT_MARGIN = 8;
 /**
  * Turns any element into a menu trigger.
  *
- *   <button [appMenu]="menu" [menuPosition]="['right', 'bottom']">Open</button>
+ *   <button [appMenu]="menu" menuPosition="bottom right">Open</button>
  *   <ng-template #menu> ... </ng-template>
  *
- * Position = [x, y]
- *  - y 'bottom' / 'top': the menu opens below / above the container.
- *      x 'left'  -> menu's left edge lines up with the container's left edge.
- *      x 'right' -> menu's right edge lines up with the container's right edge.
- *  - y 'center': the menu opens beside the container, vertically centred.
- *      x 'left'  -> menu sits on the left of the container.
- *      x 'right' -> menu sits on the right of the container.
+ * Positions
+ *  - 'bottom' / 'top'            below / above the container, horizontally centred.
+ *  - 'bottom left' / 'top left'  below / above, menu's left edge on the container's left edge.
+ *  - 'bottom right' / 'top right' below / above, menu's right edge on the container's right edge.
+ *  - 'center left'  ('left')     beside the container on its left, vertically centred.
+ *  - 'center right' ('right')    beside the container on its right, vertically centred.
  *
  * Position is a preference, not a rule: if the menu would leave the viewport,
- * it flips to the opposite side on the same axis (left<->right, top<->bottom),
- * as long as the opposite side actually fits.
+ * it flips to the opposite side (top<->bottom, left<->right) or, for edge-aligned
+ * menus, to the opposite alignment (left<->right), as long as that actually fits.
  */
 @Directive({
   selector: '[appMenu]',
@@ -59,8 +94,8 @@ export class MenuDirective {
   /** The menu content: a template reference. */
   readonly content = input.required<TemplateRef<unknown>>({ alias: 'appMenu' });
 
-  /** [x, y]. Defaults to below the container, aligned to its left edge. */
-  readonly position = input<MenuPosition>(['left', 'bottom'], { alias: 'menuPosition' });
+  /** Defaults to below the container, aligned to its left edge. */
+  readonly position = input<MenuPosition>('bottom left', { alias: 'menuPosition' });
 
   /** Gap between the container and the menu (px). */
   readonly offset = input(4, { alias: 'menuOffset' });
@@ -217,36 +252,51 @@ export class MenuDirective {
     const fitsY = (top: number) =>
       top >= VIEWPORT_MARGIN && top + menu.height <= vh - VIEWPORT_MARGIN;
 
-    const place = (x: MenuX, y: MenuY) => {
-      if (y === 'center') {
+    const place = (side: Side, align: Align) => {
+      if (side === 'top' || side === 'bottom') {
         return {
-          left: x === 'left' ? host.left - menu.width - gap : host.right + gap,
-          top: host.top + host.height / 2 - menu.height / 2,
+          top: side === 'bottom' ? host.bottom + gap : host.top - menu.height - gap,
+          left:
+            align === 'start'
+              ? host.left
+              : align === 'end'
+                ? host.right - menu.width
+                : host.left + host.width / 2 - menu.width / 2,
         };
       }
       return {
-        left: x === 'left' ? host.left : host.right - menu.width,
-        top: y === 'bottom' ? host.bottom + gap : host.top - menu.height - gap,
+        left: side === 'left' ? host.left - menu.width - gap : host.right + gap,
+        top: host.top + host.height / 2 - menu.height / 2,
       };
     };
 
-    let [x, y] = this.position();
-    let pos = place(x, y);
+    let { side, align } = PLACEMENTS[this.position()] ?? PLACEMENTS['bottom left'];
+    let pos = place(side, align);
 
-    // Vertical axis: flip top <-> bottom if it doesn't fit (not applicable to 'center').
-    if (y !== 'center' && !fitsY(pos.top)) {
-      const flipped = place(x, y === 'top' ? 'bottom' : 'top');
-      if (fitsY(flipped.top)) {
-        y = y === 'top' ? 'bottom' : 'top';
-        pos = flipped;
+    if (side === 'top' || side === 'bottom') {
+      // Main axis (vertical): flip top <-> bottom if it doesn't fit.
+      if (!fitsY(pos.top)) {
+        const flipped = place(OPPOSITE_SIDE[side], align);
+        if (fitsY(flipped.top)) {
+          side = OPPOSITE_SIDE[side];
+          pos = flipped;
+        }
       }
-    }
-
-    // Horizontal axis: flip left <-> right if it doesn't fit.
-    if (!fitsX(pos.left)) {
-      const flipped = place(x === 'left' ? 'right' : 'left', y);
+      // Cross axis (horizontal): flip start <-> end if it doesn't fit.
+      // A centred menu has nothing to flip; it is clamped below.
+      if (align !== 'center' && !fitsX(pos.left)) {
+        const flippedAlign: Align = align === 'start' ? 'end' : 'start';
+        const flipped = place(side, flippedAlign);
+        if (fitsX(flipped.left)) {
+          align = flippedAlign;
+          pos = flipped;
+        }
+      }
+    } else if (!fitsX(pos.left)) {
+      // Main axis (horizontal): flip left <-> right if it doesn't fit.
+      const flipped = place(OPPOSITE_SIDE[side], align);
       if (fitsX(flipped.left)) {
-        x = x === 'left' ? 'right' : 'left';
+        side = OPPOSITE_SIDE[side];
         pos = flipped;
       }
     }
@@ -263,6 +313,6 @@ export class MenuDirective {
 
     this.renderer.setStyle(panel, 'left', `${left}px`);
     this.renderer.setStyle(panel, 'top', `${top}px`);
-    this.renderer.setAttribute(panel, 'data-position', `${x}-${y}`);
+    this.renderer.setAttribute(panel, 'data-position', `${side}-${align}`);
   }
 }
