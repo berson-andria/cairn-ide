@@ -14,6 +14,8 @@ Last updated: 2026-11-21
 │   ├── codemaps/
 │   │   ├── codemap.md
 │   │   └── project-apis.md
+│   ├── explorers/
+│   │   └── explorer.md
 │   ├── gits/
 │   │   └── git.md
 │   ├── lsps/
@@ -464,7 +466,7 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | LSP | - | - | `src-tauri/src/commands/lsp.rs` | `src/app/core/services/lsp/lsp-bridge.service.ts` | `src/app/core/services/lsp/lsp-monitor.service.ts` | `src/app/core/services/lsp/lsp-manager.service.ts`<br>`src/app/core/services/lsp/lsp-client.ts` | `docs/lsps/lsp.md` |
 | Terminal | - | - | `src-tauri/src/commands/pty.rs` | `src/app/feature/terminal/terminal.service.ts` | - | - | `docs/terminals/terminal.md` |
 | Search | `src-tauri/src/types/search.rs` | - | `src-tauri/src/commands/search.rs` | `src/app/feature/search/search.service.ts` | - | - | `docs/searchs/search.md` |
-| Explorer and nodes | `src-tauri/src/types/workspace_node.rs` | `src-tauri/src/services/fs.rs` | `src-tauri/src/commands/fs.rs` | `src/app/core/services/file-system/file-system.service.ts` | `src/app/core/store/node.store.ts` | - | `docs/codemaps/project-apis.md#watcher-fs` |
+| Explorer and nodes | `src-tauri/src/types/workspace_node.rs` | `src-tauri/src/services/fs.rs` | `src-tauri/src/commands/fs.rs` | `src/app/core/services/file-system/file-system.service.ts` | `src/app/core/store/node.store.ts` | - | `docs/explorers/explorer.md` |
 | Tabs and editor | - | - | - | - | `src/app/core/store/tab.store.ts` | `src/app/feature/editor/editor.commands.ts`<br>`src/app/feature/editor/services/editor.service.ts`<br>`src/app/feature/editor/services/model-source.service.ts` | - |
 | Diagnostics | - | - | `src-tauri/src/commands/diagnostics.rs` | `src/app/core/services/diagnostics.service.ts` | - | - | `docs/model.md` |
 | Anything else | - | - | - | `src/app/core/services/tauri/tauri-bridge.service.ts` | - | `src/app/core/services/close-handler.service.ts`<br>`src/app/core/services/command/command.service.ts`<br>`src/app/core/services/command/keybinding.service.ts`<br>`src/app/core/services/dialog/dialog.service.ts`<br>`src/app/core/services/layout.service.ts`<br>`src/app/core/services/message.service.ts`<br>`src/app/core/services/monitoring.service.ts`<br>`src/app/core/services/notification/notification.service.ts`<br>`src/app/core/services/persistance.service.ts`<br>`src/app/core/services/replace.service.ts`<br>`src/app/core/services/tauri/tauri-boot.service.ts`<br>`src/app/core/services/tauri/work-sync.service.ts`<br>`src/app/feature/chat/chat.service.ts`<br>`src/app/feature/output/output.service.ts` | - |
@@ -479,6 +481,8 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | `src-tauri/src/commands/project.rs:63` | `project_open` cancels runs and records app-data history in the command boundary. | Project/run/history services, with the command reduced to argument/result plumbing. |
 | `src-tauri/src/commands/project.rs:95` | `project_close` cancels runs and clears the last-project marker in app data. | Project/run/history services, with the command reduced to argument/result plumbing. |
 | `src-tauri/src/commands/codemap.rs:94-106` | `codemap_install_languages` sequences parser installation and code-map re-indexing. | A `CodeMapService` operation, leaving the command as argument/result plumbing. |
+| `src-tauri/src/commands/fs.rs:103-169` | `workspace_search` performs walking, exclusion, cancellation, file scanning, and channel output in the command boundary. | Rust filesystem/search service; command should only validate args and delegate. |
+| `src/app/feature/explorer/node/node-dnd.directive.ts:126-143` | Drag/drop target validation is duplicated in static directive helpers. | `NodeStore` move/copy policy; the directive should collect UI events only. |
 | `src-tauri/src/commands/git.rs:67-208` | Git allowlist validation, timeout handling, pipe draining, and child-process polling live in command modules. | A Rust Git process/service module, leaving the command as argument/result plumbing. |
 | `src-tauri/src/commands/askpass.rs:38-127` | Askpass listener, pending-request registry, timeout, and event emission live in the command module. | A Rust Git/askpass service, leaving the command as argument/result plumbing. |
 | `src-tauri/src/commands/pty.rs:53-146` | `pty_spawn` mixes argument plumbing with PTY creation, shell setup, session registration, output pumping, and exit waiting. | A Rust terminal/PTY service should own the lifecycle; commands should dispatch and return. |
