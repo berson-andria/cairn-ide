@@ -1,5 +1,6 @@
 use crate::{
     services::{
+        models::{ChatMessage, ModelBroker, ModelCompletion},
         project::ProjectServices,
         service_error::{
             now_ms, Actor, ChangeEvent, EventSink, RunOutcome, ServiceError, ServiceErrorCode,
@@ -152,12 +153,52 @@ pub struct RpcContext {
     pub sink: Arc<dyn EventSink>,
     pub version_mismatch: Arc<AtomicBool>,
     pub trace_path: PathBuf,
+    pub models: Arc<ModelBroker>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ModelCompleteParams {
+    model: Option<String>,
+    messages: Vec<ChatMessage>,
+    max_tokens: Option<u64>,
+    temperature: Option<f64>,
+    stop: Option<Value>,
+    #[serde(default, rename = "json")]
+    json_mode: bool,
 }
 
 pub fn dispatch(ctx: &RpcContext, request: RpcRequest) -> Value {
     let id = request.id.clone();
     let response = match request.method.as_str() {
         "hello" => dispatch_hello(ctx, &request.params),
+        "models.list" => empty_params(&request.params).map(|()| json!(ctx.models.list())),
+        "models.complete" => serde_json::from_value::<ModelCompleteParams>(request.params.clone())
+            .map_err(|error| invalid_params(error.to_string()))
+            .and_then(|params| {
+                if let Some(stop) = params.stop.as_ref() {
+                    let valid_stop = stop.is_string()
+                        || stop
+                            .as_array()
+                            .is_some_and(|items| items.iter().all(Value::is_string));
+                    if !valid_stop {
+                        return Err(invalid_params(
+                            "'stop' must be a string or an array of strings",
+                        ));
+                    }
+                }
+                ctx.models
+                    .complete(
+                        params.model.as_deref(),
+                        &params.messages,
+                        params.max_tokens,
+                        params.temperature,
+                        params.stop,
+                        params.json_mode,
+                    )
+                    .and_then(serialize_model_completion)
+                    .map_err(domain_error)
+            }),
         "run.context" => empty_params(&request.params).and_then(|()| {
             let task = ctx.project.tasks.get(&ctx.task_id).map_err(domain_error)?;
             let attempt = task
@@ -715,19 +756,39 @@ pub fn handle_line(ctx: &RpcContext, line: &str) -> Value {
     let started = Instant::now();
     let parsed = parse_request(line);
     let method = parsed.as_ref().ok().map(|request| request.method.clone());
+    let model = parsed
+        .as_ref()
+        .ok()
+        .filter(|request| request.method == "models.complete")
+        .and_then(|request| {
+            request
+                .params
+                .get("model")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+                .or_else(|| ctx.models.registry.default_model.clone())
+        });
+    let model = model.filter(|id| ctx.models.registry.model(id).is_some());
     let response = parsed
         .map(|request| dispatch(ctx, request))
         .unwrap_or_else(|error| error);
     append_trace(
         &ctx.trace_path,
         method.as_deref(),
+        model.as_deref(),
         &response,
         started.elapsed().as_millis() as u64,
     );
     response
 }
 
-pub fn append_trace(path: &Path, method: Option<&str>, response: &Value, ms: u64) {
+pub fn append_trace(
+    path: &Path,
+    method: Option<&str>,
+    model: Option<&str>,
+    response: &Value,
+    ms: u64,
+) {
     if let Some(parent) = path.parent() {
         if let Err(error) = fs::create_dir_all(parent) {
             tauri_plugin_log::log::error!("Could not create run trace directory: {error}");
@@ -738,9 +799,21 @@ pub fn append_trace(path: &Path, method: Option<&str>, response: &Value, ms: u64
     let mut entry = json!({
         "t":crate::services::service_error::now_ms(),
         "method":method,
+        "model":model,
         "ok":error.is_none(),
         "ms":ms
     });
+    if let Some(usage) = response
+        .get("result")
+        .and_then(|result| result.get("usage"))
+    {
+        if let Some(prompt_tokens) = usage.get("promptTokens") {
+            entry["promptTokens"] = prompt_tokens.clone();
+        }
+        if let Some(completion_tokens) = usage.get("completionTokens") {
+            entry["completionTokens"] = completion_tokens.clone();
+        }
+    }
     if let Some(error) = error {
         entry["error"] = error.clone();
     }
@@ -777,11 +850,20 @@ pub fn append_trace(path: &Path, method: Option<&str>, response: &Value, ms: u64
     }
 }
 
+fn serialize_model_completion(completion: ModelCompletion) -> Result<Value, ServiceError> {
+    serde_json::to_value(completion)
+        .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         services::{
+            models::{
+                ModelBroker, ModelCallControl, ModelEntry, OpenAiCompatible, Registry,
+                SecretProvider,
+            },
             project::ProjectState,
             service_error::{NoopSink, RecordingSink},
         },
@@ -792,8 +874,11 @@ mod tests {
     };
     use std::{
         io::{BufRead, BufReader, Read, Write},
+        net::TcpListener,
         process::Command,
         sync::Mutex,
+        thread,
+        time::Duration,
     };
     use tempfile::tempdir;
 
@@ -837,16 +922,31 @@ mod tests {
             project: project_state.services().unwrap(),
             finish: Arc::new(Mutex::new(None)),
             record: Arc::new(Mutex::new(record)),
-            run_directory,
+            run_directory: run_directory.clone(),
             sink: Arc::new(sink.clone()),
             version_mismatch: Arc::new(AtomicBool::new(false)),
-            trace_path: directory_path_placeholder(),
+            trace_path: run_directory.join("trace.jsonl"),
+            models: Arc::new(ModelBroker::with_default_client(
+                Arc::new(Registry::default()),
+                Arc::new(ModelCallControl::default()),
+                run_directory.clone(),
+            )),
         };
         (directory, context, sink)
     }
 
-    fn directory_path_placeholder() -> PathBuf {
-        std::env::temp_dir().join(format!("cairn-rpc-{}.jsonl", uuid::Uuid::new_v4()))
+    fn context_with_registry(registry: Registry) -> (tempfile::TempDir, RpcContext) {
+        let (directory, context, _) = context_with_sink();
+        let run_directory = context.run_directory.clone();
+        let context = RpcContext {
+            models: Arc::new(ModelBroker::with_default_client(
+                Arc::new(registry),
+                Arc::new(ModelCallControl::default()),
+                run_directory,
+            )),
+            ..context
+        };
+        (directory, context)
     }
 
     #[test]
@@ -900,6 +1000,8 @@ mod tests {
             "notes.get",
             "notes.for_task",
             "run.finish",
+            "models.list",
+            "models.complete",
         ];
         for method in allowed {
             let params = if method == "hello" {
@@ -920,6 +1022,8 @@ mod tests {
                 json!({"subtaskId":"missing"})
             } else if method == "step.finish" {
                 json!({"subtaskId":"missing","outcome":"failed"})
+            } else if method == "models.complete" {
+                json!({"messages":[{"role":"user","content":"test"}]})
             } else {
                 json!({})
             };
@@ -961,6 +1065,141 @@ mod tests {
             -32602
         );
         assert!(ctx.version_mismatch.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn models_complete_rejects_contexts_that_exceed_the_registered_limit() {
+        let registry = Registry {
+            models: vec![ModelEntry {
+                id: "small".into(),
+                model_type: "api".into(),
+                context_limit: Some(3),
+                provider: None,
+                base_url: Some("http://127.0.0.1:1234".into()),
+                model_name: Some("small-model".into()),
+                api_key_ref: None,
+            }],
+            default_model: Some("small".into()),
+        };
+        let (_directory, ctx) = context_with_registry(registry);
+        let response = dispatch(
+            &ctx,
+            request(
+                1,
+                "models.complete",
+                json!({
+                    "messages":[{"role":"user","content":"abc"}],
+                    "maxTokens":3
+                }),
+            ),
+        );
+        assert_eq!(response["error"]["data"]["code"], "ContextTooLarge");
+        assert!(response["error"]["message"].as_str().unwrap().contains("4"));
+        assert!(response["error"]["message"].as_str().unwrap().contains("3"));
+    }
+
+    #[test]
+    fn models_list_exposes_no_endpoint_or_api_key_reference() {
+        let registry = Registry {
+            models: vec![ModelEntry {
+                id: "private".into(),
+                model_type: "api".into(),
+                context_limit: Some(4096),
+                provider: Some("custom".into()),
+                base_url: Some("https://private.example/v1".into()),
+                model_name: Some("remote".into()),
+                api_key_ref: Some("model:private".into()),
+            }],
+            default_model: Some("private".into()),
+        };
+        let (_directory, ctx) = context_with_registry(registry);
+        let response = dispatch(&ctx, request(1, "models.list", json!({})));
+        assert_eq!(
+            response["result"],
+            json!([{"id":"private","contextLimit":4096,"default":true}])
+        );
+        assert!(!response.to_string().contains("private.example"));
+        assert!(!response.to_string().contains("model:private"));
+    }
+
+    #[test]
+    fn models_complete_trace_and_call_files_never_contain_api_keys() {
+        struct TestSecret;
+
+        impl SecretProvider for TestSecret {
+            fn get(&self, _reference: &str) -> Result<String, String> {
+                Ok("rpc-test-secret".into())
+            }
+        }
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut request = Vec::new();
+            let mut byte = [0; 1];
+            while !request.ends_with(b"\r\n\r\n") {
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            let headers = String::from_utf8_lossy(&request).to_ascii_lowercase();
+            let content_length = headers
+                .lines()
+                .find_map(|line| line.strip_prefix("content-length:"))
+                .and_then(|value| value.trim().parse::<usize>().ok())
+                .unwrap();
+            let mut body = vec![0; content_length];
+            stream.read_exact(&mut body).unwrap();
+            request.extend(body);
+            let response_body = r#"{"choices":[{"message":{"content":"rpc-test-secret response"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":1}}"#;
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                response_body.len(),
+                response_body
+            )
+            .unwrap();
+            String::from_utf8_lossy(&request).into_owned()
+        });
+        let (directory, mut ctx) = context_with_registry(Registry::default());
+        let registry = Arc::new(Registry {
+            models: vec![ModelEntry {
+                id: "private".into(),
+                model_type: "api".into(),
+                context_limit: Some(4096),
+                provider: Some("custom".into()),
+                base_url: Some(format!("http://{address}")),
+                model_name: Some("remote".into()),
+                api_key_ref: Some("model:private".into()),
+            }],
+            default_model: Some("private".into()),
+        });
+        ctx.models = Arc::new(ModelBroker::new(
+            registry,
+            Arc::new(OpenAiCompatible::new(Arc::new(TestSecret))),
+            Arc::new(ModelCallControl::default()),
+            ctx.run_directory.clone(),
+        ));
+        let response = handle_line(
+            &ctx,
+            r#"{"jsonrpc":"2.0","id":1,"method":"models.complete","params":{"messages":[{"role":"user","content":"rpc-test-secret"}]}}"#,
+        );
+        let request = server.join().unwrap();
+        assert!(request
+            .to_ascii_lowercase()
+            .contains("authorization: bearer rpc-test-secret"));
+        assert!(!response.to_string().contains("rpc-test-secret"));
+        assert_eq!(response["result"]["usage"]["promptTokens"], 2);
+        let trace = fs::read_to_string(&ctx.trace_path).unwrap();
+        let call = fs::read_to_string(ctx.run_directory.join("calls/1.json")).unwrap();
+        assert!(!trace.contains("rpc-test-secret"));
+        assert!(!call.contains("rpc-test-secret"));
+        assert!(trace.contains("\"promptTokens\":2"));
+        assert!(call.contains("[REDACTED]"));
+        drop(directory);
     }
 
     #[test]
@@ -1496,6 +1735,11 @@ mod tests {
             sink: Arc::new(NoopSink),
             version_mismatch: Arc::new(AtomicBool::new(false)),
             trace_path: project.root.join(".cairn/runs/integration-run/trace.jsonl"),
+            models: Arc::new(ModelBroker::with_default_client(
+                Arc::new(Registry::default()),
+                Arc::new(ModelCallControl::default()),
+                project.root.join(".cairn/runs/integration-run"),
+            )),
         };
         let mut line = String::new();
         loop {
@@ -1607,6 +1851,11 @@ mod tests {
             sink: Arc::new(sink),
             version_mismatch: Arc::new(AtomicBool::new(false)),
             trace_path: run_directory.join("trace.jsonl"),
+            models: Arc::new(ModelBroker::with_default_client(
+                Arc::new(Registry::default()),
+                Arc::new(ModelCallControl::default()),
+                run_directory.clone(),
+            )),
         };
         let mut line = String::new();
         loop {
@@ -1695,12 +1944,17 @@ mod tests {
             project: project.clone(),
             finish: Arc::new(Mutex::new(None)),
             record: Arc::new(Mutex::new(retry_record)),
-            run_directory: retry_dir,
+            run_directory: retry_dir.clone(),
             sink: Arc::new(NoopSink),
             version_mismatch: Arc::new(AtomicBool::new(false)),
             trace_path: project
                 .root
                 .join(".cairn/runs/integration-retry/trace.jsonl"),
+            models: Arc::new(ModelBroker::with_default_client(
+                Arc::new(Registry::default()),
+                Arc::new(ModelCallControl::default()),
+                retry_dir.clone(),
+            )),
         };
         let result =
             dispatch(&retry_context, request(20, "run.context", json!({})))["result"].clone();
@@ -1713,5 +1967,107 @@ mod tests {
         );
         assert_eq!(result["previous"]["outcome"], "failed");
         assert_eq!(retry_task.status, TaskStatus::Running);
+    }
+
+    #[test]
+    #[ignore = "requires uv and Python"]
+    fn ask_example_runs_through_uv_against_fake_model_server() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut request = Vec::new();
+            let mut byte = [0; 1];
+            while !request.ends_with(b"\r\n\r\n") {
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            let headers = String::from_utf8_lossy(&request).to_ascii_lowercase();
+            let content_length = headers
+                .lines()
+                .find_map(|line| line.strip_prefix("content-length:"))
+                .and_then(|value| value.trim().parse::<usize>().ok())
+                .unwrap();
+            let mut body = vec![0; content_length];
+            stream.read_exact(&mut body).unwrap();
+            request.extend(body);
+            let response_body = r#"{"choices":[{"message":{"content":"Hello from the test server."},"finish_reason":"stop"}],"usage":{"prompt_tokens":8,"completion_tokens":6}}"#;
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                response_body.len(),
+                response_body
+            )
+            .unwrap();
+            String::from_utf8_lossy(&request).into_owned()
+        });
+        let (directory, mut context) = context_with_registry(Registry::default());
+        context.models = Arc::new(ModelBroker::with_default_client(
+            Arc::new(Registry {
+                models: vec![ModelEntry {
+                    id: "fake".into(),
+                    model_type: "api".into(),
+                    context_limit: Some(4096),
+                    provider: Some("custom".into()),
+                    base_url: Some(format!("http://{address}")),
+                    model_name: Some("fake-model".into()),
+                    api_key_ref: None,
+                }],
+                default_model: Some("fake".into()),
+            }),
+            Arc::new(ModelCallControl::default()),
+            context.run_directory.clone(),
+        ));
+        let sdk_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("sdk")
+            .join("python");
+        let script = sdk_dir.join("examples").join("ask.py");
+        let mut child = Command::new("uv")
+            .arg("run")
+            .arg("--script")
+            .arg(&script)
+            .current_dir(&context.project.root)
+            .env("PYTHONPATH", &sdk_dir)
+            .env("CAIRN_RUN_ID", "run-id")
+            .env("CAIRN_API_VERSION", "1")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("uv must be installed to run the ignored integration test");
+        let mut reader = BufReader::new(child.stdout.take().unwrap());
+        let mut input = child.stdin.take().unwrap();
+        let mut line = String::new();
+        loop {
+            line.clear();
+            if reader.read_line(&mut line).unwrap() == 0 {
+                break;
+            }
+            let response = handle_line(&context, line.trim_end());
+            serde_json::to_writer(&mut input, &response).unwrap();
+            input.write_all(b"\n").unwrap();
+            input.flush().unwrap();
+        }
+        drop(input);
+        let status = child.wait().unwrap();
+        let mut stderr = String::new();
+        child
+            .stderr
+            .take()
+            .unwrap()
+            .read_to_string(&mut stderr)
+            .unwrap();
+        let request = server.join().unwrap();
+        assert!(status.success(), "ask.py failed: {stderr}");
+        assert!(request.starts_with("POST /chat/completions"));
+        assert_eq!(
+            context.finish.lock().unwrap().as_ref().unwrap().outcome,
+            RunOutcome::NeedsReview
+        );
+        drop(directory);
     }
 }

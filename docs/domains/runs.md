@@ -39,6 +39,10 @@ omitted, the name `default` is used. Workflows are resolved by name (without
 the `.py` extension) from `.cairn/workflows/<name>.py` in the project first,
 then from the global `cairn/workflows/<name>.py` directory under the platform
 config directory. Names must match `[A-Za-z0-9_-]{1,64}`.
+At run start, Rust reads the user's app-data `settings.json` once and snapshots
+the model registry/default into that run. Missing or malformed settings are
+logged and give the run an empty registry; later settings edits do not affect
+an active run.
 
 Project workflows require approval of the SHA-256 hash of the entire
 `.cairn/workflows` folder. The hash includes every regular file, sorted by
@@ -63,6 +67,8 @@ The first SDK call automatically performs the `hello` handshake. API version
 | Method | Parameters | Result |
 |---|---|---|
 | `hello` | `{ "apiVersion": 1 }` | `{ "apiVersion": 1 }` |
+| `models.list` | `{}` | `{ "id", "contextLimit"?, "default" }[]`; never includes endpoints or key references |
+| `models.complete` | `{ "model"?, "messages", "maxTokens"?, "temperature"?, "stop"?, "json"? }` | `{ "text", "finishReason"?, "usage": { "promptTokens"?, "completionTokens"? }, "model", "ms" }` |
 | `run.context` | `{}` | `{ "runId", "taskId", "workflow", "attempt", "resume", "previous"? }` |
 | `tasks.get` | `{ "id": string }` | one camelCase task record |
 | `tasks.list` | `{}` | array of camelCase task records |
@@ -75,6 +81,19 @@ The first SDK call automatically performs the `hello` handshake. API version
 | `run.finish` | `{ "outcome": "needs_review" \| "failed", "summary"?: string, "reason"?: string }` | `null` |
 | `step.start` | `{ "subtaskId": string }` | `null` |
 | `step.finish` | `{ "subtaskId": string, "outcome": "needs_review" \| "failed", "summary"?: string, "reason"?: string }` | `null` |
+
+`models.complete` accepts at most 100 messages and 1,000,000 message-content
+characters. Roles are `system`, `user`, or `assistant`. If `model` is omitted,
+the snapshotted default is used; without one, the call returns `Validation`.
+When the selected model has a context limit, Rust estimates input tokens as
+characters divided by three and adds `maxTokens`; exceeding the limit returns
+`ContextTooLarge` with both values. Calls within a run are serialized.
+
+The provider is OpenAI-compatible and non-streaming. Rust posts to
+`{baseUrl}/chat/completions`; the API key is loaded from the OS keychain only
+when the registry entry has `apiKeyRef`. Entries without an endpoint return
+`ModelUnavailable` with guidance to register the server as an API model. The
+IDE does not spawn a model process.
 
 `run.context.attempt` is the current run id's 1-based position in the task's
 `runs` history. It is `1` when the history is absent or does not contain that
@@ -122,8 +141,11 @@ data:
 ```
 
 Service codes include `NotFound`, `StaleRev`, `InvalidTransition`, `Forbidden`,
-`Validation`, `RunActive`, `TrustRequired`, `RuntimeUnavailable`, and
-`WorkflowNotFound`. A `hello` version mismatch returns an invalid-parameters
+`Validation`, `RunActive`, `TrustRequired`, `RuntimeUnavailable`,
+`WorkflowNotFound`, `ModelUnavailable`, `ModelError`, and `ContextTooLarge`.
+Network refusal, DNS, and timeout errors name only the endpoint host and port.
+HTTP errors include the status and at most 300 body characters after key-like
+text is redacted. A `hello` version mismatch returns an invalid-parameters
 error, then terminates the child and fails the run with reason
 `SDK API version mismatch`.
 
@@ -166,7 +188,8 @@ Run data is stored under `.cairn/runs/<runId>/`:
 |---|---|
 | `run.json` | run id, task id, workflow, source, hash (project workflows folder hash; global workflow file hash), start/end timestamps, outcome, reason, summary, and ordered `steps` |
 | `run.log` | workflow stderr and redirected `print()` output, capped at 5 MB |
-| `trace.jsonl` | one timing/success/error record per RPC call, capped at 5 MB |
+| `trace.jsonl` | per-RPC timing/success/error; model calls also include model id and token usage; capped at 5 MB |
+| `calls/<n>.json` | model messages and response text, capped at 1 MB per file and 20 MB per run; no headers or keys |
 
 ### Exit and status rules
 
@@ -433,12 +456,17 @@ The stdlib-only SDK is imported from `cairn`. It performs the `hello` handshake 
 
 | Namespace | Methods |
 |---|---|
+| `models` | `list()`, `complete(messages, model=None, max_tokens=None, temperature=None, stop=None, json=False)` |
 | `tasks` | `get(task_id)`, `list()`, `propose(...)`, `propose_batch(items, source_task_id=None, presentation="notify")`, `propose_subtasks(task_id, items, presentation="notify")` |
 | `proposals` | `list()` |
 | `notes` | `get(note_id)`, `for_task(task_id)` |
 | `run` | `context()`, `pending_steps()`, `step_start(subtask_id)`, `step_finish(subtask_id, outcome, summary=None, reason=None)`, `step(subtask_id)`, `finish(outcome, summary=None, reason=None)` |
 
 Examples below are the SDK workflows shipped in `sdk/python/examples/`.
+
+`models.complete()` returns a response object with `.text`, `.finish_reason`,
+and `.usage` (a dictionary containing optional prompt/completion token counts).
+See [ask.py](../../sdk/python/examples/ask.py) for a minimal request.
 
 #### Read task and notes, then finish
 

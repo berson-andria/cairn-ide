@@ -21,6 +21,9 @@ pub enum ServiceErrorCode {
     TrustRequired,
     RuntimeUnavailable,
     WorkflowNotFound,
+    ModelUnavailable,
+    ModelError,
+    ContextTooLarge,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,5 +1,6 @@
 import json
 import sys
+from dataclasses import dataclass
 
 API_VERSION = 1
 
@@ -58,6 +59,15 @@ def call(method, params=None):
     if method == "hello":
         _hello_complete = True
     return result
+
+
+@dataclass(frozen=True)
+class ModelResponse:
+    text: str
+    finish_reason: str | None
+    usage: dict
+    model: str
+    ms: int
 
 
 class _Tasks:
@@ -160,6 +170,41 @@ class _Run:
         return call("run.finish", params)
 
 
+class _Models:
+    @staticmethod
+    def list():
+        return call("models.list")
+
+    @staticmethod
+    def complete(
+        messages,
+        model=None,
+        max_tokens=None,
+        temperature=None,
+        stop=None,
+        json=False,
+    ):
+        params = {"messages": messages}
+        optional = {
+            "model": model,
+            "maxTokens": max_tokens,
+            "temperature": temperature,
+            "stop": stop,
+        }
+        params.update({key: value for key, value in optional.items() if value is not None})
+        if json:
+            params["json"] = True
+        result = call("models.complete", params)
+        usage = result.get("usage") or {}
+        return ModelResponse(
+            text=result["text"],
+            finish_reason=result.get("finishReason"),
+            usage=usage,
+            model=result["model"],
+            ms=result["ms"],
+        )
+
+
 class _Step:
     def __init__(self, subtask_id):
         self.subtask_id = subtask_id
@@ -185,3 +230,4 @@ tasks = _Tasks()
 proposals = _Proposals()
 notes = _Notes()
 run = _Run()
+models = _Models()

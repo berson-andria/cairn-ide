@@ -4,7 +4,8 @@
 
 Angular owns model configuration and writes the `models.registry` and
 `models.defaultModel` settings through `SettingsService`; Rust owns API secrets
-in the OS keychain and owns the local-model diagnostic process.
+in the OS keychain, the read-only run model broker, and the local-model
+diagnostic process.
 Angular also owns in-memory editor/build diagnostics in `DiagnosticsService`.
 See [settings registry](../../src/app/feature/setting/settings.registry.ts:262),
 [ModelsSettings](../../src/app/feature/setting/model-setting/models-settings.ts:12),
@@ -14,7 +15,7 @@ See [settings registry](../../src/app/feature/setting/settings.registry.ts:262),
 
 | Rust | Angular | Difference |
 |---|---|---|
-| No Rust model type | `ModelEntry`: `id`, `type`, `contextLimit`, optional local/API fields | Rust has no registry type; model command details are in [settings](./settings.md). |
+| `services/models::ModelEntry` and `Registry` | `ModelEntry`: `id`, `type`, `contextLimit`, optional local/API fields | Rust loads a per-run snapshot from user app-data settings; API keys remain keychain-only. |
 | Model command arguments | `ModelEntry` local fields; `ModelDraft` has editable values | See [settings](./settings.md). |
 | Secret command arguments | `apiKeyRef?: string` contains `model:<id>`; secret value is not stored in JSON | See [settings](./settings.md). |
 | No Rust `Problem` type in `diagnostics.rs` | `ProblemInput`, `Problem`, `Severity`; `Severity = error|warning|info` | Angular diagnostics are a separate in-memory data structure, not IPC records. |
@@ -30,8 +31,15 @@ Settings values are `SettingValue`
 
 ### Services
 
-Model and secret command implementation details are documented in
-[settings](./settings.md). There is no dedicated Rust diagnostics service.
+Model and secret Tauri command details are documented in
+[settings](./settings.md). The run-only provider broker lives in
+`src-tauri/src/services/models/mod.rs`; JSON-RPC methods are implemented in
+`src-tauri/src/services/runs/rpc.rs`. The registry loader treats absent or
+malformed user settings as a logged empty registry. `OpenAiCompatible` sends
+non-streaming chat completion requests through `ureq`; a key is read from the
+OS keychain at call time only when `apiKeyRef` is set. The model endpoint and
+key reference are never included in `models.list`. There is no dedicated Rust
+diagnostics service.
 
 ### Commands
 
@@ -113,7 +121,8 @@ No Rust event or Rust diagnostics command participates.
 
 ## 6. Gaps
 
-- No Rust model/service type or Rust settings reader is implemented for models.
+- The Rust registry reader is read-only and currently loads user settings at
+  run start; it does not merge workspace settings.
 - No dedicated Angular model API wrapper or store exists.
 - `models.registry` is a JSON string in a generic setting rather than a typed Rust
   wire model   [models-settings.ts](../../src/app/feature/setting/model-setting/models-settings.ts:290).
@@ -135,3 +144,30 @@ No Rust event or Rust diagnostics command participates.
 | [models-settings.ts](../../src/app/feature/setting/model-setting/models-settings.ts:290) | JSON parsing/default normalization belongs in a model service or typed settings parser. |
 | [models.rs](../../src-tauri/src/commands/models.rs:18) | GGUF validation, process spawning, polling, timeout, and kill logic belongs in a Rust model service. |
 | [secrets.rs](../../src-tauri/src/commands/secrets.rs:13) | Keyring entry validation and secret lifecycle logic belongs in a Rust secrets service. |
+
+## 8. Run model broker (API v1)
+
+The run RPC allowlist includes:
+
+| Method | Input | Result |
+|---|---|---|
+| `models.list` | `{}` | `{id, contextLimit?, default}[]` |
+| `models.complete` | `{model?, messages, maxTokens?, temperature?, stop?, json?}` | `{text, finishReason?, usage, model, ms}` |
+
+Messages are limited to 100 and 1,000,000 content characters. Context usage is
+estimated as `characters / 3 + maxTokens`; an over-limit request returns
+`ContextTooLarge` with the estimate and limit. Calls are serialized within each
+run. If no model is supplied, the run's snapshotted default is selected.
+
+The broker posts `{baseUrl}/chat/completions`, adds Bearer authentication only
+when the entry contains `apiKeyRef`, and enforces a 300-second timeout. A
+cancelled run shuts down the in-flight HTTP agent. Refused connections, DNS
+failures, and timeouts return `ModelUnavailable` naming the host and port;
+non-200 responses return `ModelError` with the status and the first 300
+redacted body characters.
+
+Run traces record method, model id, elapsed time, success, token usage, and
+sanitized errors. Successful model calls are stored under
+`.cairn/runs/<runId>/calls/<n>.json`; each file is limited to 1 MB and a run to
+20 MB. Messages and response text are sanitized before writing. No headers or
+API keys are stored.

@@ -1,5 +1,6 @@
 pub mod codemap;
 pub mod fs;
+pub mod models;
 pub mod note_service;
 pub mod project;
 pub mod proposal_service;

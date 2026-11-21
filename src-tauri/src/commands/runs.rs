@@ -1,11 +1,12 @@
 use crate::services::{
+    models::Registry,
     project::{ProjectState, TauriEventSink},
     runs::workflows::{WorkflowInfo, WorkflowInspection},
     runs::{RunManager, RunRecord},
     service_error::ServiceError,
 };
 use std::sync::Arc;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
 pub async fn run_start(
@@ -16,11 +17,19 @@ pub async fn run_start(
     projects: State<'_, ProjectState>,
     runs: State<'_, RunManager>,
 ) -> Result<RunRecord, ServiceError> {
-    runs.run_start(
+    let registry = match app.path().app_data_dir() {
+        Ok(directory) => Registry::load(&directory),
+        Err(error) => {
+            tauri_plugin_log::log::warn!("Could not locate user settings directory: {error}");
+            Registry::default()
+        }
+    };
+    runs.run_start_with_registry(
         &projects,
         task_id,
         expected_rev,
         workflow,
+        Arc::new(registry),
         Arc::new(TauriEventSink(app)),
     )
 }

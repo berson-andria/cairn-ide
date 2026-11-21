@@ -43,6 +43,7 @@ tree-sitter-language-pack = "1.25.0"
 keyring = { version = "4.2.0", features = ["apple-native-keyring-store"] }
 dirs = "6"
 sha2 = "0.10"
+ureq = "3.5.2"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

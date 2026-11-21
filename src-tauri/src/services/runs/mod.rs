@@ -2,6 +2,7 @@ pub mod rpc;
 pub mod workflows;
 
 use crate::services::{
+    models::{ModelBroker, ModelCallControl, Registry},
     project::{ProjectServices, ProjectState},
     service_error::{
         now_ms, Actor, ChangeEvent, EventSink, RunOutcome, ServiceError, ServiceErrorCode,
@@ -401,6 +402,7 @@ struct RunControl {
     child: Mutex<Box<dyn ChildProcess>>,
     finish: Arc<Mutex<Option<rpc::FinishRequest>>>,
     stop_reason: Mutex<Option<String>>,
+    model_calls: Arc<ModelCallControl>,
     kill_requested: AtomicBool,
     finalized: AtomicBool,
     run_directory: PathBuf,
@@ -515,11 +517,31 @@ impl RunManager {
         workflow_name: Option<String>,
         sink: Arc<dyn EventSink>,
     ) -> Result<RunRecord, ServiceError> {
-        self.run_start_with_hooks(
+        self.run_start_with_registry(
             projects,
             task_id,
             expected_rev,
             workflow_name,
+            Arc::new(Registry::default()),
+            sink,
+        )
+    }
+
+    pub fn run_start_with_registry(
+        &self,
+        projects: &ProjectState,
+        task_id: String,
+        expected_rev: u64,
+        workflow_name: Option<String>,
+        registry: Arc<Registry>,
+        sink: Arc<dyn EventSink>,
+    ) -> Result<RunRecord, ServiceError> {
+        self.run_start_with_registry_hooks(
+            projects,
+            task_id,
+            expected_rev,
+            workflow_name,
+            registry,
             sink,
             || Ok(()),
             || {},
@@ -532,6 +554,29 @@ impl RunManager {
         task_id: String,
         expected_rev: u64,
         workflow_name: Option<String>,
+        sink: Arc<dyn EventSink>,
+        after_spawn: impl FnOnce() -> Result<(), ServiceError>,
+        before_active: impl FnOnce(),
+    ) -> Result<RunRecord, ServiceError> {
+        self.run_start_with_registry_hooks(
+            projects,
+            task_id,
+            expected_rev,
+            workflow_name,
+            Arc::new(Registry::default()),
+            sink,
+            after_spawn,
+            before_active,
+        )
+    }
+
+    fn run_start_with_registry_hooks(
+        &self,
+        projects: &ProjectState,
+        task_id: String,
+        expected_rev: u64,
+        workflow_name: Option<String>,
+        registry: Arc<Registry>,
         sink: Arc<dyn EventSink>,
         after_spawn: impl FnOnce() -> Result<(), ServiceError>,
         before_active: impl FnOnce(),
@@ -557,6 +602,7 @@ impl RunManager {
             task_id,
             expected_rev,
             workflow_name.unwrap_or_else(|| DEFAULT_WORKFLOW.into()),
+            registry,
             sink,
             after_spawn,
             before_active,
@@ -569,6 +615,7 @@ impl RunManager {
         task_id: String,
         expected_rev: u64,
         workflow_name: String,
+        registry: Arc<Registry>,
         sink: Arc<dyn EventSink>,
         after_spawn: impl FnOnce() -> Result<(), ServiceError>,
         before_active: impl FnOnce(),
@@ -706,12 +753,19 @@ impl RunManager {
             ));
         };
         let finish = Arc::new(Mutex::new(None));
+        let model_calls = Arc::new(ModelCallControl::default());
+        let models = Arc::new(ModelBroker::with_default_client(
+            registry,
+            model_calls.clone(),
+            run_directory.clone(),
+        ));
         let control = Arc::new(RunControl {
             record: Arc::new(Mutex::new(record.clone())),
             project: project.clone(),
             child: Mutex::new(child),
             finish: finish.clone(),
             stop_reason: Mutex::new(None),
+            model_calls,
             kill_requested: AtomicBool::new(false),
             finalized: AtomicBool::new(false),
             run_directory: run_directory.clone(),
@@ -752,6 +806,7 @@ impl RunManager {
             sink: sink.clone(),
             version_mismatch: Arc::new(AtomicBool::new(false)),
             trace_path: run_directory.join("trace.jsonl"),
+            models,
         });
         spawn_rpc_reader(stdout, stdin, rpc_context, control.clone());
         spawn_log_reader(stderr, run_directory.join("run.log"), run_id, task_id, sink);
@@ -1127,6 +1182,7 @@ fn fail_running_task(project: &ProjectServices, task_id: &str, reason: &str) {
 }
 
 fn terminate(control: &RunControl, reason: &str) -> Result<(), ServiceError> {
+    control.model_calls.cancel();
     let mut stop_reason = control
         .stop_reason
         .lock()
@@ -1185,7 +1241,7 @@ fn spawn_rpc_reader(
                 let response = match line {
                     Ok(line) => rpc::handle_line(&context, &line),
                     Err(response) => {
-                        rpc::append_trace(&context.trace_path, None, &response, 0);
+                        rpc::append_trace(&context.trace_path, None, None, &response, 0);
                         response
                     }
                 };
@@ -1372,6 +1428,7 @@ fn spawn_waiter(
 }
 
 fn kill_process_tree(control: &RunControl) -> Result<(), ServiceError> {
+    control.model_calls.cancel();
     if control.kill_requested.swap(true, Ordering::SeqCst) {
         return Ok(());
     }
@@ -1778,6 +1835,16 @@ mod tests {
             sink: Arc::new(NoopSink),
             version_mismatch: Arc::new(AtomicBool::new(false)),
             trace_path: harness._root.path().join("trace.jsonl"),
+            models: Arc::new(ModelBroker::with_default_client(
+                Arc::new(Registry::default()),
+                Arc::new(ModelCallControl::default()),
+                harness
+                    ._root
+                    .path()
+                    .join(".cairn")
+                    .join("runs")
+                    .join(&run.run_id),
+            )),
         };
         rpc::dispatch(
             &context,
@@ -2011,6 +2078,11 @@ mod tests {
             sink: control.sink.clone(),
             version_mismatch: Arc::new(AtomicBool::new(false)),
             trace_path: harness._root.path().join("trace.jsonl"),
+            models: Arc::new(ModelBroker::with_default_client(
+                Arc::new(Registry::default()),
+                Arc::new(ModelCallControl::default()),
+                control.run_directory.clone(),
+            )),
         }
     }
 

@@ -5,8 +5,9 @@
 Angular owns settings and model configuration. `SettingsService` reads and writes
 the user and workspace JSON files and merges them with registry defaults
 [settings.service.ts:1](../../src/app/feature/setting/settings.service.ts#L1).
-Rust is not a settings service in the current code; it only receives setting
-changes for log configuration and provides model/secret commands
+Rust has no general settings service; its run model broker reads a snapshot of
+the user model registry, while settings writes remain Angular-owned. Rust also
+receives log-level changes and provides model/secret commands
 [models.rs:8](../../src-tauri/src/commands/models.rs#L8),
 [secrets.rs:12](../../src-tauri/src/commands/secrets.rs#L12),
 [diagnostics.rs:3](../../src-tauri/src/commands/diagnostics.rs#L3).
@@ -25,8 +26,8 @@ by `model:<id>`; they are not JSON settings
 | Rust | TypeScript |
 |---|---|
 | No settings Rust type or service struct exists. | `SettingDef`: `key`, `type`, `default`, `scope`, `section`, `label`, `description`, `options?`, `status`, `subsection?` [settings.registry.ts:12](../../src/app/feature/setting/settings.registry.ts#L12). |
-| Settings JSON has no Rust deserialization type; `unverified` whether a Rust settings reader exists. | `SettingValue = boolean \| number \| string \| string[] \| Record<string, unknown>` and `StoredValues = Record<string, SettingValue>` [settings.registry.ts:9](../../src/app/feature/setting/settings.registry.ts#L9), [settings.service.ts:16](../../src/app/feature/setting/settings.service.ts#L16). |
-| No Rust `ModelEntry` type. | `ModelEntry`: `id`, `type ('local'\|'api')`, `contextLimit`, optional `ggufPath`, `gpuLayers`, `contextSize`, `threads`, `sampling`, `provider`, `baseUrl`, `modelName`, `apiKeyRef` [model-entry.model.ts:1](../../src/app/feature/setting/model-setting/model-entry.model.ts#L1). |
+| No general Rust settings type; `models::Registry` reads user settings for runs. | `SettingValue = boolean \| number \| string \| string[] \| Record<string, unknown>` and `StoredValues = Record<string, SettingValue>` [settings.registry.ts:9](../../src/app/feature/setting/settings.registry.ts#L9), [settings.service.ts:16](../../src/app/feature/setting/settings.service.ts#L16). |
+| Rust `services/models::ModelEntry` and `Registry`. | `ModelEntry`: `id`, `type ('local'\|'api')`, `contextLimit`, optional `ggufPath`, `gpuLayers`, `contextSize`, `threads`, `sampling`, `provider`, `baseUrl`, `modelName`, `apiKeyRef` [model-entry.model.ts:1](../../src/app/feature/setting/model-setting/model-entry.model.ts#L1). |
 
 `models.registry` is a string setting whose JSON payload is an array of
 `ModelEntry`; `models.defaultModel` is a string setting
@@ -39,13 +40,15 @@ The Rust model command accepts scalar camelCase arguments and is not passed a
 
 ### Service functions
 
-There is no Rust settings or models service. `test_local_model` validates a GGUF
-path and spawns `llama-cli`; `wait_for_model` polls for exit or timeout
+`services/models` reads the user settings registry at `run_start` and serves
+read-only model listing/completion to that run's RPC context. It does not write
+settings. `test_local_model` validates a GGUF path and spawns `llama-cli`;
+`wait_for_model` polls for exit or timeout
 [models.rs:18](../../src-tauri/src/commands/models.rs#L18),
 [models.rs:51](../../src-tauri/src/commands/models.rs#L51).
 `entry` creates the keyring entry and rejects an empty id
 [secrets.rs:5](../../src-tauri/src/commands/secrets.rs#L5).
-There is no settings service function.
+There is no general settings service function.
 
 ### Commands
 
@@ -151,8 +154,8 @@ commands and `model_test_local`/`fetch()` -> update `models.registry` through
 
 ## 6. Gaps
 
-- A Rust settings reader and Rust settings types are `unverified`/not
-  implemented in this slice.
+- Rust's settings access remains read-only and limited to the user model
+  registry; workspace settings are not merged into run model configuration.
 - `setting.store.ts` exists as an empty file and is unused.
 - There is no settings Tauri event; Angular does not need an event listener
   because it writes and owns both signal state and files.
