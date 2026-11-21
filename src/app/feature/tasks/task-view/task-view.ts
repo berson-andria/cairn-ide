@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   ElementRef,
   inject,
   input,
@@ -20,6 +21,8 @@ import {
   lucideX,
 } from '@ng-icons/lucide';
 import { ResizeHandle } from '../../../shared/components/resize-handle/resize-handle';
+import { RunService } from '../../../core/services/runs/run.service';
+import { RunRecord } from '../../../shared/models/agent.model';
 
 @Component({
   selector: 'app-task-view',
@@ -39,6 +42,8 @@ export class TaskView {
   readonly taskService = inject(TaskService);
   private readonly noteService = inject(NoteService);
   private readonly layoutService = inject(LayoutService);
+  private readonly runService = inject(RunService);
+
   protected readonly mainWidth = signal<number | null>(null);
   protected readonly mainCollapsed = signal(false);
   protected readonly asideCollapsed = signal(false);
@@ -48,32 +53,15 @@ export class TaskView {
     return Math.max(this.minColumnWidth, width - this.minColumnWidth);
   };
 
-  protected closeMain(): void {
-    this.mainWidth.set(null);
-    this.mainCollapsed.set(true);
-  }
-
-  protected showMain(): void {
-    this.mainWidth.set(null);
-    this.mainCollapsed.set(false);
-  }
-
-  protected closeAside(): void {
-    this.mainWidth.set(null);
-    this.asideCollapsed.set(true);
-  }
-
-  protected showAside(): void {
-    this.mainWidth.set(null);
-    this.asideCollapsed.set(false);
-  }
-
   readonly task = computed(() => {
     const id = this.taskId();
     return id
       ? (this.taskService.get(id) ?? null)
       : (this.taskInput() ?? this.taskService.selectedTask());
   });
+
+  readonly runs = signal<RunRecord[]>([]);
+
   private readonly descriptionDraft = signal<{ taskId: string; value: string } | null>(null);
   readonly showSubtaskInput = signal(false);
   readonly subtaskDraft = signal('');
@@ -109,6 +97,34 @@ export class TaskView {
         )
       : candidates;
   });
+
+  constructor() {
+    effect(async () => {
+      if (this.task()) {
+        this.runs.set(await this.runService.loadRunsFor(<TaskItem>this.task()));
+      }
+    });
+  }
+
+  protected closeMain(): void {
+    this.mainWidth.set(null);
+    this.mainCollapsed.set(true);
+  }
+
+  protected showMain(): void {
+    this.mainWidth.set(null);
+    this.mainCollapsed.set(false);
+  }
+
+  protected closeAside(): void {
+    this.mainWidth.set(null);
+    this.asideCollapsed.set(true);
+  }
+
+  protected showAside(): void {
+    this.mainWidth.set(null);
+    this.asideCollapsed.set(false);
+  }
 
   toggleMain() {
     this.mainCollapsed.update((v) => !v);

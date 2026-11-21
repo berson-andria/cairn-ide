@@ -290,7 +290,27 @@
       [class.task-detail__aside--collapsed]="asideCollapsed()"
       [attr.aria-hidden]="asideCollapsed()"
       [attr.inert]="asideCollapsed() ? '' : null"
-    ></aside>
+    >
+      <div class="task-details">
+        @for (run of runs(); track $index) {
+          <div class="run">
+            <span>{{ run.runId }}</span>
+            <span> {{ run.outcome }} </span>
+            <span>{{ run.reason }}</span>
+          </div>
+          @if (run.steps; as steps) {
+            @for (step of steps; track $index) {
+              <div class="subprocess" style="margin-left: 1em">
+                <span>{{ step.subtaskId }}</span>
+                <span>{{ step.outcome }}</span>
+                <span>{{ step.reason }}</span>
+                <span>{{ step.summary }}</span>
+              </div>
+            }
+          }
+        }
+      </div>
+    </aside>
   </div>
 } @else {
   <div class="task-empty"><span class="muted">Select a task to view its details.</span></div>
