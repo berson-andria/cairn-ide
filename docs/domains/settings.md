@@ -1,0 +1,160 @@
+# Settings and models
+
+## 1. Purpose and ownership
+
+Angular owns settings and model configuration. `SettingsService` reads and writes
+the user and workspace JSON files and merges them with registry defaults
+[settings.service.ts:1](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.service.ts#L1).
+Rust is not a settings service in the current code; it only receives setting
+changes for log configuration and provides model/secret commands
+[models.rs:8](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/models.rs#L8),
+[secrets.rs:12](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/secrets.rs#L12),
+[diagnostics.rs:3](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/diagnostics.rs#L3).
+
+User settings live under app data; workspace settings live at
+`.cairn/settings.json`. Workspace values override user values, then registry
+defaults [settings.service.ts:17](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.service.ts#L17),
+[settings.service.ts:83](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.service.ts#L83).
+API keys are secrets in the OS keychain under service `cairn-ide`, referenced
+by `model:<id>`; they are not JSON settings
+[secrets.rs:3](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/secrets.rs#L3),
+[models-settings.ts:145](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/model-setting/models-settings.ts#L145).
+
+## 2. Data shapes
+
+| Rust | TypeScript |
+|---|---|
+| No settings Rust type or service struct exists. | `SettingDef`: `key`, `type`, `default`, `scope`, `section`, `label`, `description`, `options?`, `status`, `subsection?` [settings.registry.ts:12](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.registry.ts#L12). |
+| Settings JSON has no Rust deserialization type; `unverified` whether a Rust settings reader exists. | `SettingValue = boolean \| number \| string \| string[] \| Record<string, unknown>` and `StoredValues = Record<string, SettingValue>` [settings.registry.ts:9](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.registry.ts#L9), [settings.service.ts:16](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.service.ts#L16). |
+| No Rust `ModelEntry` type. | `ModelEntry`: `id`, `type ('local'\|'api')`, `contextLimit`, optional `ggufPath`, `gpuLayers`, `contextSize`, `threads`, `sampling`, `provider`, `baseUrl`, `modelName`, `apiKeyRef` [model-entry.model.ts:1](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/model-setting/model-entry.model.ts#L1). |
+
+`models.registry` is a string setting whose JSON payload is an array of
+`ModelEntry`; `models.defaultModel` is a string setting
+[settings.registry.ts:174](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.registry.ts#L174),
+[settings.registry.ts:175](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.registry.ts#L175).
+The Rust model command accepts scalar camelCase arguments and is not passed a
+`ModelEntry` [models.rs:9](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/models.rs#L9).
+
+## 3. Rust
+
+### Service functions
+
+There is no Rust settings or models service. `test_local_model` validates a GGUF
+path and spawns `llama-cli`; `wait_for_model` polls for exit or timeout
+[models.rs:18](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/models.rs#L18),
+[models.rs:51](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/models.rs#L51).
+`entry` creates the keyring entry and rejects an empty id
+[secrets.rs:5](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/secrets.rs#L5).
+There is no settings service function.
+
+### Commands
+
+| Name | Args in camelCase | Return | Errors |
+|---|---|---|---|
+| `model_test_local` | `ggufPath: String`, `gpuLayers: u32`, `contextSize: u32`, `threads: u32` | `String` | Plain `String`: missing file, spawn failure, timeout, process failure, blocking-task failure [models.rs:9](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/models.rs#L9). |
+| `secret_set` | `id: String`, `value: String` | `()` | Empty id/keyring unavailable/save failure [secrets.rs:12](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/secrets.rs#L12). |
+| `secret_get` | `id: String` | `String` | Empty id/keyring unavailable/no entry/read failure [secrets.rs:19](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/secrets.rs#L19). |
+| `secret_delete` | `id: String` | `()` | Empty id/keyring unavailable/delete failure; no entry succeeds [secrets.rs:27](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/secrets.rs#L27). |
+| `set_log_level` | `level: String` | `()` | Unknown log level [diagnostics.rs:4](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/diagnostics.rs#L4). |
+
+All five are registered in `lib.rs`
+[lib.rs:68](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/lib.rs#L68),
+[lib.rs:71](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/lib.rs#L71),
+[lib.rs:139](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/lib.rs#L139).
+
+### Events
+
+This domain emits no Tauri events. Settings are Angular persistence/signals,
+and key/model/log commands return results directly.
+
+## 4. Angular
+
+### API wrapper methods
+
+There is no settings-specific Angular API wrapper. `ModelsSettings` calls
+`invoke()` directly for `secret_set`, `secret_get`, `secret_delete`, and
+`model_test_local` [models-settings.ts:151](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/model-setting/models-settings.ts#L151),
+[models-settings.ts:228](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/model-setting/models-settings.ts#L228).
+`SettingsRuntimeService` calls `invoke('set_log_level', ...)`
+[settings-runtime.service.ts:34](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/core/services/settings-runtime.service.ts#L34).
+
+### Store signals
+
+No store implementation is used: `setting.store.ts` is empty and no
+`SettingStore` reference exists. `SettingsService` owns private
+`userValues`, `workspaceValues`, `workspacePath`, and public `modifiedCount`;
+`get()`/`select()` return computed effective-value signals
+[settings.service.ts:18](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.service.ts#L18),
+[settings.service.ts:29](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.service.ts#L29).
+
+### Service and facade methods
+
+- `get<T>(key)`, `select<T>(key)`: computed effective value.
+- `set(key, raw, scope?)`, `reset(key, scope?)`, `sourceOf(key)`,
+  `isModified(key)`, `resetAll()`, `load()`, `reloadWorkspace(rootPath?)`.
+- Errors: unknown setting/scope/value throws `Error` or `TypeError`;
+  read and malformed-file failures fall back to `{}`; write failures are logged
+  and do not throw to UI [settings.service.ts:38](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.service.ts#L38),
+  [settings.service.ts:129](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.service.ts#L129),
+  [settings.service.ts:153](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.service.ts#L153).
+- `SettingsRuntimeService` applies theme/density and updates log level.
+- `ModelsSettings` methods save/remove/test models and handle command/fetch
+  failures into UI signals [models-settings.ts:124](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/model-setting/models-settings.ts#L124).
+
+## 5. Flows
+
+### Load settings
+
+UI startup -> `SettingsService.load()` -> read app-data `settings.json`, then
+read workspace `.cairn/settings.json` -> filter/merge signals -> UI getters
+reactive to `userValues`/`workspaceValues`
+[settings.service.ts:88](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.service.ts#L88).
+No Rust command or event is in this flow.
+
+### Change a setting
+
+UI control -> `Settings.write()` or `toggle()` -> `SettingsService.set()` ->
+update signal immediately -> 300 ms snapshot timer -> queued atomic write ->
+user app-data file or workspace file
+[settings.ts:134](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.ts#L134),
+[settings.service.ts:124](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/settings.service.ts#L124).
+No Tauri command/store/event is involved.
+
+### Change log level
+
+`SettingsRuntimeService` effect reads `diagnostics.logLevel` ->
+`invoke('set_log_level', { level })` -> Rust `set_log_level` maps string to
+`LevelFilter`; errors are caught and logged in Angular
+[settings-runtime.service.ts:34](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/core/services/settings-runtime.service.ts#L34).
+
+### Save/remove/test model
+
+Models UI -> `ModelsSettings.saveModel/remove/testConnection()` -> local secret
+commands and `model_test_local`/`fetch()` -> update `models.registry` through
+`SettingsService.set()` -> debounced JSON write; no Rust event/store cache
+[models-settings.ts:124](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/model-setting/models-settings.ts#L124),
+[models-settings.ts:205](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/model-setting/models-settings.ts#L205),
+[models-settings.ts:222](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/model-setting/models-settings.ts#L222).
+
+## 6. Gaps
+
+- A Rust settings reader and Rust settings types are `unverified`/not
+  implemented in this slice.
+- `setting.store.ts` exists as an empty file and is unused.
+- There is no settings Tauri event; Angular does not need an event listener
+  because it writes and owns both signal state and files.
+- Model registry JSON is parsed in the component; registry schema validation
+  is not a Rust/type-safe service boundary [models-settings.ts:290](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/model-setting/models-settings.ts#L290).
+- `npm run docs:check` and all runtime tests are needed to verify documentation
+  and behavior; end-to-end secret/keychain behavior is `unverified`.
+
+## 7. Logic in the wrong layer
+
+| Path:line | Finding |
+|---|---|
+| [models-settings.ts:124](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/model-setting/models-settings.ts#L124) | Save validation, key migration/deletion, entry construction, and registry writes belong in a model/service facade. |
+| [models-settings.ts:222](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/model-setting/models-settings.ts#L222) | API key retrieval and HTTP endpoint/testing logic belong in a model service. |
+| [models-settings.ts:290](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src/app/feature/setting/model-setting/models-settings.ts#L290) | JSON parsing and default normalization belong outside the settings component. |
+| [models.rs:18](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/models.rs#L18) | GGUF validation, process spawning, polling, timeout, and kill logic execute in the command module. |
+| [secrets.rs:13](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/secrets.rs#L13) | Keyring entry validation and secret lifecycle logic execute in the command module. |
+| [diagnostics.rs:4](/C:/Users/Cost/Documents/Projects/Primary/cairn-ide/src-tauri/src/commands/diagnostics.rs#L4) | String-to-`LevelFilter` mapping executes in the command module. |

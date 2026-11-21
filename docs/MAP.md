@@ -11,29 +11,25 @@ Last updated: 2026-11-21
 │   │   ├── run-api.md
 │   │   ├── task-note-api.md
 │   │   └── watch-policy.md
-│   ├── codemaps/
+│   ├── domains/
 │   │   ├── codemap.md
-│   │   └── project-apis.md
-│   ├── editors/
-│   │   └── editor.md
-│   ├── explorers/
-│   │   └── explorer.md
-│   ├── gits/
-│   │   └── git.md
-│   ├── lsps/
-│   │   └── lsp.md
-│   ├── searchs/
-│   │   └── search.md
-│   ├── terminals/
-│   │   └── terminal.md
-│   ├── workspaces/
+│   │   ├── editor.md
+│   │   ├── explorer.md
+│   │   ├── git.md
+│   │   ├── lsp.md
+│   │   ├── model.md
+│   │   ├── nodes.md
+│   │   ├── project-apis.md
+│   │   ├── search.md
+│   │   ├── settings.md
+│   │   ├── tabs.md
+│   │   ├── terminal.md
 │   │   └── workspace.md
 │   ├── CONTEXT.md
 │   ├── MAP.md
 │   ├── architecture.md
 │   ├── current-state.md
 │   ├── frontend-services.md
-│   ├── model.md
 │   ├── slice-2-port-notes.md
 │   ├── ui-contract.md
 │   └── watch-policy-current.md
@@ -455,22 +451,22 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 
 | Domain | Rust types | Rust service | Rust commands | Angular api | Angular store | Angular service | Doc |
 |---|---|---|---|---|---|---|---|
-| Project | - | `src-tauri/src/services/project.rs`<br>`src-tauri/src/services/session_history.rs` | `src-tauri/src/commands/project.rs` | `src/app/core/services/tauri/work-api.service.ts` | - | `src/app/core/services/project-history.service.ts`<br>`src/app/core/services/project-startup.service.ts`<br>`src/app/core/services/workspace-state.service.ts` | `docs/workspaces/workspace.md` |
-| Tasks | `src-tauri/src/types/task.rs` | `src-tauri/src/services/task_service.rs` | `src-tauri/src/commands/tasks.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/task.store.ts` | `src/app/feature/tasks/task.service.ts` | `docs/codemaps/project-apis.md#tasks-notes` |
-| Notes | `src-tauri/src/types/note.rs` | `src-tauri/src/services/note_service.rs` | `src-tauri/src/commands/notes.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/note.store.ts` | `src/app/feature/notes/note.service.ts`<br>`src/app/shared/components/anchor-picker/picker.service.ts` | `docs/codemaps/project-apis.md#tasks-notes` |
-| Proposals | `src-tauri/src/types/proposal.rs` | `src-tauri/src/services/proposal_service.rs` | `src-tauri/src/commands/proposals.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/proposal.store.ts` | `src/app/core/services/proposals/proposal-notifier.service.ts`<br>`src/app/core/services/proposals/proposal.service.ts` | `docs/codemaps/project-apis.md#proposals` |
-| Runs and workflows | - | `src-tauri/src/services/runs/mod.rs`<br>`src-tauri/src/services/runs/rpc.rs`<br>`src-tauri/src/services/runs/workflows.rs` | `src-tauri/src/commands/runs.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/run.store.ts` | `src/app/core/services/runs/run.service.ts`<br>`src/app/core/services/runs/workflow.service.ts` | `docs/codemaps/project-apis.md#runs` |
-| Watcher and fs | - | `src-tauri/src/services/watcher.rs` | `src-tauri/src/commands/watcher.rs` | `src/app/core/services/file-system/file-system.service.ts` | - | `src/app/core/services/file-system/workspace-watcher.service.ts` | `docs/codemaps/project-apis.md#watcher-fs` |
-| Codemap | `src-tauri/src/types/codemap.rs` | `src-tauri/src/services/codemap/extract.rs`<br>`src-tauri/src/services/codemap/graph.rs`<br>`src-tauri/src/services/codemap/languages.rs`<br>`src-tauri/src/services/codemap/mod.rs`<br>`src-tauri/src/services/codemap/service.rs`<br>`src-tauri/src/services/codemap/store.rs`<br>`src-tauri/src/services/codemap/tree.rs` | `src-tauri/src/commands/codemap.rs` | `src/app/core/services/codemap/codemap.service.ts` | - | - | `docs/codemaps/codemap.md` |
-| Settings and models | - | - | `src-tauri/src/commands/models.rs` | - | `src/app/core/store/setting.store.ts` | `src/app/feature/setting/settings.service.ts`<br>`src/app/core/services/settings-runtime.service.ts` | `docs/model.md` |
-| Secrets | - | - | `src-tauri/src/commands/secrets.rs` | - | - | - | `docs/model.md` |
-| Git | - | - | `src-tauri/src/commands/askpass.rs`<br>`src-tauri/src/commands/git.rs` | `src/app/feature/git/services/git-client.service.ts` | - | `src/app/feature/git/services/git-askpass.service.ts`<br>`src/app/feature/git/services/git-blame.service.ts`<br>`src/app/feature/git/services/git-dialog.service.ts`<br>`src/app/feature/git/services/git-diff.service.ts`<br>`src/app/feature/git/services/git.service.ts` | `docs/gits/git.md` |
-| LSP | - | - | `src-tauri/src/commands/lsp.rs` | `src/app/core/services/lsp/lsp-bridge.service.ts` | `src/app/core/services/lsp/lsp-monitor.service.ts` | `src/app/core/services/lsp/lsp-manager.service.ts`<br>`src/app/core/services/lsp/lsp-client.ts` | `docs/lsps/lsp.md` |
-| Terminal | - | - | `src-tauri/src/commands/pty.rs` | `src/app/feature/terminal/terminal.service.ts` | - | - | `docs/terminals/terminal.md` |
-| Search | `src-tauri/src/types/search.rs` | - | `src-tauri/src/commands/search.rs` | `src/app/feature/search/search.service.ts` | - | - | `docs/searchs/search.md` |
-| Explorer and nodes | `src-tauri/src/types/workspace_node.rs` | `src-tauri/src/services/fs.rs` | `src-tauri/src/commands/fs.rs` | `src/app/core/services/file-system/file-system.service.ts` | `src/app/core/store/node.store.ts` | - | `docs/explorers/explorer.md` |
-| Tabs and editor | - | - | - | - | `src/app/core/store/tab.store.ts` | `src/app/feature/editor/editor.commands.ts`<br>`src/app/feature/editor/services/editor.service.ts`<br>`src/app/feature/editor/services/model-source.service.ts` | `docs/editors/editor.md` |
-| Diagnostics | - | - | `src-tauri/src/commands/diagnostics.rs` | `src/app/core/services/diagnostics.service.ts` | - | - | `docs/model.md` |
+| Project | - | `src-tauri/src/services/project.rs`<br>`src-tauri/src/services/session_history.rs` | `src-tauri/src/commands/project.rs` | `src/app/core/services/tauri/work-api.service.ts` | - | `src/app/core/services/project-history.service.ts`<br>`src/app/core/services/project-startup.service.ts`<br>`src/app/core/services/workspace-state.service.ts` | `docs/domains/workspace.md` |
+| Tasks | `src-tauri/src/types/task.rs` | `src-tauri/src/services/task_service.rs` | `src-tauri/src/commands/tasks.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/task.store.ts` | `src/app/feature/tasks/task.service.ts` | `docs/domains/project-apis.md#tasks-notes` |
+| Notes | `src-tauri/src/types/note.rs` | `src-tauri/src/services/note_service.rs` | `src-tauri/src/commands/notes.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/note.store.ts` | `src/app/feature/notes/note.service.ts`<br>`src/app/shared/components/anchor-picker/picker.service.ts` | `docs/domains/project-apis.md#tasks-notes` |
+| Proposals | `src-tauri/src/types/proposal.rs` | `src-tauri/src/services/proposal_service.rs` | `src-tauri/src/commands/proposals.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/proposal.store.ts` | `src/app/core/services/proposals/proposal-notifier.service.ts`<br>`src/app/core/services/proposals/proposal.service.ts` | `docs/domains/project-apis.md#proposals` |
+| Runs and workflows | - | `src-tauri/src/services/runs/mod.rs`<br>`src-tauri/src/services/runs/rpc.rs`<br>`src-tauri/src/services/runs/workflows.rs` | `src-tauri/src/commands/runs.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/run.store.ts` | `src/app/core/services/runs/run.service.ts`<br>`src/app/core/services/runs/workflow.service.ts` | `docs/domains/project-apis.md#runs` |
+| Watcher and fs | - | `src-tauri/src/services/watcher.rs` | `src-tauri/src/commands/watcher.rs` | `src/app/core/services/file-system/file-system.service.ts` | - | `src/app/core/services/file-system/workspace-watcher.service.ts` | `docs/domains/project-apis.md#watcher-fs` |
+| Codemap | `src-tauri/src/types/codemap.rs` | `src-tauri/src/services/codemap/extract.rs`<br>`src-tauri/src/services/codemap/graph.rs`<br>`src-tauri/src/services/codemap/languages.rs`<br>`src-tauri/src/services/codemap/mod.rs`<br>`src-tauri/src/services/codemap/service.rs`<br>`src-tauri/src/services/codemap/store.rs`<br>`src-tauri/src/services/codemap/tree.rs` | `src-tauri/src/commands/codemap.rs` | `src/app/core/services/codemap/codemap.service.ts` | - | - | `docs/domains/codemap.md` |
+| Settings and models | - | - | `src-tauri/src/commands/models.rs`<br>`src-tauri/src/commands/diagnostics.rs` | - | `src/app/core/store/setting.store.ts` (empty, unused) | `src/app/feature/setting/settings.service.ts`<br>`src/app/core/services/settings-runtime.service.ts` | `docs/domains/settings.md` |
+| Secrets | - | - | `src-tauri/src/commands/secrets.rs` | - | - | `src/app/feature/setting/model-setting/models-settings.ts` | `docs/domains/settings.md` |
+| Git | - | - | `src-tauri/src/commands/askpass.rs`<br>`src-tauri/src/commands/git.rs` | `src/app/feature/git/services/git-client.service.ts` | - | `src/app/feature/git/services/git-askpass.service.ts`<br>`src/app/feature/git/services/git-blame.service.ts`<br>`src/app/feature/git/services/git-dialog.service.ts`<br>`src/app/feature/git/services/git-diff.service.ts`<br>`src/app/feature/git/services/git.service.ts` | `docs/domains/git.md` |
+| LSP | - | - | `src-tauri/src/commands/lsp.rs` | `src/app/core/services/lsp/lsp-bridge.service.ts` | `src/app/core/services/lsp/lsp-monitor.service.ts` | `src/app/core/services/lsp/lsp-manager.service.ts`<br>`src/app/core/services/lsp/lsp-client.ts` | `docs/domains/lsp.md` |
+| Terminal | - | - | `src-tauri/src/commands/pty.rs` | `src/app/feature/terminal/terminal.service.ts` | - | - | `docs/domains/terminal.md` |
+| Search | `src-tauri/src/types/search.rs` | - | `src-tauri/src/commands/search.rs` | `src/app/feature/search/search.service.ts` | - | - | `docs/domains/search.md` |
+| Explorer and nodes | `src-tauri/src/types/workspace_node.rs` | `src-tauri/src/services/fs.rs` | `src-tauri/src/commands/fs.rs` | `src/app/core/services/file-system/file-system.service.ts` | `src/app/core/store/node.store.ts` | - | `docs/domains/explorer.md`<br>`docs/domains/nodes.md` |
+| Tabs and editor | - | - | - | - | `src/app/core/store/tab.store.ts` | `src/app/feature/editor/editor.commands.ts`<br>`src/app/feature/editor/services/editor.service.ts`<br>`src/app/feature/editor/services/model-source.service.ts` | `docs/domains/tabs.md`<br>`docs/domains/editor.md` |
+| Diagnostics | - | - | `src-tauri/src/commands/diagnostics.rs` | `src/app/core/services/diagnostics.service.ts` | - | - | `docs/domains/model.md` |
 | Anything else | - | - | - | `src/app/core/services/tauri/tauri-bridge.service.ts` | - | `src/app/core/services/close-handler.service.ts`<br>`src/app/core/services/command/command.service.ts`<br>`src/app/core/services/command/keybinding.service.ts`<br>`src/app/core/services/dialog/dialog.service.ts`<br>`src/app/core/services/layout.service.ts`<br>`src/app/core/services/message.service.ts`<br>`src/app/core/services/monitoring.service.ts`<br>`src/app/core/services/notification/notification.service.ts`<br>`src/app/core/services/persistance.service.ts`<br>`src/app/core/services/replace.service.ts`<br>`src/app/core/services/tauri/tauri-boot.service.ts`<br>`src/app/core/services/tauri/work-sync.service.ts`<br>`src/app/feature/chat/chat.service.ts`<br>`src/app/feature/output/output.service.ts` | - |
 | Uncategorized | `src-tauri/src/types/mod.rs` | `src-tauri/src/services/mod.rs`<br>`src-tauri/src/services/service_error.rs`<br>`src-tauri/src/services/storage/mod.rs` | `src-tauri/src/commands/mod.rs` | - | - | - | - |
 
@@ -483,8 +479,11 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | `src-tauri/src/commands/project.rs:63` | `project_open` cancels runs and records app-data history in the command boundary. | Project/run/history services, with the command reduced to argument/result plumbing. |
 | `src-tauri/src/commands/project.rs:95` | `project_close` cancels runs and clears the last-project marker in app data. | Project/run/history services, with the command reduced to argument/result plumbing. |
 | `src/app/feature/editor/features/diff-editor.component.ts:216` | Manages diff-model acquisition, stale-load races, missing-model errors, and held-side release in the component. | `ModelSourceService` should own source resolution/race-safe acquisition and held-model lifecycle; the component should only mount and render. |
+| `src/app/core/services/command/app-commands.ts:79` | Reimplements tab wrapping/cycling instead of using the existing `TabStore.cycleTab`/`nextTab` methods. | `TabStore`; command registration should call store methods only. |
 | `src-tauri/src/commands/codemap.rs:94-106` | `codemap_install_languages` sequences parser installation and code-map re-indexing. | A `CodeMapService` operation, leaving the command as argument/result plumbing. |
 | `src-tauri/src/commands/fs.rs:103-169` | `workspace_search` performs walking, exclusion, cancellation, file scanning, and channel output in the command boundary. | Rust filesystem/search service; command should only validate args and delegate. |
+| `src-tauri/src/commands/fs.rs:21-89` | Directory existence/type validation and file I/O live in Tauri command functions. | Rust filesystem service; commands should validate/delegate only. |
+| `src-tauri/src/commands/watcher.rs:8-24` | Absolute-path validation and watcher lifecycle mutation live in commands. | Rust watcher service; commands should dispatch and return. |
 | `src/app/feature/explorer/node/node-dnd.directive.ts:126-143` | Drag/drop target validation is duplicated in static directive helpers. | `NodeStore` move/copy policy; the directive should collect UI events only. |
 | `src-tauri/src/commands/git.rs:67-208` | Git allowlist validation, timeout handling, pipe draining, and child-process polling live in command modules. | A Rust Git process/service module, leaving the command as argument/result plumbing. |
 | `src-tauri/src/commands/askpass.rs:38-127` | Askpass listener, pending-request registry, timeout, and event emission live in the command module. | A Rust Git/askpass service, leaving the command as argument/result plumbing. |
