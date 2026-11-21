@@ -205,3 +205,9 @@ means `failed`, with a reason.
 Trust: a project workflow runs only after the user approves its SHA-256
 (stored in app data, never in the repo). A changed file asks again. Global
 workflows are trusted.
+
+## Documentation map
+
+After adding or removing a Tauri command, Angular service, store, or event,
+update its row in `docs/MAP.md` and the domain doc, then run
+`npm run docs:tree` and `npm run docs:check`.
