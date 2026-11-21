@@ -151,8 +151,6 @@ cargo test
 ---
 
 ## Documentation
-
-- [Context](docs/CONTEXT.md)
 - [Module Map](docs/MAP.md)
 - [Architecture](docs/architecture.md)
 - [Frontend Core](docs/domains/frontend-core.md)
