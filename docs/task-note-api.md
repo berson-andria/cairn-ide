@@ -1,6 +1,6 @@
 # Task and note command API (Slice 3)
 
-All commands return structured service errors as `{ "code": "...", "message": "..." }`. Tauri exposes Rust snake_case argument names as camelCase. Every command except `project_open` and `project_close` requires an open project. List commands return `{ records, errors }`; each error carries `{ code, message }`.
+All commands return structured service errors as `{ "code": "...", "message": "..." }`. Tauri exposes Rust snake_case argument names as camelCase. Workspace open/close commands and startup/history behavior are documented in [workspace](./workspaces/workspace.md). Every command except `project_open` and `project_close` requires an open project. List commands return `{ records, errors }`; each error carries `{ code, message }`.
 
 Tasks and notes are ignored by default in `.cairn/.gitignore`, which Rust creates as `cache/`, `runs/`, `tasks/`, and `notes/` only when that file is missing. It never overwrites a user file. Removing the `tasks/` and `notes/` lines allows those files to be added to Git and shared through Git.
 

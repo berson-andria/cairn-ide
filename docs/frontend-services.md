@@ -373,14 +373,7 @@ To open an older attempt's log, call
    revalidates the final payload.
 
 ### Startup
-
-1. Subscribe to work events before opening a project.
-2. Call `project_open(path)`.
-3. Refresh tasks, notes, proposals, the current run, and workflows.
-   `WorkSyncService` follows this order on workspace changes.
-4. On restart, pending unseen notify proposals appear in the inbox and
-   `unseenCount`. They do not produce toasts: the notifier reacts only to
-   `proposal:created` events, not list results.
+See [workspace startup](./workspaces/workspace.md) for the exact subscribe, open, and refresh sequence.
 
 ### Known limits
 

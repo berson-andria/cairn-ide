@@ -6,6 +6,8 @@ Last updated: 2026-11-21
 ```text
 .
 ├── docs/
+│   ├── workspaces/
+│   │   └── workspace.md
 │   ├── CONTEXT.md
 │   ├── MAP.md
 │   ├── architecture.md
@@ -436,7 +438,7 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 
 | Domain | Rust types | Rust service | Rust commands | Angular api | Angular store | Angular service | Doc |
 |---|---|---|---|---|---|---|---|
-| Project | - | `src-tauri/src/services/project.rs`<br>`src-tauri/src/services/session_history.rs` | `src-tauri/src/commands/project.rs` | `src/app/core/services/tauri/work-api.service.ts` | - | `src/app/core/services/project-history.service.ts`<br>`src/app/core/services/project-startup.service.ts`<br>`src/app/core/services/workspace-state.service.ts` | `docs/architecture.md` |
+| Project | - | `src-tauri/src/services/project.rs`<br>`src-tauri/src/services/session_history.rs` | `src-tauri/src/commands/project.rs` | `src/app/core/services/tauri/work-api.service.ts` | - | `src/app/core/services/project-history.service.ts`<br>`src/app/core/services/project-startup.service.ts`<br>`src/app/core/services/workspace-state.service.ts` | `docs/workspaces/workspace.md` |
 | Tasks | `src-tauri/src/types/task.rs` | `src-tauri/src/services/task_service.rs` | `src-tauri/src/commands/tasks.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/task.store.ts` | `src/app/feature/tasks/task.service.ts` | `docs/task-note-api.md` |
 | Notes | `src-tauri/src/types/note.rs` | `src-tauri/src/services/note_service.rs` | `src-tauri/src/commands/notes.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/note.store.ts` | `src/app/feature/notes/note.service.ts`<br>`src/app/shared/components/anchor-picker/picker.service.ts` | `docs/task-note-api.md` |
 | Proposals | `src-tauri/src/types/proposal.rs` | `src-tauri/src/services/proposal_service.rs` | `src-tauri/src/commands/proposals.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/proposal.store.ts` | `src/app/core/services/proposals/proposal-notifier.service.ts`<br>`src/app/core/services/proposals/proposal.service.ts` | `docs/proposal-api.md` |
@@ -461,3 +463,5 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 |---|---|---|
 | `src/app/feature/tasks/task.service.ts:109` | Computes task availability from status and dependency data, duplicating Rust's `task_can_start` command. | Rust task service; Angular should consume the Rust result. |
 | `src/app/feature/tasks/task.service.ts:129` | Computes `canStart` from status and dependency data instead of consuming Rust's task eligibility result. | Rust task service; Angular should consume the Rust result. |
+| `src-tauri/src/commands/project.rs:63` | `project_open` cancels runs and records app-data history in the command boundary. | Project/run/history services, with the command reduced to argument/result plumbing. |
+| `src-tauri/src/commands/project.rs:95` | `project_close` cancels runs and clears the last-project marker in app data. | Project/run/history services, with the command reduced to argument/result plumbing. |
