@@ -3,8 +3,8 @@
 For building the Angular UI. Args are camelCase as passed to `invoke`. Every
 command rejects with `{ code, message }` OR a plain string (bad arguments);
 normalize both (the existing `work-api.service.ts` does this). Authoritative
-details: [tasks and notes](./codemaps/project-apis.md#tasks-notes),
-[runs](./codemaps/project-apis.md#runs), [proposals](./codemaps/project-apis.md#proposals).
+details: [tasks and notes](./domains/notes.md#tasks-notes),
+[runs](./domains/runs.md#runs), [proposals](./domains/proposals.md).
 
 ## 0. Rules that apply everywhere
 
@@ -25,8 +25,8 @@ details: [tasks and notes](./codemaps/project-apis.md#tasks-notes),
 |---|---|
 | Open / close the workspace | `project_open(path)` -> plain root path; `project_close()` |
 
-Filesystem watcher events and visibility policy are in the
-[watcher-fs section](./codemaps/project-apis.md#watcher-fs).
+Filesystem watcher events and visibility policy are in
+[watcher and filesystem events](./domains/watcher-fs.md).
 
 ## 2. Tasks
 
@@ -50,7 +50,7 @@ enabled state; execute with `TaskService.perform(task, action, options?)`.
 When a workflow run is active for a running task, its actions include
 `cancelRun` and a disabled `complete`; run actions may pass
 `{ workflow: name }` when the user selects a workflow. See the
-[runs section](./codemaps/project-apis.md#runs) for action reasons and the
+[runs section](./domains/runs.md#runs) for action reasons and the
 service recipes.
 
 ## 3. Notes
@@ -88,7 +88,7 @@ in memory per run and use `run_log` to refill after a reload.
 Every retry creates a new run and adds its id to `TaskItem.runs`; the history
 is oldest first and capped at 50 ids. `run.context` includes the current
 1-based `attempt`. The frontend task-history recipe and APIs are in the
-[runs section](./codemaps/project-apis.md#runs).
+[runs section](./domains/runs.md#runs).
 
 ## 5. Proposals
 

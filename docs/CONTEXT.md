@@ -135,12 +135,12 @@ trace panel; TypeScript grammar for the codemap; documentation consolidation.
 
 | Topic | Doc |
 |---|---|
-| Tasks and notes | `codemaps/project-apis.md#tasks-notes` |
-| Proposals | `codemaps/project-apis.md#proposals` |
-| Runs, workflows, and SDK | `codemaps/project-apis.md#runs` |
-| Watcher, filesystem events, and tree rules | `codemaps/project-apis.md#watcher-fs` |
-| Code map implementation | `codemaps/codemap.md` |
-| Project and workspace | `workspaces/workspace.md` |
+| Tasks and notes | `domains/notes.md#tasks-notes` |
+| Proposals | `domains/proposals.md` |
+| Runs, workflows, and SDK | `domains/runs.md#runs` |
+| Watcher, filesystem events, and tree rules | `domains/watcher-fs.md` |
+| Code map implementation | `domains/codemap.md` |
+| Project and workspace | `domains/workspace.md` |
 | Decisions and rationale | `architecture.md` |
 
 Historical, do not load: `current-state.md`, `session-handoff.md`,

@@ -1,6 +1,8 @@
 # Frontend services
 
-This file retains the workspace startup recipe; task, note, proposal, and run service contracts are consolidated in [project APIs](./codemaps/project-apis.md).
+This file retains the workspace startup recipe; see [tasks and notes](./domains/notes.md#tasks-notes),
+[proposals](./domains/proposals.md), and [runs](./domains/runs.md#runs) for
+the service contracts.
 
 ## Startup
-See [workspace startup](./workspaces/workspace.md) for the exact subscribe, open, and refresh sequence.
+See [workspace startup](./domains/workspace.md) for the exact subscribe, open, and refresh sequence.
