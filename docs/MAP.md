@@ -18,6 +18,8 @@ Last updated: 2026-11-21
 │   │   └── git.md
 │   ├── lsps/
 │   │   └── lsp.md
+│   ├── terminals/
+│   │   └── terminal.md
 │   ├── workspaces/
 │   │   └── workspace.md
 │   ├── CONTEXT.md
@@ -458,7 +460,7 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | Secrets | - | - | `src-tauri/src/commands/secrets.rs` | - | - | - | `docs/model.md` |
 | Git | - | - | `src-tauri/src/commands/askpass.rs`<br>`src-tauri/src/commands/git.rs` | `src/app/feature/git/services/git-client.service.ts` | - | `src/app/feature/git/services/git-askpass.service.ts`<br>`src/app/feature/git/services/git-blame.service.ts`<br>`src/app/feature/git/services/git-dialog.service.ts`<br>`src/app/feature/git/services/git-diff.service.ts`<br>`src/app/feature/git/services/git.service.ts` | `docs/gits/git.md` |
 | LSP | - | - | `src-tauri/src/commands/lsp.rs` | `src/app/core/services/lsp/lsp-bridge.service.ts` | `src/app/core/services/lsp/lsp-monitor.service.ts` | `src/app/core/services/lsp/lsp-manager.service.ts`<br>`src/app/core/services/lsp/lsp-client.ts` | `docs/lsps/lsp.md` |
-| Terminal | - | - | `src-tauri/src/commands/pty.rs` | `src/app/feature/terminal/terminal.service.ts` | - | - | - |
+| Terminal | - | - | `src-tauri/src/commands/pty.rs` | `src/app/feature/terminal/terminal.service.ts` | - | - | `docs/terminals/terminal.md` |
 | Search | `src-tauri/src/types/search.rs` | - | `src-tauri/src/commands/search.rs` | `src/app/feature/search/search.service.ts` | - | - | - |
 | Explorer and nodes | `src-tauri/src/types/workspace_node.rs` | `src-tauri/src/services/fs.rs` | `src-tauri/src/commands/fs.rs` | `src/app/core/services/file-system/file-system.service.ts` | `src/app/core/store/node.store.ts` | - | `docs/codemaps/project-apis.md#watcher-fs` |
 | Tabs and editor | - | - | - | - | `src/app/core/store/tab.store.ts` | `src/app/feature/editor/editor.commands.ts`<br>`src/app/feature/editor/services/editor.service.ts`<br>`src/app/feature/editor/services/model-source.service.ts` | - |
@@ -477,6 +479,9 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | `src-tauri/src/commands/codemap.rs:94-106` | `codemap_install_languages` sequences parser installation and code-map re-indexing. | A `CodeMapService` operation, leaving the command as argument/result plumbing. |
 | `src-tauri/src/commands/git.rs:67-208` | Git allowlist validation, timeout handling, pipe draining, and child-process polling live in command modules. | A Rust Git process/service module, leaving the command as argument/result plumbing. |
 | `src-tauri/src/commands/askpass.rs:38-127` | Askpass listener, pending-request registry, timeout, and event emission live in the command module. | A Rust Git/askpass service, leaving the command as argument/result plumbing. |
+| `src-tauri/src/commands/pty.rs:53-146` | `pty_spawn` mixes argument plumbing with PTY creation, shell setup, session registration, output pumping, and exit waiting. | A Rust terminal/PTY service should own the lifecycle; commands should dispatch and return. |
+| `src-tauri/src/commands/pty.rs:151-178` | `pty_write` and `pty_resize` directly find and mutate live PTY state. | State lookup and PTY I/O belong in a Rust terminal/PTY service. |
+| `src-tauri/src/commands/pty.rs:182-192` | `pty_kill` directly removes a session and invokes the child killer. | Kill/session cleanup belongs in a Rust terminal/PTY service. |
 | `src/app/feature/git/features/changes/git-changes.ts:160-168` | The changes component sequences commit-and-push/sync workflows. | `GitClient` pipelines should own workflow sequencing. |
 | `src/app/feature/git/client/branch.pipeline.ts:43-77` | Stash-switch-restore/migrate recovery sequencing lives in a client pipeline. | `GitService` or a dedicated Git operation service should own the operation sequence. |
 | `src/app/feature/git/client/commit.pipeline.ts:18-74` | Commit preflight, staged/unstaged decisions, and recovery sequencing live in UI pipeline logic. | `GitService` or `GitClient` orchestration should own action sequencing. |
