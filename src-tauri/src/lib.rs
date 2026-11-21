@@ -32,7 +32,11 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             let resource_dir = app.path().resource_dir().ok();
-            app.manage(services::runs::RunManager::with_resource_dir(resource_dir));
+            let app_data_dir = app.path().app_data_dir()?;
+            app.manage(services::runs::RunManager::with_runtime_dirs(
+                resource_dir,
+                Some(app_data_dir),
+            ));
             app.state::<services::watcher::WorkspaceWatcher>()
                 .subscribe(move |root, paths| {
                     handle
@@ -94,8 +98,9 @@ pub fn run() {
             commands::runs::run_list,
             commands::runs::run_log,
             commands::runs::workflow_list,
-            commands::runs::workflow_inspect,
-            commands::runs::workflow_trust,
+            commands::runs::workspace_trust_status,
+            commands::runs::workspace_trust,
+            commands::runs::workspace_trust_revoke,
             commands::tasks::task_list,
             commands::tasks::task_get,
             commands::tasks::task_create,

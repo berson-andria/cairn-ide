@@ -1,6 +1,6 @@
 import type { NewSubTask, NewTask, TaskItem } from '../../feature/tasks/task.service';
 
-export type WorkflowSource = 'project' | 'global';
+export type WorkflowSource = 'project' | 'global' | 'bundled';
 export type RunOutcome = 'needs_review' | 'failed';
 
 export interface RunStep {
@@ -29,13 +29,18 @@ export interface RunRecord {
 export interface WorkflowInfo {
   name: string;
   source: WorkflowSource;
+  overrides: WorkflowSource[];
   trusted: boolean;
+  entry: string;
 }
 
-export interface WorkflowInspect extends WorkflowInfo {
-  path: string;
-  hash: string;
-  files: { path: string; size: number }[];
+export interface WorkflowTrustStatus {
+  hasWorkflows: boolean;
+  trusted: boolean;
+  folderHash: string;
+  approvedHash?: string;
+  files: { path: string; size: number; sha256: string }[];
+  changes: { path: string; change: 'added' | 'modified' | 'removed' }[];
 }
 
 export interface BatchTaskItem extends NewTask {

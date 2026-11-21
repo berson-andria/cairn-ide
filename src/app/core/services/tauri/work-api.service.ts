@@ -22,7 +22,7 @@ import type {
   RunRecord,
   SourceAction,
   WorkflowInfo,
-  WorkflowInspect,
+  WorkflowTrustStatus,
 } from '../../../shared/models/agent.model';
 
 export interface ApiError {
@@ -177,11 +177,14 @@ export class WorkApiService {
   workflowList() {
     return this.call<WorkflowInfo[]>('workflow_list');
   }
-  workflowInspect(name: string) {
-    return this.call<WorkflowInspect>('workflow_inspect', { name });
+  workspaceTrustStatus() {
+    return this.call<WorkflowTrustStatus>('workspace_trust_status');
   }
-  workflowTrust(name: string, hash: string) {
-    return this.call<void>('workflow_trust', { name, hash });
+  workspaceTrust(hash: string) {
+    return this.call<void>('workspace_trust', { hash });
+  }
+  workspaceTrustRevoke() {
+    return this.call<void>('workspace_trust_revoke');
   }
   runStart(taskId: string, expectedRev: number, workflow?: string) {
     return this.call<RunRecord>('run_start', { taskId, expectedRev, workflow });

@@ -20,9 +20,10 @@ The Tauri commands are:
 | `run_get` | optional `runId` | with an id, that run record; without one, active run record, last run record, or `null` |
 | `run_list` | `limit` | run records, newest first |
 | `run_log` | `runId`, `maxLines` | `string[]` |
-| `workflow_list` | — | `{ name, source, trusted }[]` |
-| `workflow_inspect` | `name` | `{ name, source, path, hash, trusted, files }` |
-| `workflow_trust` | `name`, `hash` | `null` |
+| `workflow_list` | — | `{ name, source, overrides, trusted, entry }[]` |
+| `workspace_trust_status` | — | current folder hash, file inventory, approval and changes |
+| `workspace_trust` | `hash` | `null` |
+| `workspace_trust_revoke` | — | `null` |
 
 `run_list` reads `.cairn/runs/*/run.json`, skips and logs unreadable or
 malformed records, and clamps `limit` to 1–50. Active records omit `endedAt`.
@@ -38,26 +39,47 @@ workflow, and a startable task with the supplied revision. If `workflow` is
 omitted, the name `default` is used. Workflows are resolved by name (without
 the `.py` extension) from `.cairn/workflows/<name>.py` in the project first,
 then from the global `cairn/workflows/<name>.py` directory under the platform
-config directory. Names must match `[A-Za-z0-9_-]{1,64}`.
+config directory, then from the bundled `workflows/<name>.py` directory beside
+the SDK. Bundled workflows are resolved from app resources in release builds
+and from `sdk/python/workflows` in development. `entry` is relative to the
+project, config, or SDK root respectively. When a name exists in more than one
+source, `overrides` lists the lower-precedence sources in resolution order.
+Names must match `[A-Za-z0-9_-]{1,64}`.
 At run start, Rust reads the user's app-data `settings.json` once and snapshots
 the model registry/default into that run. Missing or malformed settings are
 logged and give the run an empty registry; later settings edits do not affect
 an active run.
 
-Project workflows require approval of the SHA-256 hash of the entire
-`.cairn/workflows` folder. The hash includes every regular file, sorted by
-relative path, with each relative path and its content; `__pycache__`
-directories and `*.pyc` files are excluded. Adding a file or changing any
-workflow or helper invalidates approval for every project workflow. The trust
-store is `workflow-trust.json` in the platform app data directory, never in
-the project. Its keys are `<canonical project root>|.cairn/workflows`; its
-values are folder SHA-256 hashes. `workflow_trust` accepts a hash only when it
-matches the current folder hash. `TrustRequired` reports the folder path and
-current hash. Global workflows are trusted automatically.
-`workflow_inspect` returns the resolved script path and hash, plus file paths
-and sizes. For project workflows, the inventory is exactly the sorted set of
-files covered by the folder hash, excluding `__pycache__` directories and
-`*.pyc`; for global workflows, it contains only the workflow script.
+Project trust is per canonical project root, not per run. Project workflows
+require approval of the SHA-256 hash of the entire `.cairn/workflows` folder.
+The hash covers every file and subfolder helper, sorted by relative path, with
+each relative path and its content; symlinks are not followed and their link
+target strings are hashed. `__pycache__` directories and `*.pyc` files are
+excluded. Adding, removing, or changing any included file invalidates approval
+for every project workflow.
+
+The trust store is `workflow-trust.json` in Tauri app data, never in the
+project. Each canonical-root entry stores `folderHash`, per-relative-path
+SHA-256 values, and `approvedAt`. Older entries containing only a hash string
+remain readable; they establish trust when the current folder hash matches but
+cannot produce a per-file change list. The project’s settings or other files
+cannot grant trust.
+
+`workspace_trust_status` returns `hasWorkflows`, `trusted`, `folderHash`,
+optional `approvedHash`, current `files` (`path`, `size`, `sha256`), and
+`changes` relative to the stored file inventory (`added`, `modified`, or
+`removed`). Changes are empty if there is no approval or the approval predates
+file inventories. `workspace_trust(hash)` accepts only the current folder hash
+and stores that hash plus the current file list. `workspace_trust_revoke()`
+removes the approval. Both require an open project. Global and bundled
+workflows are trusted without approval. Before changing the task status and
+again immediately before spawning, Rust verifies the project workflow hash.
+An untrusted project workflow returns `TrustRequired` with the Settings review
+message.
+
+Approval is not a sandbox: **approved scripts run with your permissions**.
+Users should inspect the current file inventory and all reported changes in
+Settings before approving.
 
 ### RPC methods
 
@@ -249,8 +271,9 @@ Typed command boundary; it has no signals and consumes no events.
 | Method | Resolves to | Command errors |
 |---|---|---|
 | `workflowList()` | `WorkflowInfo[]` | `NoProject`, `Io`, `Corrupt`, `RuntimeUnavailable` |
-| `workflowInspect(name: string)` | `WorkflowInspect` | `NoProject`, `WorkflowNotFound`, `Validation`, `Io`, `Corrupt`, `RuntimeUnavailable` |
-| `workflowTrust(name: string, hash: string)` | `void` | `NoProject`, `WorkflowNotFound`, `Validation`, `Io`, `Corrupt`, `RuntimeUnavailable` |
+| `workspaceTrustStatus()` | `WorkflowTrustStatus` | `NoProject`, `Io`, `Corrupt`, `RuntimeUnavailable` |
+| `workspaceTrust(hash: string)` | `void` | `NoProject`, `Validation`, `Io`, `Corrupt`, `RuntimeUnavailable` |
+| `workspaceTrustRevoke()` | `void` | `NoProject`, `Io`, `Corrupt`, `RuntimeUnavailable` |
 | `runStart(taskId: string, expectedRev: number, workflow?: string)` | `RunRecord` | `NoProject`, `NotFound`, `StaleRev`, `InvalidTransition`, `RunActive`, `TrustRequired`, `RuntimeUnavailable`, `WorkflowNotFound`, `Validation`, `Io`, `Corrupt` |
 | `runCancel()` | `void` | `Io` |
 | `runGet(runId?)` | `RunRecord \| null` | `NotFound`, `Validation` when an id is supplied |
@@ -287,17 +310,22 @@ synthesized. Live lines may overlap lines fetched during refresh.
 
 #### `WorkflowService`
 
-Workflow list and trust-dialog inspection data.
+Workflow list and project-level trust status.
 
 | API | Behavior |
 |---|---|
 | `workflows` | `Signal<WorkflowInfo[]>` of the latest workflow list |
-| `refresh()` | Coalesced `workflow_list()` after project open |
-| `inspect(name)` | Return script path, hash, and file inventory for trust |
-| `clear()` | Reset workspace-scoped state |
+| `trust` | `Signal<WorkflowTrustStatus \| null>` with current files and approval changes |
+| `needsTrustReview` | True when project workflows exist and the current folder is not trusted |
+| `refresh()` / `refreshTrust()` | Refresh the workflow list or project trust status |
+| `projectOpened()` | Refresh trust status and emit `trustReview$` once when review is needed |
+| `trustReview$` | Emits the untrusted status once for each project open |
+| `approve()` / `revoke()` | Approve the latest displayed folder hash or remove the project approval |
+| `filesChanged(paths)` | Debounce trust refreshes by 500 ms for paths in `.cairn/workflows` |
+| `clear()` | Reset workspace-scoped state and pending refresh timers |
 
-List and inspect errors are reported through `handleApiError`; the service
-consumes no events.
+Command errors are reported through `handleApiError`. The workspace watcher
+passes filesystem batches to the service; unrelated paths do not refresh trust.
 
 #### `RunService`
 
@@ -309,8 +337,7 @@ Start/cancel workflows and expose live run state.
 | `isRunning` | `Signal<boolean>`; run is unfinished and its cached task is running when present |
 | `logLines(runId)` | `Signal<string[]>` from the bounded run buffer |
 | `runDisabledReason(task, workflow?)` / `canRun(task, workflow?)` | Explain or check project, task, run, dependency, and workflow eligibility |
-| `run(taskId, workflow?)` | Call `run_start`; return `started`, or `trust-required` without toasting |
-| `trustAndRun(taskId, workflowName, hash)` | Call `workflow_trust`, then retry `run` |
+| `run(taskId, workflow?)` | Call `run_start`; return `started` or `{ kind: 'trust-required' }` without toasting |
 | `cancel()` | Call `run_cancel()` |
 | `refresh()` | Refresh `run_get()` and the active run's log |
 | `loadHistory(limit)` / `loadLog(runId, maxLines)` | Call `run_list` / `run_log` and cache results |
@@ -335,8 +362,9 @@ app initializer.
 |---|---|
 | Subscribe | Listen once to task, note, project, run, and proposal events |
 | Workspace change | Clear caches, then close or open the project |
-| Project open | Refresh tasks, notes, proposals, run, and workflows |
+| Project open | Refresh tasks, notes, proposals, run, workflows, and trust status |
 | `project:reloaded` | Refresh tasks, notes, and proposals |
+| `fs:changed` | Refresh trust status after a debounced workflow-path batch |
 
 ### Error table
 
@@ -349,7 +377,7 @@ app initializer.
 | `Validation` | Input or edited payload failed validation | Reported with Rust's message. |
 | `NoProject` | No project is open | `handleApiError` suppresses the toast. |
 | `RunActive` | Another workflow is active | Reported; `isRunning` allows the UI to disable run actions. |
-| `TrustRequired` | Project workflow hash is not approved | `RunService.run` returns `trust-required` and does not toast. |
+| `TrustRequired` | Project workflow hash is not approved | `RunService.run` returns `{ kind: 'trust-required' }` and points the UI to Settings; it does not inspect or approve automatically. |
 | `RuntimeUnavailable` | Workflow launcher/SDK is unavailable | Reported with Rust's message. |
 | `WorkflowNotFound` | Workflow name cannot be resolved | Reported with Rust's message. |
 | `Io`, `Corrupt` | Disk or record problem | Reported with Rust's message; list-level storage errors remain in store `errors`. |
@@ -373,22 +401,44 @@ No service retries a rejected mutation silently.
 4. On `{ kind: 'started', run }`, show the active state from
    `runService.current()` / `runService.isRunning()`. The event-fed task status
    also changes to `running`.
-5. On `{ kind: 'trust-required', workflow }`, follow the trust-dialog recipe.
+5. On `{ kind: 'trust-required' }`, direct the user to the Settings review flow.
    Other handled errors appear through `NoticeManager`.
 6. On `run:finished`, the event-derived state is interim; `RunStore.refresh()`
    fetches the full run record. `isRunning()` becomes false and the task event
    carries the task's resulting status.
 
-#### Trust dialog
+#### Notice when opening a project
 
-1. `const result = await runService.run(task.id, workflowName)`.
-2. If `result?.kind === 'trust-required'`, display its `path`, `hash`, and
-   `files`, and plainly warn: **the script runs with your permissions**.
-3. After approval call
-   `await runService.trustAndRun(task.id, result.workflow.name, result.workflow.hash)`.
-   This calls `workflow_trust` before retrying `run_start`.
-4. If the hash has changed since inspection, Rust rejects trust/start and the
-   service reports the error; inspect again before asking for approval.
+1. Subscribe to `workflowService.trustReview$` for the project-open lifecycle.
+2. When it emits, show a notice directing the user to Settings to review project
+   workflows. The observable emits at most once for that project open and only
+   when `.cairn/workflows` contains Python workflows that are not trusted.
+3. This notice does not approve scripts or start a run.
+
+#### Settings review and approval
+
+1. Read `workflowService.trust()` and render its `files` and `changes` before
+   offering approval. A change is relative to the prior approved inventory;
+   show added, modified, and removed paths clearly.
+2. Warn plainly: **approved scripts run with your permissions**. Trust is not
+   a sandbox and applies to all project workflows and helpers as one folder.
+3. After the user reviews the current inventory, call
+   `await workflowService.approve()`. It submits the displayed `folderHash`;
+   Rust rejects it with `Validation` if the folder changed in the meantime.
+4. On approval, the service refreshes status. To withdraw approval, call
+   `await workflowService.revoke()`.
+5. A changed helper is included in the folder hash, so it requires a new
+   review just like a changed workflow script.
+
+#### Failed run start
+
+1. If `runService.run(task.id, workflowName)` returns
+   `{ kind: 'trust-required' }`, point the user to Settings; the result carries
+   no script inspection data and the service does not trust or retry.
+2. Settings presents the latest `trust` status. If it is stale, refresh and
+   have the user review the new file list and changes before approval.
+3. After approval, the user explicitly retries the run. `run_start` checks
+   trust before the task status change and Rust hashes again before spawn.
 
 #### Live log view
 

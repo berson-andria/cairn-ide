@@ -12,7 +12,14 @@ import { ProposalNotifier } from '../src/app/core/services/proposals/proposal-no
 import { RunService } from '../src/app/core/services/runs/run.service';
 import { WorkflowService } from '../src/app/core/services/runs/workflow.service';
 import { TaskService, type TaskItem, type TaskStatus } from '../src/app/feature/tasks/task.service';
-import type { Proposal, RunRecord, RunState, WorkflowInfo } from '../src/app/shared/models/agent.model';
+import type {
+  Proposal,
+  RunRecord,
+  RunState,
+  WorkflowInfo,
+  WorkflowSource,
+  WorkflowTrustStatus,
+} from '../src/app/shared/models/agent.model';
 
 const task = (id: string, status: TaskStatus = 'ready', dependsOn?: string): TaskItem => ({
   id,
@@ -24,7 +31,22 @@ const task = (id: string, status: TaskStatus = 'ready', dependsOn?: string): Tas
   ...(dependsOn ? { dependsOn } : {}),
 });
 
-const workflow = (name: string): WorkflowInfo => ({ name, source: 'project', trusted: true });
+const workflow = (name: string, source: WorkflowSource = 'project'): WorkflowInfo => ({
+  name,
+  source,
+  overrides: [],
+  trusted: true,
+  entry: `${source}/${name}.py`,
+});
+
+const trustStatus = (overrides: Partial<WorkflowTrustStatus> = {}): WorkflowTrustStatus => ({
+  hasWorkflows: true,
+  trusted: false,
+  folderHash: 'folder-hash',
+  files: [{ path: 'main.py', size: 4, sha256: 'file-hash' }],
+  changes: [],
+  ...overrides,
+});
 const runRecord = (runId: string): RunRecord => ({
   runId,
   taskId: 'task-1',
@@ -41,6 +63,7 @@ function makeHarness(options: {
   current?: RunState | null;
   rootPath?: string | null;
   workflows?: WorkflowInfo[];
+  needsTrustReview?: boolean;
   runStore?: Pick<RunStore, 'current' | 'logLines' | 'refresh' | 'record' | 'setRecord'>;
   api?: Partial<WorkApiService>;
 } = {}) {
@@ -60,7 +83,7 @@ function makeHarness(options: {
   };
   const workflows = {
     workflows: signal(options.workflows ?? [workflow('default')]).asReadonly(),
-    inspect: async () => undefined,
+    needsTrustReview: signal(options.needsTrustReview ?? false).asReadonly(),
   };
   const injector = Injector.create({
     providers: [
@@ -225,6 +248,21 @@ test('runDisabledReason reports project, task, run, dependency, and workflow blo
   const multiple = makeHarness({ workflows: [workflow('one'), workflow('two')] }).runService;
   assert.equal(multiple.runDisabledReason(task('task-1')), 'Choose a workflow.');
   assert.equal(multiple.runDisabledReason(task('task-1'), 'missing'), 'Workflow not found.');
+
+  const projectUntrusted = makeHarness({
+    workflows: [workflow('project-workflow')],
+    needsTrustReview: true,
+  }).runService;
+  assert.equal(
+    projectUntrusted.runDisabledReason(task('task-1'), 'project-workflow'),
+    'Workflows are not trusted; review them in Settings',
+  );
+
+  const globalWorkflow = makeHarness({
+    workflows: [workflow('global-workflow', 'global')],
+    needsTrustReview: true,
+  }).runService;
+  assert.equal(globalWorkflow.runDisabledReason(task('task-1'), 'global-workflow'), null);
 });
 
 test('runDisabledReason allows the default or the sole workflow', async () => {
@@ -265,9 +303,99 @@ test('perform forwards the chosen workflow to RunService.run', async () => {
       },
     },
   });
-
   await harness.taskService.perform(task('task-1'), 'run', { workflow: 'two' });
   assert.equal(selected, 'two');
+});
+
+test('run returns trust-required without inspecting or approving the workflow', async () => {
+  let trustCalls = 0;
+  const harness = makeHarness({
+    api: {
+      runStart: async () => {
+        throw { code: 'TrustRequired', message: 'Review the project workflows.' };
+      },
+      workspaceTrust: async () => {
+        trustCalls++;
+      },
+    },
+  });
+
+  assert.deepEqual(await harness.runService.run('task-1'), { kind: 'trust-required' });
+  assert.equal(trustCalls, 0);
+});
+
+function workflowServiceHarness(api: Partial<WorkApiService>, rootPath = '/project') {
+  const injector = Injector.create({
+    providers: [
+      { provide: WorkApiService, useValue: api },
+      { provide: NodeStore, useValue: { rootPath: signal<string | null>(rootPath) } },
+      { provide: NoticeManager, useValue: { error: () => {} } },
+    ],
+  });
+  return runInInjectionContext(injector, () => new WorkflowService());
+}
+
+test('needsTrustReview requires project workflows and an untrusted status', async () => {
+  let status = trustStatus({ hasWorkflows: false });
+  const service = workflowServiceHarness({
+    workspaceTrustStatus: async () => status,
+  });
+  await service.refreshTrust();
+  assert.equal(service.needsTrustReview(), false);
+
+  status = trustStatus({ trusted: true });
+  await service.refreshTrust();
+  assert.equal(service.needsTrustReview(), false);
+
+  status = trustStatus();
+  await service.refreshTrust();
+  assert.equal(service.needsTrustReview(), true);
+  service.clear();
+  assert.equal(service.needsTrustReview(), false);
+});
+
+test('workflow trust status refresh is debounced and ignores unrelated filesystem paths', async () => {
+  let calls = 0;
+  const service = workflowServiceHarness({
+    workspaceTrustStatus: async () => {
+      calls++;
+      return trustStatus();
+    },
+  });
+  service.filesChanged(['/project/src/app.ts']);
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  assert.equal(calls, 0);
+
+  service.filesChanged(['/project/.cairn/workflows/main.py']);
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  assert.equal(calls, 0);
+  service.filesChanged(['/project/.cairn/workflows/helpers/common.py']);
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  assert.equal(calls, 0);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(calls, 1);
+  service.clear();
+});
+
+test('trustReview$ emits once for each project open that needs review', async () => {
+  const service = workflowServiceHarness({
+    workspaceTrustStatus: async () => trustStatus(),
+  });
+  let emissions = 0;
+  const subscription = service.trustReview$.subscribe((status) => {
+    emissions++;
+    assert.equal(status.folderHash, 'folder-hash');
+  });
+
+  await service.projectOpened();
+  await service.refreshTrust();
+  assert.equal(emissions, 1);
+
+  service.clear();
+  await service.projectOpened();
+  assert.equal(emissions, 2);
+  subscription.unsubscribe();
+  service.clear();
 });
 
 test('subtaskProgress reports done running failed pending and percent', () => {

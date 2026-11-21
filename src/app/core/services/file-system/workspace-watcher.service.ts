@@ -9,6 +9,7 @@ import { fsEvents$ } from './fs-events';
 import { CodeMapService } from '../codemap/codemap.service';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { NoticeManager } from '../notification/notification.service';
+import { WorkflowService } from '../runs/workflow.service';
 
 @Injectable({ providedIn: 'root' })
 export class WorkspaceWatcherService {
@@ -18,6 +19,7 @@ export class WorkspaceWatcherService {
   private readonly editor = inject(EditorService);
   private readonly codemap = inject(CodeMapService);
   private readonly notices = inject(NoticeManager);
+  private readonly workflows = inject(WorkflowService);
 
   private readonly pendingCodeMapPaths = new Set<string>();
   private codeMapTimer: ReturnType<typeof setTimeout> | null = null;
@@ -65,6 +67,7 @@ export class WorkspaceWatcherService {
       const changed = await listen<{ events: { kind: string; paths: string[] }[]; overflow: boolean }>('fs:changed', ({ payload }) => {
         if (generation !== this.startGeneration) return;
         fsEvents$.next();
+        this.workflows.filesChanged(payload.events.flatMap((event) => event.paths));
         if (payload.overflow) {
           this.enqueueOverflow(rootPath);
           return;

@@ -347,16 +347,6 @@ export const SETTINGS: SettingDef[] = [
   ),
 
   setting(
-    'trust',
-    'restrictedMode',
-    'boolean',
-    false,
-    'workspace',
-    planned,
-    'Restrict actions in this workspace.',
-  ),
-
-  setting(
     'diagnostics',
     'logLevel',
     'enum',

@@ -1,7 +1,7 @@
 use crate::services::{
     models::Registry,
     project::{ProjectState, TauriEventSink},
-    runs::workflows::{WorkflowInfo, WorkflowInspection},
+    runs::workflows::{WorkflowInfo, WorkflowTrustStatus},
     runs::{RunManager, RunRecord},
     service_error::ServiceError,
 };
@@ -79,20 +79,26 @@ pub async fn workflow_list(
 }
 
 #[tauri::command]
-pub async fn workflow_inspect(
-    name: String,
+pub async fn workspace_trust_status(
     projects: State<'_, ProjectState>,
     runs: State<'_, RunManager>,
-) -> Result<WorkflowInspection, ServiceError> {
-    runs.workflow_inspect(&projects, &name)
+) -> Result<WorkflowTrustStatus, ServiceError> {
+    runs.workspace_trust_status(&projects)
 }
 
 #[tauri::command]
-pub async fn workflow_trust(
-    name: String,
+pub async fn workspace_trust(
     hash: String,
     projects: State<'_, ProjectState>,
     runs: State<'_, RunManager>,
 ) -> Result<(), ServiceError> {
-    runs.workflow_trust(&projects, &name, &hash)
+    runs.workspace_trust(&projects, &hash)
+}
+
+#[tauri::command]
+pub async fn workspace_trust_revoke(
+    projects: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
+) -> Result<(), ServiceError> {
+    runs.workspace_trust_revoke(&projects)
 }

@@ -105,6 +105,7 @@ export class WorkSyncService {
         this.proposals.refresh(),
         this.runService.refresh(),
         this.workflowService.refresh(),
+        this.workflowService.projectOpened(),
       ]).catch((error) => {
         this.notices.error((error as { message?: string })?.message ?? String(error));
       });

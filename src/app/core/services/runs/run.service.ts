@@ -1,7 +1,7 @@
 import { Injectable, computed, inject } from '@angular/core';
 import type { Signal } from '@angular/core';
 import { WorkflowService } from './workflow.service';
-import { RunRecord, WorkflowInfo, WorkflowInspect } from '../../../shared/models/agent.model';
+import { RunRecord, WorkflowInfo } from '../../../shared/models/agent.model';
 import { TaskItem } from '../../../feature/tasks/task.service';
 import { NodeStore } from '../../store/node.store';
 import { RunStore } from '../../store/run.store';
@@ -12,7 +12,7 @@ import { WorkApiService } from '../tauri/work-api.service';
 
 export type RunResult =
   | { kind: 'started'; run: RunRecord }
-  | { kind: 'trust-required'; workflow: WorkflowInspect };
+  | { kind: 'trust-required' };
 
 @Injectable({ providedIn: 'root' })
 export class RunService {
@@ -103,9 +103,12 @@ export class RunService {
 
     const selectedWorkflow = this.selectWorkflow(workflow, workflows);
     if (selectedWorkflow === undefined) return 'Choose a workflow.';
-    if (!workflows.some((item) => item.name === selectedWorkflow)) {
+    const selected = workflows.find((item) => item.name === selectedWorkflow);
+    if (!selected) {
       return 'Workflow not found.';
     }
+    if (selected.source === 'project' && this.workflows.needsTrustReview())
+      return 'Workflows are not trusted; review them in Settings';
     return null;
   }
 
@@ -135,26 +138,11 @@ export class RunService {
       return { kind: 'started', run };
     } catch (error) {
       if ((error as { code?: string })?.code === 'TrustRequired') {
-        const inspection = await this.workflows.inspect(workflowName);
-        return inspection ? { kind: 'trust-required', workflow: inspection } : undefined;
+        return { kind: 'trust-required' };
       }
       await handleApiError(error, this.notices);
       return undefined;
     }
-  }
-
-  async trustAndRun(
-    taskId: string,
-    workflowName: string,
-    hash: string,
-  ): Promise<RunResult | undefined> {
-    try {
-      await this.api.workflowTrust(workflowName, hash);
-    } catch (error) {
-      await handleApiError(error, this.notices);
-      return undefined;
-    }
-    return this.run(taskId, workflowName);
   }
 
   async cancel(): Promise<void> {

@@ -456,10 +456,17 @@ impl Default for RunManager {
 
 impl RunManager {
     pub fn with_resource_dir(resource_dir: Option<PathBuf>) -> Self {
+        Self::with_runtime_dirs(resource_dir, None)
+    }
+
+    pub fn with_runtime_dirs(
+        resource_dir: Option<PathBuf>,
+        trust_data_dir: Option<PathBuf>,
+    ) -> Self {
         Self::with_options(
             Arc::new(SystemLauncher),
             DEFAULT_RUN_TIMEOUT,
-            None,
+            trust_data_dir,
             PathBuf::from(env!("CARGO_MANIFEST_DIR")),
             resource_dir,
         )
@@ -620,10 +627,12 @@ impl RunManager {
         after_spawn: impl FnOnce() -> Result<(), ServiceError>,
         before_active: impl FnOnce(),
     ) -> Result<RunRecord, ServiceError> {
-        let workflow = match self.inner.trust_data_dir.as_deref() {
-            Some(data_dir) => workflows::resolve_in(&project.root, &workflow_name, Some(data_dir))?,
-            None => workflows::resolve(&project.root, &workflow_name)?,
-        };
+        let workflow = workflows::resolve_with_sources(
+            &project.root,
+            &workflow_name,
+            self.inner.trust_data_dir.as_deref(),
+            self.bundled_workflows_dir().as_deref(),
+        )?;
         workflows::require_trust(&project.root, &workflow)?;
         let run_id = uuid::Uuid::new_v4().to_string();
         let task =
@@ -688,8 +697,49 @@ impl RunManager {
                 sink,
             ));
         }
+        let verified_workflow = match workflows::resolve_with_sources(
+            &project.root,
+            &workflow_name,
+            self.inner.trust_data_dir.as_deref(),
+            self.bundled_workflows_dir().as_deref(),
+        ) {
+            Ok(workflow) => workflow,
+            Err(error) => {
+                return Err(self.fail_start(
+                    &project,
+                    &run_directory,
+                    record,
+                    error.message,
+                    error.code,
+                    sink,
+                ));
+            }
+        };
+        if let Err(error) = workflows::require_trust(&project.root, &verified_workflow) {
+            return Err(self.fail_start(
+                &project,
+                &run_directory,
+                record,
+                error.message,
+                error.code,
+                sink,
+            ));
+        }
+        let mut record = record;
+        record.source = verified_workflow.source;
+        record.script_hash = verified_workflow.script_hash.clone();
+        if let Err(error) = write_run_record(&run_directory, &record) {
+            return Err(self.fail_start(
+                &project,
+                &run_directory,
+                record,
+                format!("Could not write run metadata: {error}"),
+                ServiceErrorCode::Io,
+                sink,
+            ));
+        }
         let launch = LaunchConfig {
-            script: workflow.path,
+            script: verified_workflow.path,
             root: project.root.clone(),
             sdk_dir,
             run_id: run_id.clone(),
@@ -1039,32 +1089,37 @@ impl RunManager {
         projects: &ProjectState,
     ) -> Result<Vec<workflows::WorkflowInfo>, ServiceError> {
         let project = projects.services()?;
-        match self.inner.trust_data_dir.as_deref() {
-            Some(data_dir) => workflows::list_in(&project.root, Some(data_dir)),
-            None => workflows::list(&project.root),
-        }
+        workflows::list_with_sources(
+            &project.root,
+            self.inner.trust_data_dir.as_deref(),
+            self.bundled_workflows_dir().as_deref(),
+        )
     }
 
-    pub fn workflow_inspect(
+    pub fn workspace_trust_status(
         &self,
         projects: &ProjectState,
-        name: &str,
-    ) -> Result<workflows::WorkflowInspection, ServiceError> {
+    ) -> Result<workflows::WorkflowTrustStatus, ServiceError> {
         let project = projects.services()?;
-        workflows::inspect_in(&project.root, name, self.inner.trust_data_dir.as_deref())
+        workflows::trust_status(&project.root, self.inner.trust_data_dir.as_deref())
     }
 
-    pub fn workflow_trust(
-        &self,
-        projects: &ProjectState,
-        name: &str,
-        hash: &str,
-    ) -> Result<(), ServiceError> {
+    pub fn workspace_trust(&self, projects: &ProjectState, hash: &str) -> Result<(), ServiceError> {
         let project = projects.services()?;
-        match self.inner.trust_data_dir.as_deref() {
-            Some(data_dir) => workflows::trust_in(&project.root, name, hash, Some(data_dir)),
-            None => workflows::trust(&project.root, name, hash),
-        }
+        workflows::trust(&project.root, hash, self.inner.trust_data_dir.as_deref())
+    }
+
+    pub fn workspace_trust_revoke(&self, projects: &ProjectState) -> Result<(), ServiceError> {
+        let project = projects.services()?;
+        workflows::revoke(&project.root, self.inner.trust_data_dir.as_deref())
+    }
+
+    fn bundled_workflows_dir(&self) -> Option<PathBuf> {
+        workflows::bundled_workflows_dir(
+            cfg!(debug_assertions),
+            &self.inner.manifest_dir,
+            self.inner.resource_dir.as_deref(),
+        )
     }
 
     fn lock_state(&self) -> Result<std::sync::MutexGuard<'_, ManagerState>, ServiceError> {
@@ -1534,13 +1589,7 @@ mod tests {
         fs::create_dir_all(&workflow_dir).unwrap();
         fs::write(workflow_dir.join("flow.py"), "pass").unwrap();
         let workflow = workflows::resolve_in(root.path(), "flow", Some(data.path())).unwrap();
-        workflows::trust_in(
-            root.path(),
-            "flow",
-            &workflow.script_hash,
-            Some(data.path()),
-        )
-        .unwrap();
+        workflows::trust(root.path(), &workflow.script_hash, Some(data.path())).unwrap();
         let sink = RecordingSink::default();
         let project = Arc::new(ProjectState::default());
         project.open(root.path(), sink.clone()).unwrap();
@@ -2469,7 +2518,12 @@ mod tests {
     fn untrusted_or_edited_workflow_leaves_task_ready() {
         let h = harness(Duration::from_secs(3), false);
         fs::remove_file(h._data.path().join("workflow-trust.json")).unwrap();
-        assert_eq!(start(&h).unwrap_err().code, ServiceErrorCode::TrustRequired);
+        let error = start(&h).unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::TrustRequired);
+        assert_eq!(
+            error.message,
+            "Workflows in this project are not trusted. Review them in Settings."
+        );
         assert_eq!(
             h.project
                 .services()
@@ -2482,19 +2536,18 @@ mod tests {
         );
 
         let workflow = workflows::resolve_in(h._root.path(), "flow", Some(h._data.path())).unwrap();
-        workflows::trust_in(
-            h._root.path(),
-            "flow",
-            &workflow.script_hash,
-            Some(h._data.path()),
-        )
-        .unwrap();
+        workflows::trust(h._root.path(), &workflow.script_hash, Some(h._data.path())).unwrap();
         fs::write(
-            h._root.path().join(".cairn/workflows/flow.py"),
-            "print('changed')",
+            h._root.path().join(".cairn/workflows/helper.py"),
+            "VALUE = 1",
         )
         .unwrap();
-        assert_eq!(start(&h).unwrap_err().code, ServiceErrorCode::TrustRequired);
+        let error = start(&h).unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::TrustRequired);
+        assert_eq!(
+            error.message,
+            "Workflows in this project are not trusted. Review them in Settings."
+        );
         assert_eq!(
             h.project
                 .services()
@@ -2504,6 +2557,84 @@ mod tests {
                 .unwrap()
                 .status,
             crate::types::task::TaskStatus::Ready
+        );
+    }
+
+    #[test]
+    fn bundled_and_global_runs_start_without_project_approval() {
+        let layout = tempdir().unwrap();
+        let manifest_dir = layout.path().join("repo").join("src-tauri");
+        let sdk_dir = manifest_dir.join("..").join("sdk").join("python");
+        let bundled_dir = sdk_dir.join("workflows");
+        fs::create_dir_all(&bundled_dir).unwrap();
+        let bundled_name = format!("bundled-{}", uuid::Uuid::new_v4().simple());
+        fs::write(bundled_dir.join(format!("{bundled_name}.py")), "pass").unwrap();
+
+        let global_name = format!("global-{}", uuid::Uuid::new_v4().simple());
+        let global_dir = dirs::config_dir().unwrap().join("cairn").join("workflows");
+        fs::create_dir_all(&global_dir).unwrap();
+        let global_path = global_dir.join(format!("{global_name}.py"));
+        fs::write(&global_path, "pass").unwrap();
+
+        for (workflow_name, expected_source) in [
+            (bundled_name.as_str(), workflows::WorkflowSource::Bundled),
+            (global_name.as_str(), workflows::WorkflowSource::Global),
+        ] {
+            let root = tempdir().unwrap();
+            let data = tempdir().unwrap();
+            let projects = ProjectState::default();
+            projects.open(root.path(), NoopSink).unwrap();
+            let task = projects
+                .services()
+                .unwrap()
+                .tasks
+                .create(crate::types::task::TaskItem::new("trusted source"))
+                .unwrap();
+            let fake = Arc::new(FakeState {
+                exit_code: AtomicI32::new(-1),
+            });
+            let manager = RunManager::with_options(
+                Arc::new(FakeLauncher {
+                    state: fake,
+                    fail: false,
+                }),
+                Duration::from_secs(3),
+                Some(data.path().to_path_buf()),
+                manifest_dir.clone(),
+                None,
+            );
+            let run = manager
+                .run_start(
+                    &projects,
+                    task.id,
+                    task.rev,
+                    Some(workflow_name.into()),
+                    Arc::new(NoopSink),
+                )
+                .unwrap();
+            assert_eq!(run.source, expected_source);
+            manager.run_cancel().unwrap();
+            wait_inactive(&manager);
+        }
+
+        fs::remove_file(global_path).unwrap();
+    }
+
+    #[test]
+    fn project_trust_commands_require_an_open_project() {
+        let manager = RunManager::default();
+        let projects = ProjectState::default();
+        assert_eq!(
+            manager.workspace_trust_status(&projects).unwrap_err().code,
+            ServiceErrorCode::NoProject
+        );
+        assert_eq!(
+            manager.workspace_trust(&projects, "hash").unwrap_err().code,
+            ServiceErrorCode::NoProject
+        );
+        assert_eq!(
+            manager.workspace_trust_revoke(&projects).unwrap_err().code,
+            ServiceErrorCode::NoProject
         );
     }
 
@@ -2739,13 +2870,7 @@ mod tests {
             .create(crate::types::task::TaskItem::new("integration"))
             .unwrap();
         let workflow = workflows::resolve_in(root.path(), "hello", Some(data.path())).unwrap();
-        workflows::trust_in(
-            root.path(),
-            "hello",
-            &workflow.script_hash,
-            Some(data.path()),
-        )
-        .unwrap();
+        workflows::trust(root.path(), &workflow.script_hash, Some(data.path())).unwrap();
         let manager = RunManager::with_options(
             Arc::new(SystemLauncher),
             Duration::from_secs(90),
@@ -2813,13 +2938,7 @@ mod tests {
             .create(crate::types::task::TaskItem::new("sleeping integration"))
             .unwrap();
         let workflow = workflows::resolve_in(root.path(), "sleepy", Some(data.path())).unwrap();
-        workflows::trust_in(
-            root.path(),
-            "sleepy",
-            &workflow.script_hash,
-            Some(data.path()),
-        )
-        .unwrap();
+        workflows::trust(root.path(), &workflow.script_hash, Some(data.path())).unwrap();
         let manager = RunManager::with_options(
             Arc::new(SystemLauncher),
             Duration::from_secs(180),

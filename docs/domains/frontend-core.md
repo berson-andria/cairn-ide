@@ -24,6 +24,11 @@ Domain records and typed event payloads are in
 storage errors remain on their store; command-level failures go through the
 shared error handler.
 
+Workflow trust status is also a shared domain shape:
+`{ hasWorkflows, trusted, folderHash, approvedHash?, files, changes }`.
+`files` carries relative paths, byte sizes, and SHA-256 values; `changes`
+classifies paths as added, modified, or removed.
+
 ## 3. Rust
 
 There is no shared Rust frontend-core service. Each domain document describes
@@ -45,6 +50,8 @@ does not own UI state or subscribe to events.
 proposal listeners and resolves to an unlisten function. `WorkSyncService`
 subscribes once, waits for registration before opening a project, applies
 events to the relevant stores, and coordinates project-scoped refreshes.
+`WorkspaceWatcherService` forwards filesystem batches to `WorkflowService`;
+workflow-path batches trigger a debounced trust-status refresh.
 
 ### Store pattern and revision rule
 
@@ -89,8 +96,10 @@ the UI decides how to present and dismiss each group. See
 ## 5. Flows
 
 **Project events:** register listeners first; then the workspace coordinator
-opens or closes the Rust project and refreshes the relevant stores. The full
-startup sequence is in [workspace](./workspace.md#5-flows).
+opens or closes the Rust project and refreshes the relevant stores. After an
+open, it refreshes workflow trust and emits the trust-review observable once
+when project workflows are untrusted. The full startup sequence is in
+[workspace](./workspace.md#5-flows).
 
 **Mutation errors:** a domain facade calls the API, handles the rejection with
 `handleApiError`, and refreshes on stale data when appropriate. The cache
