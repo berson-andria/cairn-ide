@@ -14,6 +14,10 @@ Last updated: 2026-11-21
 │   ├── codemaps/
 │   │   ├── codemap.md
 │   │   └── project-apis.md
+│   ├── gits/
+│   │   └── git.md
+│   ├── lsps/
+│   │   └── lsp.md
 │   ├── workspaces/
 │   │   └── workspace.md
 │   ├── CONTEXT.md
@@ -452,8 +456,8 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | Codemap | `src-tauri/src/types/codemap.rs` | `src-tauri/src/services/codemap/extract.rs`<br>`src-tauri/src/services/codemap/graph.rs`<br>`src-tauri/src/services/codemap/languages.rs`<br>`src-tauri/src/services/codemap/mod.rs`<br>`src-tauri/src/services/codemap/service.rs`<br>`src-tauri/src/services/codemap/store.rs`<br>`src-tauri/src/services/codemap/tree.rs` | `src-tauri/src/commands/codemap.rs` | `src/app/core/services/codemap/codemap.service.ts` | - | - | `docs/codemaps/codemap.md` |
 | Settings and models | - | - | `src-tauri/src/commands/models.rs` | - | `src/app/core/store/setting.store.ts` | `src/app/feature/setting/settings.service.ts`<br>`src/app/core/services/settings-runtime.service.ts` | `docs/model.md` |
 | Secrets | - | - | `src-tauri/src/commands/secrets.rs` | - | - | - | `docs/model.md` |
-| Git | - | - | `src-tauri/src/commands/askpass.rs`<br>`src-tauri/src/commands/git.rs` | `src/app/feature/git/services/git-client.service.ts` | - | `src/app/feature/git/services/git-askpass.service.ts`<br>`src/app/feature/git/services/git-blame.service.ts`<br>`src/app/feature/git/services/git-dialog.service.ts`<br>`src/app/feature/git/services/git-diff.service.ts`<br>`src/app/feature/git/services/git.service.ts` | - |
-| LSP | - | - | `src-tauri/src/commands/lsp.rs` | `src/app/core/services/lsp/lsp-bridge.service.ts` | - | `src/app/core/services/lsp/lsp-manager.service.ts`<br>`src/app/core/services/lsp/lsp-monitor.service.ts` | - |
+| Git | - | - | `src-tauri/src/commands/askpass.rs`<br>`src-tauri/src/commands/git.rs` | `src/app/feature/git/services/git-client.service.ts` | - | `src/app/feature/git/services/git-askpass.service.ts`<br>`src/app/feature/git/services/git-blame.service.ts`<br>`src/app/feature/git/services/git-dialog.service.ts`<br>`src/app/feature/git/services/git-diff.service.ts`<br>`src/app/feature/git/services/git.service.ts` | `docs/gits/git.md` |
+| LSP | - | - | `src-tauri/src/commands/lsp.rs` | `src/app/core/services/lsp/lsp-bridge.service.ts` | `src/app/core/services/lsp/lsp-monitor.service.ts` | `src/app/core/services/lsp/lsp-manager.service.ts`<br>`src/app/core/services/lsp/lsp-client.ts` | `docs/lsps/lsp.md` |
 | Terminal | - | - | `src-tauri/src/commands/pty.rs` | `src/app/feature/terminal/terminal.service.ts` | - | - | - |
 | Search | `src-tauri/src/types/search.rs` | - | `src-tauri/src/commands/search.rs` | `src/app/feature/search/search.service.ts` | - | - | - |
 | Explorer and nodes | `src-tauri/src/types/workspace_node.rs` | `src-tauri/src/services/fs.rs` | `src-tauri/src/commands/fs.rs` | `src/app/core/services/file-system/file-system.service.ts` | `src/app/core/store/node.store.ts` | - | `docs/codemaps/project-apis.md#watcher-fs` |
@@ -471,6 +475,11 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | `src-tauri/src/commands/project.rs:63` | `project_open` cancels runs and records app-data history in the command boundary. | Project/run/history services, with the command reduced to argument/result plumbing. |
 | `src-tauri/src/commands/project.rs:95` | `project_close` cancels runs and clears the last-project marker in app data. | Project/run/history services, with the command reduced to argument/result plumbing. |
 | `src-tauri/src/commands/codemap.rs:94-106` | `codemap_install_languages` sequences parser installation and code-map re-indexing. | A `CodeMapService` operation, leaving the command as argument/result plumbing. |
+| `src-tauri/src/commands/git.rs:67-208` | Git allowlist validation, timeout handling, pipe draining, and child-process polling live in command modules. | A Rust Git process/service module, leaving the command as argument/result plumbing. |
+| `src-tauri/src/commands/askpass.rs:38-127` | Askpass listener, pending-request registry, timeout, and event emission live in the command module. | A Rust Git/askpass service, leaving the command as argument/result plumbing. |
+| `src/app/feature/git/features/changes/git-changes.ts:160-168` | The changes component sequences commit-and-push/sync workflows. | `GitClient` pipelines should own workflow sequencing. |
+| `src/app/feature/git/client/branch.pipeline.ts:43-77` | Stash-switch-restore/migrate recovery sequencing lives in a client pipeline. | `GitService` or a dedicated Git operation service should own the operation sequence. |
+| `src/app/feature/git/client/commit.pipeline.ts:18-74` | Commit preflight, staged/unstaged decisions, and recovery sequencing live in UI pipeline logic. | `GitService` or `GitClient` orchestration should own action sequencing. |
 | `src-tauri/src/commands/codemap.rs:155-163` | `codemap_search` applies the default limit of 50 at the IPC boundary. | `CodeMapService::search` or its input type, so the default is service policy. |
 | `src/app/feature/setting/model-setting/models-settings.ts:124` | Save validation, key migration/deletion, entry construction, and registry writes belong in a model/service facade. | A model settings service/facade; the component should render and dispatch. |
 | `src/app/feature/setting/model-setting/models-settings.ts:222` | API key retrieval and HTTP endpoint/testing logic belong in a model service, not the settings component. | A model test/service layer; the component should hold UI state only. |
@@ -478,3 +487,6 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | `src-tauri/src/commands/models.rs:18` | GGUF validation, process spawning, polling, timeout, and kill logic execute in the command module. | A Rust model service; the command should perform argument/result plumbing. |
 | `src-tauri/src/commands/secrets.rs:13` | Keyring entry validation and secret lifecycle logic execute in the command module. | A Rust secrets service; the command should perform argument/result plumbing. |
 | `src-tauri/src/commands/diagnostics.rs:4` | String-to-`LevelFilter` mapping executes in the command module. | A Rust diagnostics/logging service. |
+| `src-tauri/src/commands/lsp.rs:43-102` | `lsp_start` owns process spawning, Windows flags, pipe extraction, state insertion, async read/exit tasks, and kill waiting. | A Rust LSP process/service module; the command should only validate arguments and delegate. |
+| `src-tauri/src/commands/lsp.rs:105-143` | `lsp_send` and `lsp_stop` contain transport lookup, Content-Length framing, pipe writes, and kill-signal lifecycle policy. | A Rust LSP service/module with command functions reduced to argument/result plumbing. |
+| `src-tauri/src/commands/lsp.rs:145-185` | `read_loop` and `stderr_loop` implement stdout framing and stderr draining in the command module. | A Rust LSP transport service/module used through a service handle. |
