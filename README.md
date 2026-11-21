@@ -1,158 +1,171 @@
 # Cairn IDE
 
-> A lean, high-performance, and extensible developer environment built with **Tauri**, **Angular**, and **Monaco Editor**, designed for deterministic AI-assisted workflows and programmable agentic systems.
+> A lean, high-performance, extensible desktop IDE built with **Tauri**, **Angular**, and **Monaco Editor**, for structured, deterministic AI-assisted development.
 
 ---
 
 > [!NOTE]
-> **Project Status: Active Development (Work in Progress)**  
-> Cairn is an ongoing, evolving project. Core editor functionalities, terminal, file explorer, and a custom Language Server Protocol (LSP) bridge are operational. The deterministic AST code-mapping engine and scriptable Python agent runtime are currently in active design and implementation.
+> **Project Status: Active Development**
+>
+> The editor, integrated terminal, file explorer, Git tools, LSP bridge, settings, task and note services, Rust code map, run lifecycle, proposals, and stdlib-only Python SDK are implemented. Runs and proposals are covered by automated tests; end-to-end verification inside the app is in progress. The README and runtime are still converging; a real workflow through the full app and several recovery/platform paths are not yet fully verified.
 
 ---
 
-## 🧭 The Vision
+## The Vision
 
-Most modern AI coding environments treat context retrieval as a black box—relying on probabilistic vector search or heavy file attachments optimized for massive, expensive cloud models, wrapped in hardcoded chat interfaces that developers cannot inspect or control. When working with smaller local models or optimizing for token efficiency and precision, this approach quickly breaks down.
+Most AI coding tools retrieve context as a probabilistic black box and wrap it in a hardcoded chat interface. Cairn takes a different approach:
 
-> **The Core Formula:**  
-> **The IDE provides Tasks, Notes, and a Living Code Map; you program the Agent to orchestrate them.**
+> **The IDE provides Tasks, Notes, and a Living Code Map; the user programs the Agent in Python.**
 
-**Cairn takes a fundamentally different approach:**
-1. **Two-Stage Context Retrieval:** Other tools often dump multiple entire functions or full files into the context window. Cairn separates discovery from code extraction:
-   * **Discovery via Descriptions:** The agent scans lightweight behavioral summaries in the Code Map to locate the function it needs or verify whether a function already exists, avoiding redundant implementations.
-   * **Tree-sitter & LSP:** Once the target is identified from its description, Tree-sitter and LSP selectively extract *only* that function's body and its direct callers/callees, feeding the model the exact context required without token bloat.
-2. **Provider-Agnostic & Privacy-Friendly:** Connect your preferred LLM provider via Bring-Your-Own-Key (OpenAI, Anthropic, OpenRouter, Groq, etc.) or connect to local inference engines (Ollama, llama.cpp, vLLM) for offline, privacy-first, and zero-cost development.
-3. **Programmable Agent Runtime (Open Host vs. Closed Box):** What is described above is only the **default workflow**. Cairn treats the IDE as an extensible host with a stable API. Through a first-class **Python SDK**, developers have full programmatic control (read, write, delete) over all IDE primitives—tasks, contextual notes, the code map, workspace files, and model endpoints. If you don't like the default agent loop, you can script your own without touching Rust or recompiling the IDE.
-4. **Lean & Resource-Conscious:** Powered by a native Rust core (Tauri) and a modern Angular frontend, avoiding the heavy memory overhead of traditional Electron-based editors.
+Cairn separates discovery from extraction. A code map gives the model structured symbol and reference information instead of dumping whole project files into every prompt. Tasks and contextual notes retain the work to be done and the decisions around it.
+
+The IDE is an open host rather than a closed agent. The default workflow is one workflow, not an irreversible core feature. Project and global Python workflows communicate with Rust over JSON-RPC and use the first-class SDK to read tasks and notes, inspect run context, report progress, and propose work.
+
+Cairn is a native desktop application: Rust owns project data and process lifecycle; Angular provides the workspace UI and caches; Python workflows run as separate processes.
 
 ---
 
-## ⚡ Core Pillars
+## Core Pillars
 
-### 1. The Code Map & Two-Stage Context Engine *(In Progress)*
-* **AST Extraction:** Uses Tree-sitter to parse project files into functions and classes, mapping exact signatures and body spans.
-* **Behavioral Descriptions:** Cached one-line summaries describe what each function actually does, allowing the agent to find needed logic or detect existing functions without reading full implementations.
-* **On-Demand Hydration:** Tree-sitter + LSP pulls only the resolved function and its reference graph (`context_for(files)`), keeping prompts hyper-focused.
-* **Smart Invalidation via Body Hashing:** Function bodies are hashed (`xxhash`/`blake3`) so the AI only generates summaries for code that actually changed.
-* **Who-Calls-Whom Reference Graph:** Tracks direct callers and callees to provide structural context on demand.
+### 1. Structured Context
 
-### 2. Flexible Model Integration (Local & Cloud)
-* **Inference Providers:** First-class support for cloud API providers (OpenAI, Anthropic, OpenRouter, Groq, etc.) with custom model selection and rate-limit friendliness.
-* **Local Models:** Fully compatible with local OpenAI-compatible endpoints (Ollama, LM Studio, llama.cpp). Highly optimized for efficient reasoning on modest models (e.g., 14B–35B MoE) by minimizing context noise.
+- Tree-sitter extracts Rust code symbols and computes body hashes for the Rust code map.
+- Call and callee information supports structural code discovery.
+- Tasks and notes keep plans, dependencies, acceptance criteria, and contextual links separate from prompts.
+- The explorer, Monaco editor, LSP bridge, terminal, diagnostics, search, and Git tools provide the surrounding workbench.
 
-### 3. Brainstorming, Planning & "Nuclear" Tasks
-* **Brainstorm $\to$ Plan $\to$ Execute Flow:** Collaborate with the agent to brainstorm architectural ideas, clarify requirements, and convert unstructured thoughts into a structured plan.
-* **Nuclear (Atomic) Tasks:** Models—especially modest local models—excel when work is narrowly scoped. From the plan, developers can manually define or let the model suggest atomic "nuclear" tasks with explicit acceptance criteria.
-* **Automated Subtask Decomposition:** If a task involves multiple steps, it is systematically split into granular subtasks, ensuring iterative, verifiable execution rather than uncontrolled, sprawling edits.
-* **Contextual Notes:** Anchor quick notes directly to functions, AST nodes, or files to capture architectural thoughts and pending dependencies without losing your train of thought.
+### 2. Tasks, Notes, Runs, and Proposals
 
-### 4. The Python Agent SDK & Extensible Runtime
-Cairn does not hardcode agent logic into the core binary. **Every default capability—brainstorming, planning, nuclear task decomposition, subtask creation, and code map retrieval—is exposed as a first-class primitive in the Python SDK** over decoupled JSON-RPC:
+- Rust services own task, note, proposal, and run records.
+- Task status transitions and revisions are enforced in Rust.
+- Workflow runs execute Python separately and expose run context, steps, resume state, and finish results.
+- Scripts may propose tasks or subtasks; scripts cannot create tasks directly or mark tasks complete.
+- Proposal records and the proposal stores are implemented for task, batch, and subtask kinds.
 
-* `planning`: Trigger collaborative brainstorming sessions, generate structured plans, and synthesize atomic tasks.
-* `tasks`: Full CRUD operations, subtask decomposition, status transitions, and runnable verification criteria.
-* `codemap`: Search function descriptions, check for duplicates, and extract AST bodies + call graphs (`context_for`).
-* `notes`: Read, write, anchor to AST nodes, and promote notes into actionable tasks.
-* `workspace` & `editor`: Propose diffs on isolated branches, inspect files, and trigger automated test/linter checks.
-* `models`: Dispatch prompts to registered local or cloud model endpoints.
+### 3. The Python Agent SDK
+
+The stdlib-only SDK in `sdk/python/cairn` talks to the host over JSON-RPC 2.0. Stdout is reserved for RPC; Python `print()` output is redirected to stderr and becomes run log output.
+
+The SDK exposes:
+
+| Namespace | Real methods |
+|---|---|
+| `cairn.tasks` | `get(task_id)`, `list()`, `propose(...)`, `propose_batch(...)`, `propose_subtasks(...)` |
+| `cairn.notes` | `get(note_id)`, `for_task(task_id)` |
+| `cairn.proposals` | `list()` |
+| `cairn.run` | `context()`, `pending_steps()`, `step_start(...)`, `step_finish(...)`, `step(...)`, `finish(...)` |
+| `cairn.call(...)` | Raw JSON-RPC call with API v1 handshake behavior |
+
+The SDK raises `CairnError(code, message)` for RPC errors and exits when the host closes stdin. The first SDK call performs the `hello` handshake.
 
 ```python
-# .cairn/workflows/default_flow.py
-from cairn import tasks, notes, codemap, models, review
+from cairn import tasks, run
 
-# The default agent loop is completely open and modifiable
-for task in tasks.list(status="todo"):
-    # 1. Walk the AST graph for surgical context (signatures, callers, callees)
-    ctx = codemap.context_for(task.files, depth=1)
-    extra_notes = notes.for_task(task.id)
+task = tasks.get("task-123")
+context = run.context()
 
-    # 2. Feed precision context to your configured model (local or cloud)
-    result = models.current().run(task.prompt, context=[ctx, extra_notes])
-
-    # 3. Propose a diff on a clean branch and request human review
-    tasks.propose_changes(task.id, result.diff)
-    review.request(task.id)
+proposal_id = tasks.propose(
+    "Add focused regression coverage",
+    description="Cover the failing edge case",
+    presentation="notify",
+)
+run.finish("needs_review", summary="Proposed verification work")
 ```
 
-> **Build Your Own Agents:** Developers can override workflows globally (`~/.config/cairn/workflows/`) or per-project (`.cairn/workflows/`) to implement custom methodologies—such as Spec-Driven Development, TDD loops, or multi-agent supervisor systems.
+### 4. Model and Provider Integration
+
+Settings and model entries are managed in the Angular app. Rust owns API-key storage through the OS keyring and exposes local-model testing. Cloud-provider and local-endpoint behavior is implemented through the model settings and services rather than being embedded in Python workflows.
 
 ---
 
-## 🛠️ Architecture & Tech Stack
+## Architecture
 
-```
-┌────────────────────────────────────────────────────────┐
-│                   Angular Frontend                     │
-│ • Monaco Editor integration                            │
-│ • Signals-based state management (@ngrx/signals)       │
-│ • Workbench panels (LSP monitor, output, diagnostics)  │
-└───────────────────────────▲────────────────────────────┘
-                            │ Tauri IPC Channels / Invocation
-┌───────────────────────────▼────────────────────────────┐
-│                    Rust Backend (Tauri)                │
-│ • Native OS filesystem & watcher                       │
-│ • Child process manager (LSPs, Python runtime)         │
-│ • Tree-sitter AST extraction & symbol caching          │
-│ • Low-latency JSON-RPC & event streaming               │
-└───────────────────────────▲────────────────────────────┘
-                            │ JSON-RPC (stdio / sockets)
-┌───────────────────────────▼────────────────────────────┐
-│             External Services & Providers              │
-│ • Language Servers (rust-analyzer, tsserver, etc.)     │
-│ • LLM Backends (Local Ollama / Cloud API Providers)    │
-│ • User-Defined Python Agent Scripts                    │
-└────────────────────────────────────────────────────────┘
+```text
+┌──────────────── Angular UI ─────────────────┐
+│ Monaco  │  Explorer  │  Tasks/Notes  │  Runs │
+│ Signals-based stores and caches             │
+└───────────────────────┬─────────────────────┘
+                        │ Tauri commands / events
+┌───────────────────────▼─────────────────────┐
+│             Rust core (Tauri)               │
+│ project  │ task  │ note  │ proposal │ run    │
+│ codemap  │ watcher │ LSP │ Git │ terminal   │
+└───────────┬─────────────────────────────────┘
+            │ JSON-RPC 2.0 over child stdin/stdout
+┌───────────▼─────────────────────────────────┐
+│  Python workflow process + cairn SDK        │
+│  trusted project workflow or global workflow│
+└─────────────────────────────────────────────┘
 ```
 
-* **Desktop Framework:** [Tauri v2](https://tauri.app/) (Rust)
-* **Frontend UI:** [Angular](https://angular.dev/) (Standalone Components, Signals)
-* **Code Editor:** [Monaco Editor](https://microsoft.github.io/monaco-editor/)
-* **Language Intelligence:** Custom LSP Client Bridge (`src/app/core/services/lsp`)
-* **Syntax Engine:** Tree-sitter (Native Rust backend)
-* **Icons:** `@ng-icons/lucide` & `@ng-icons/bootstrap-icons`
+**Desktop framework:** Tauri v2 / Rust  
+**Frontend:** Angular standalone components and signals  
+**Editor:** Monaco Editor  
+**Language intelligence:** Rust Tree-sitter and LSP bridge  
+**Agent runtime:** Python stdlib SDK and JSON-RPC 2.0  
+**Icons:** `@ng-icons/lucide` and `@ng-icons/bootstrap-icons`
+
+Recent projects are stored in the application data directory as a device-local history, not in the opened project folder. The workspace domain documents this behavior in `docs/domains/workspace.md`.
 
 ---
 
-## 🚦 Current Status & Roadmap
+## Current Status and Roadmap
 
-- [x] **Monaco Editor Core:** Multi-tab editing, model lifecycle management, syntax highlighting.
-- [x] **Custom LSP Client:** Stdio child process spawning, JSON-RPC communication, diagnostics streaming to Problems panel, semantic tokens.
-- [x] **IDE Shell:** File explorer, integrated terminal, output logs, tooling panel.
-- [ ] **Tree-sitter Integration:** Native Rust parsing, symbol inventory, function body hashing.
-- [ ] **Workbench Code Map Panel:** Dynamic function summary view with cached AI summaries.
-- [ ] **Reference Graph Engine:** Lexical and LSP call hierarchy resolution.
-- [ ] **Python Agent Runner:** JSON-RPC host bridge and thin Python SDK for custom user workflows.
-- [ ] **Task & Note Management:** Structured task board and AST-anchored notes.
+- [x] **Monaco Editor Core:** multi-tab editing, model lifecycle, syntax highlighting.
+- [x] **Custom LSP Client:** process bridge, JSON-RPC, diagnostics, semantic tokens.
+- [x] **IDE Shell:** explorer, terminal, output, search, Git tools, and workspace panels.
+- [x] **Rust Code Map:** Tree-sitter extraction for Rust (other languages planned, TypeScript next); cached summaries planned
+- [ ] **Code Map Panel:** planned.
+- [x] **Reference Graph Engine:** lexical caller/callee graph (LSP call hierarchy resolution planned)
+- [x] **Python runner and SDK (runs, steps, proposals):** done
+- [ ] **Default agent workflow with model calls:** planned
+- [x] **Task and Note Management:** Rust services, stores, Angular facades, and persisted project records.
+- [ ] **TypeScript Code Map Grammar:** planned.
+- [ ] **Default End-to-End Workflow:** planned until a real app workflow is verified.
 
 ---
 
-## 🚀 Getting Started (Development)
+## Getting Started
 
 ### Prerequisites
-* [Node.js](https://nodejs.org/) (v20+ recommended)
-* [Rust](https://www.rust-lang.org/tools/install) (stable toolchain)
-* [Tauri Prerequisites](https://v2.tauri.app/start/prerequisites/) for your operating system
 
-### Installation & Launch
+- Node.js v26.1.0 (unverified; `package.json` has no `engines` field)
+- Stable Rust toolchain
+- Tauri v2 platform prerequisites
+- `uv` for launching Python workflows
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/your-username/cairn-ide.git
-   cd cairn-ide
-   ```
+### Development
 
-2. **Install frontend dependencies:**
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+npm run tauri:dev
+```
 
-3. **Run in development mode:**
-   ```bash
-   npm run tauri:dev
-   ```
+Rust tests:
+
+```bash
+cd src-tauri
+cargo test
+```
 
 ---
 
-## 📄 License
+## Documentation
 
-This project is licensed under the [MIT License](LICENSE).
+- [Context](docs/CONTEXT.md)
+- [Module Map](docs/MAP.md)
+- [Architecture](docs/architecture.md)
+- [Frontend Core](docs/domains/frontend-core.md)
+- [Codemap](docs/domains/codemap.md)
+- [Editor](docs/domains/editor.md)
+- [Explorer](docs/domains/explorer.md)
+- [Git](docs/domains/git.md)
+- [LSP](docs/domains/lsp.md)
+- [Models and Settings](docs/domains/settings.md)
+- [Notes and Tasks](docs/domains/tasks-notes.md)
+- [Proposals](docs/domains/proposals.md)
+- [Runs](docs/domains/runs.md)
+- [Terminal](docs/domains/terminal.md)
+- [Workspace](docs/domains/workspace.md)
+
+Domain documentation is being completed; see docs/MAP.md for the module index.

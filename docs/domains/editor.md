@@ -1,5 +1,48 @@
 # Tabs and editor
 
+## 8. Command and keybinding inventory
+
+Commands are registered once in `registerAppCommands()`, called by the app
+initializer ([app.config.ts](../../src/app/app.config.ts):27-37). The
+`CommandService` owns the id-to-handler map; all window bindings call
+`execute(id, args)` ([command.service.ts](../../src/app/core/services/command/command.service.ts):7-38).
+`KeybindingService` loads
+[default-keybindings.json](../../src/assets/default-keybindings.json), merges
+optional user bindings, and listens in capture phase
+([keybinding.service.ts](../../src/app/core/services/command/keybinding.service.ts):28-61,
+[keybinding.service.ts](../../src/app/core/services/command/keybinding.service.ts):88-112).
+Bare-key bindings are blocked while editing text; F-keys and Escape remain
+active ([keybinding.service.ts](../../src/app/core/services/command/keybinding.service.ts):88-112).
+
+| Command id | Handler file | Default keybinding | Stores touched |
+|---|---|---|---|
+| `file.save` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):23-38; [editor.commands.ts](../../src/app/feature/editor/editor.commands.ts):215-230 | Mod+S | `TabStore`, `NodeStore`; Monaco dirty state in `EditorService` |
+| `file.saveAll` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):40; [editor.commands.ts](../../src/app/feature/editor/editor.commands.ts):232-238 | Mod+Shift+S | `TabStore`, `NodeStore`; Monaco dirty state in `EditorService` |
+| `file.openFile` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):41-46; [editor.commands.ts](../../src/app/feature/editor/editor.commands.ts):143-150 | Mod+O | `NodeStore`, `TabStore` |
+| `file.openFolder` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):47; [editor.commands.ts](../../src/app/feature/editor/editor.commands.ts):293-299 | Mod+Shift+O | `NodeStore`; project switch state and `TabStore` while closing/restoring |
+| `tab.close` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):50-54; [editor.commands.ts](../../src/app/feature/editor/editor.commands.ts):256-278 | Mod+W | `TabStore`, `NodeStore`; Monaco model state in `EditorService` |
+| `tab.next` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):55-56, [app-commands.ts](../../src/app/core/services/command/app-commands.ts):82-86 | Mod+Tab | `TabStore` |
+| `tab.previous` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):56-56, [app-commands.ts](../../src/app/core/services/command/app-commands.ts):82-86 | Mod+Shift+Tab | `TabStore` |
+| `view.toggleBottomPanel` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):58; [layout.service.ts](../../src/app/core/services/layout.service.ts):76-78 | Mod+J | None store; `LayoutService` signal |
+| `search.file` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):64; [layout.service.ts](../../src/app/core/services/layout.service.ts):80-82 | Mod+P | None store; opens the search dialog |
+| `explorer.selectAll` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):66; [node.store.ts](../../src/app/core/store/node.store.ts):465-469 | Mod+A, `explorerFocus && !renaming` | `NodeStore` |
+| `explorer.copy` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):67; [node.store.ts](../../src/app/core/store/node.store.ts):668-670 | Mod+C, `explorerFocus && !renaming` | `NodeStore` |
+| `explorer.cut` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):68; [node.store.ts](../../src/app/core/store/node.store.ts):671-673 | Mod+X, `explorerFocus && !renaming` | `NodeStore` |
+| `explorer.paste` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):71-74; [node.store.ts](../../src/app/core/store/node.store.ts):692-710 | Mod+V, `explorerFocus && !renaming` | `NodeStore` |
+| `explorer.delete` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):69; [node.store.ts](../../src/app/core/store/node.store.ts):516-530 | Delete, `explorerFocus && !renaming` | `NodeStore` |
+| `explorer.rename` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):70; [node.store.ts](../../src/app/core/store/node.store.ts):476-479 | F2, `explorerFocus && !renaming` | `NodeStore` |
+| `git.toggleBlame` | [app-commands.ts](../../src/app/core/services/command/app-commands.ts):76; [git-blame.service.ts](../../src/app/feature/git/services/git-blame.service.ts):29-36 | Mod+Shift+B | None store; local `GitBlameService.enabled` signal |
+
+The six explorer bindings depend on `explorerFocus` and `renaming`
+contexts ([default-keybindings.json](../../src/assets/default-keybindings.json):13-18).
+The explorer template sets `explorerFocus=true` on focus and the component
+clears it on focus-out/destruction
+([tree.html](../../src/app/feature/explorer/tree.html):26,
+[tree.ts](../../src/app/feature/explorer/tree.ts):69,
+[tree.ts](../../src/app/feature/explorer/tree.ts):100).
+Code sets `renaming=true/false` for rename mode
+([rename-node.ts](../../src/app/feature/explorer/node/rename-node/rename-node.ts):98-99).
+
 ## 1. Purpose and ownership
 
 The editor domain owns the active/main Monaco view, open-tab metadata, tab
@@ -38,13 +81,8 @@ tab, editor, or Monaco state (MAP row:
 
 **Commands**
 
-- `read_directory_content(path: String) -> Result<Vec<Node>, String>` ([fs.rs](../../src-tauri/src/commands/fs.rs):21).
-- `get_files(path: Vec<String>) -> Result<Vec<FileNode>, String>` ([fs.rs](../../src-tauri/src/commands/fs.rs):36).
-- `read_text_file(path: String) -> Result<String, String>` ([fs.rs](../../src-tauri/src/commands/fs.rs):80).
-- `create_fs_node(path, name, node_type, parent_id) -> Result<Node, String>` ([fs.rs](../../src-tauri/src/commands/fs.rs):93).
-
-Args are camelCase in TypeScript wrappers; Rust IPC uses `nodeType` and
-`parentId` in `invoke` args ([file-system.service.ts](../../src/app/core/services/file-system/file-system.service.ts):162).
+Filesystem command arguments and results are documented in
+[explorer nodes](./nodes.md).
 
 **Events:** none emitted by the editor-specific Rust commands; filesystem
 changes are watcher events owned by the watcher domain.

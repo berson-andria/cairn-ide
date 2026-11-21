@@ -1,8 +1,8 @@
 # Cairn IDE: context (load this first, every session)
 
 Companion: `docs/MAP.md` (folder tree, module index, gaps). Load ONE domain doc
-from `docs/domains/` (or the current per-topic docs, see section 9) only when the
-task touches it. Keep this file under about 200 lines. Last reviewed: 2026-11-21.
+from `docs/domains/` only when the task touches it. Keep this file under about
+200 lines. Last reviewed: 2026-11-21.
 
 ## 1. What Cairn is
 
@@ -133,18 +133,26 @@ trace panel; TypeScript grammar for the codemap; documentation consolidation.
 
 ## 9. Docs to load per topic
 
-| Topic | Doc |
+| Topic | Domain doc |
 |---|---|
-| Tasks and notes | `domains/notes.md#tasks-notes` |
+| Project | `domains/workspace.md` |
+| Tasks and notes | `domains/tasks-notes.md#tasks-notes` |
 | Proposals | `domains/proposals.md` |
-| Runs, workflows, and SDK | `domains/runs.md#runs` |
-| Watcher, filesystem events, and tree rules | `domains/watcher-fs.md` |
-| Code map implementation | `domains/codemap.md` |
-| Project and workspace | `domains/workspace.md` |
-| Decisions and rationale | `architecture.md` |
-
-Historical, do not load: `current-state.md`, `session-handoff.md`,
-`slice-2-port-notes.md`, `watch-policy-current.md`, `ui-contract.md`.
+| Runs and workflows | `domains/runs.md#runs` |
+| Watcher and filesystem events | `domains/watcher-fs.md` |
+| Code map | `domains/codemap.md` |
+| Settings and models | `domains/settings.md` |
+| Secrets | `domains/settings.md` |
+| Git | `domains/git.md` |
+| LSP | `domains/lsp.md` |
+| Terminal | `domains/terminal.md` |
+| Search | `domains/search.md` |
+| Explorer | `domains/explorer.md` |
+| Nodes | `domains/nodes.md` |
+| Tabs | `domains/tabs.md` |
+| Editor | `domains/editor.md` |
+| Diagnostics | `domains/model.md` |
+| Frontend core | `domains/frontend-core.md` |
 
 ## 10. Commands
 

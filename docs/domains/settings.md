@@ -55,12 +55,11 @@ There is no settings service function.
 | `secret_set` | `id: String`, `value: String` | `()` | Empty id/keyring unavailable/save failure [secrets.rs:12](../../src-tauri/src/commands/secrets.rs#L12). |
 | `secret_get` | `id: String` | `String` | Empty id/keyring unavailable/no entry/read failure [secrets.rs:19](../../src-tauri/src/commands/secrets.rs#L19). |
 | `secret_delete` | `id: String` | `()` | Empty id/keyring unavailable/delete failure; no entry succeeds [secrets.rs:27](../../src-tauri/src/commands/secrets.rs#L27). |
-| `set_log_level` | `level: String` | `()` | Unknown log level [diagnostics.rs:4](../../src-tauri/src/commands/diagnostics.rs#L4). |
 
-All five are registered in `lib.rs`
+The model and secret commands are registered in `lib.rs`
 [lib.rs:68](../../src-tauri/src/lib.rs#L68),
-[lib.rs:71](../../src-tauri/src/lib.rs#L71),
-[lib.rs:139](../../src-tauri/src/lib.rs#L139).
+[lib.rs:71](../../src-tauri/src/lib.rs#L71). Diagnostic command details:
+see [models and diagnostics](./model.md).
 
 ### Events
 
@@ -75,7 +74,8 @@ There is no settings-specific Angular API wrapper. `ModelsSettings` calls
 `invoke()` directly for `secret_set`, `secret_get`, `secret_delete`, and
 `model_test_local` [models-settings.ts:151](../../src/app/feature/setting/model-setting/models-settings.ts#L151),
 [models-settings.ts:228](../../src/app/feature/setting/model-setting/models-settings.ts#L228).
-`SettingsRuntimeService` calls `invoke('set_log_level', ...)`
+`SettingsRuntimeService` calls `invoke('set_log_level', ...)`;
+that command is documented in [Diagnostics](#diagnostics)
 [settings-runtime.service.ts:34](../../src/app/core/services/settings-runtime.service.ts#L34).
 
 ### Store signals
@@ -101,6 +101,26 @@ No store implementation is used: `setting.store.ts` is empty and no
 - `ModelsSettings` methods save/remove/test models and handle command/fetch
   failures into UI signals [models-settings.ts:124](../../src/app/feature/setting/model-setting/models-settings.ts#L124).
 
+## Diagnostics
+
+The diagnostics/log-level setting belongs to the diagnostics domain, even though
+its value is owned and persisted by Angular settings.
+
+| Command | Args in camelCase | Return | Errors |
+|---|---|---|---|
+| `set_log_level` | `level: String` | `()` | Plain `String`: unknown log level [diagnostics.rs:4](../../src-tauri/src/commands/diagnostics.rs#L4). |
+
+`set_log_level` is registered in
+[lib.rs:139](../../src-tauri/src/lib.rs#L139). It maps `trace`, `debug`, `info`,
+`warn`, or `error` to `LevelFilter` and applies the filter to the Rust log plugin.
+
+**Change log level**
+
+`SettingsRuntimeService` effect reads `diagnostics.logLevel` ->
+`invoke('set_log_level', { level })` -> Rust `set_log_level` maps the string to
+`LevelFilter`; errors are caught and logged in Angular
+[settings-runtime.service.ts:34](../../src/app/core/services/settings-runtime.service.ts#L34).
+
 ## 5. Flows
 
 ### Load settings
@@ -119,13 +139,6 @@ user app-data file or workspace file
 [settings.ts:134](../../src/app/feature/setting/settings.ts#L134),
 [settings.service.ts:124](../../src/app/feature/setting/settings.service.ts#L124).
 No Tauri command/store/event is involved.
-
-### Change log level
-
-`SettingsRuntimeService` effect reads `diagnostics.logLevel` ->
-`invoke('set_log_level', { level })` -> Rust `set_log_level` maps string to
-`LevelFilter`; errors are caught and logged in Angular
-[settings-runtime.service.ts:34](../../src/app/core/services/settings-runtime.service.ts#L34).
 
 ### Save/remove/test model
 

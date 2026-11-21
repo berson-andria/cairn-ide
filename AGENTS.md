@@ -1,8 +1,8 @@
 # Cairn architecture decisions
 
 Status: decisions for the tasks/notes service and the Python SDK.
-Facts about the current code live in `docs/current-state.md`. This file holds
-what is decided but not built yet.
+Facts about the current code live in `docs/CONTEXT.md` and
+`docs/domains/`. This file holds what is decided but not built yet.
 
 ## 1. Core rules
 
@@ -130,10 +130,10 @@ record (or the id for deletes).
 
 ## 7. Project root in Rust
 
-Whether Rust holds a global workspace root is unverified. The codemap receives
-the root through `codemap_open`. Add a small shared `ProjectState` in Rust,
-set by a `project_open(path)` command that Angular calls when the workspace
-changes. Tasks, notes and (later) the settings reader use it.
+Whether Rust holds a global workspace root is unverified. Add a small shared
+`ProjectState` in Rust for the codemap, tasks, notes and (later) settings
+reader. Project command details: see
+[workspace](docs/domains/workspace.md).
 
 ## 8. Run lifecycle (target)
 
@@ -159,13 +159,15 @@ workspace scope is `.cairn/settings.json`. Only non-default keys are written,
 and writes are debounced. `core/services/settings-runtime.service.ts` applies
 settings live (themes, Monaco options, terminal, LSP restarts, log level).
 Model entries live in user settings. API keys are in the OS keychain through
-the `keyring` crate (`secret_set/get/delete`, service `cairn-ide`, ref
-`model:<id>`); they never appear in JSON. `model_test_local` runs `llama-cli`.
+The `keyring` crate (service `cairn-ide`, ref `model:<id>`); they never appear
+in JSON. Model and secret command details: see
+[settings](docs/domains/settings.md).
 
 **Codemap** (`src-tauri/src/services/codemap/`). Rust only. Tree-sitter
 extraction, blake3 body hashes, caller/callee graph, cache at
 `.cairn/cache/codemap.json`. Production currently enables the Rust grammar
-only; grammars are installed on demand. Exposed as `codemap_*` Tauri commands.
+only; grammars are installed on demand. Command details: see
+[codemap](docs/domains/codemap.md).
 This is the base for the SDK's `codemap` namespace.
 
 ## 10. Build order (each slice is one nuclear task)
@@ -174,7 +176,7 @@ This is the base for the SDK's `codemap` namespace.
 |---|---|---|
 | 1 | Rust types, repository trait, file-backed repository | create/get/list/update/delete round-trip on disk; stale `rev` rejected; atomic write tested; corrupt file does not crash load |
 | 2 | Service layer: status rules, dependency reconcile, `rev` handling | every row of the transition table has a test; script actor cannot reach `completed` |
-| 3 | Tauri commands, events, `project_open`/`ProjectState` | commands registered in `lib.rs`; events emitted after every mutation |
+| 3 | Tauri commands, events, project state | commands registered in `lib.rs`; events emitted after every mutation |
 | 4 | Angular: API service, `task.store.ts`/`note.store.ts` as event-fed caches, `TaskService`/`NoteService` become thin facades | existing task and note screens work; data survives restart |
 | 5 | File watcher for external edits (`git pull`, manual) | editing a task file on disk updates the UI |
 | 6 | JSON-RPC host + read methods + run lifecycle | a script can list tasks and a run reaches `needs_review` |

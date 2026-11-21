@@ -13,7 +13,7 @@ and rename (`src-tauri/src/services/codemap/store.rs:99-144`). Angular's
 Its language-dismissal preference is local UI state in `localStorage`
 (`src/app/core/services/codemap/codemap.service.ts:143-159`). The project
 task/note/proposal/run contracts are documented separately in
-[notes.md](./notes.md).
+[tasks and notes](./tasks-notes.md).
 
 ## 2. Data shapes
 

@@ -42,19 +42,19 @@ lookup, so refreshes replace identity. [src-tauri/src/services/fs.rs:30]
   batches and emits filesystem events. [src-tauri/src/services/watcher.rs:52]
 
 ### Commands
-- `read_directory_content(path: String) -> Result<Vec<Node>, String>`
-- `get_files(path: Vec<String>) -> Result<Vec<FileNode>, String>`
-- `read_text_file(path: String) -> Result<String, String>`
-- `create_fs_node(path: String,name: String,nodeType: String,parentId: Option<String>) -> Result<Node,String>`
-- `workspace_search(dirPath: String,searchTerm: String,onMatch: Channel<FileSearchResult>,cancelState: State) -> Result<(),String>`
-- `watch_start(path: String) -> Result<(), String>`
-- `watch_stop() -> Result<(), String>`
 
-Args use camelCase at the Angular/Rust IPC boundary, with Rust function names
-listed above. [src-tauri/src/commands/fs.rs:21]
-[src-tauri/src/commands/fs.rs:36] [src-tauri/src/commands/fs.rs:80]
-[src-tauri/src/commands/fs.rs:93] [src-tauri/src/commands/fs.rs:103]
-[src-tauri/src/commands/watcher.rs:8]
+| Command | JS arguments (camelCase) | Return |
+|---|---|---|
+| `read_directory_content` | `path` | `Result<Vec<Node>, String>` |
+| `get_files` | `path` | `Result<Vec<FileNode>, String>` |
+| `read_text_file` | `path` | `Result<String, String>` |
+| `create_fs_node` | `path`, `name`, `nodeType`, `parentId` | `Result<Node, String>` |
+| `workspace_search` | `dirPath`, `searchTerm`, `onMatch` | `Result<(), String>` |
+
+The command implementations and error behavior are in
+[fs.rs](../../src-tauri/src/commands/fs.rs); its cancellation state is injected
+by Tauri and is not a JavaScript argument. Watcher command details are in
+[watcher and filesystem events](./watcher-fs.md).
 
 ### Events
 - `fs:changed`: payload `{ events: [{ kind, paths }], overflow }`, batched

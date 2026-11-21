@@ -43,16 +43,8 @@ The Rust and TS shapes are in
 
 ### Commands
 
-- `read_directory_content(path: String) -> Vec<Node>` ([fs.rs](../../src-tauri/src/commands/fs.rs:21)).
-- `get_files(path: Vec<String>) -> Vec<FileNode>` ([fs.rs](../../src-tauri/src/commands/fs.rs:36)).
-- `read_text_file(path: String) -> String` ([fs.rs](../../src-tauri/src/commands/fs.rs:80)).
-- `create_fs_node(path, name, nodeType, parentId) -> Node` ([fs.rs](../../src-tauri/src/commands/fs.rs:93)).
-- `workspace_search(dirPath, searchTerm, onMatch, cancelState) -> ()` ([fs.rs](../../src-tauri/src/commands/fs.rs:103)).
-- `watch_start(path) -> ()` ([watcher.rs](../../src-tauri/src/commands/watcher.rs:8)).
-- `watch_stop() -> ()` ([watcher.rs](../../src-tauri/src/commands/watcher.rs:22)).
-
-The `get_files` and text/file helpers have camelCase result fields, while file/directory
-creation returns the existing Rust `Node` wire shape.
+Tauri command arguments, results, and errors: see
+[explorer nodes](./nodes.md).
 
 ### Events
 

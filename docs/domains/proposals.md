@@ -225,3 +225,4 @@ and already-seen proposals, grouping each run with a 1000 ms quiet window and
 ## Known limits
 
 - Proposals created before the app starts do not trigger notifier emissions.
+- No bundled planning workflow currently creates `presentation: 'display'` proposals.
