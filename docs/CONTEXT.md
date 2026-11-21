@@ -131,11 +131,18 @@ view (UI); 6c (codemap reads for scripts, script-created notes, permission
 manifest); slice 7 (Rust settings reader, `models.run`, default workflow);
 trace panel; TypeScript grammar for the codemap; documentation consolidation.
 
-## 9. Docs to load per topic (until docs/domains exists)
+## 9. Docs to load per topic
 
-tasks/notes: `task-note-api.md`; proposals: `proposal-api.md`; runs and SDK:
-`run-api.md`; frontend services: `frontend-services.md`; watcher and tree
-rules: `watch-policy.md`; decisions and rationale: `architecture.md`.
+| Topic | Doc |
+|---|---|
+| Tasks and notes | `codemaps/project-apis.md#tasks-notes` |
+| Proposals | `codemaps/project-apis.md#proposals` |
+| Runs, workflows, and SDK | `codemaps/project-apis.md#runs` |
+| Watcher, filesystem events, and tree rules | `codemaps/project-apis.md#watcher-fs` |
+| Code map implementation | `codemaps/codemap.md` |
+| Project and workspace | `workspaces/workspace.md` |
+| Decisions and rationale | `architecture.md` |
+
 Historical, do not load: `current-state.md`, `session-handoff.md`,
 `slice-2-port-notes.md`, `watch-policy-current.md`, `ui-contract.md`.
 

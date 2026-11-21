@@ -3,7 +3,8 @@
 For building the Angular UI. Args are camelCase as passed to `invoke`. Every
 command rejects with `{ code, message }` OR a plain string (bad arguments);
 normalize both (the existing `work-api.service.ts` does this). Authoritative
-details: `task-note-api.md`, `run-api.md`, `proposal-api.md`.
+details: [tasks and notes](./codemaps/project-apis.md#tasks-notes),
+[runs](./codemaps/project-apis.md#runs), [proposals](./codemaps/project-apis.md#proposals).
 
 ## 0. Rules that apply everywhere
 
@@ -18,13 +19,14 @@ details: `task-note-api.md`, `run-api.md`, `proposal-api.md`.
   (no `innerHTML`), never forward them to a model as instructions.
 - A script can never complete a task. Only the buttons below can.
 
-## 1. Project and watcher
+## 1. Project
 
 | Purpose | Call |
 |---|---|
 | Open / close the workspace | `project_open(path)` -> plain root path; `project_close()` |
-| Outside change in the tree | event `fs:changed` `{ events:[{kind,paths}], overflow }`; on `overflow` do a full refresh |
-| Watcher failed | event `fs:watch-error` `{ message }` -> show a notice |
+
+Filesystem watcher events and visibility policy are in the
+[watcher-fs section](./codemaps/project-apis.md#watcher-fs).
 
 ## 2. Tasks
 
@@ -47,8 +49,8 @@ Use `TaskService.availableActions(task)` for the applicable status actions and
 enabled state; execute with `TaskService.perform(task, action, options?)`.
 When a workflow run is active for a running task, its actions include
 `cancelRun` and a disabled `complete`; run actions may pass
-`{ workflow: name }` when the user selects a workflow. See
-[frontend-services.md](./frontend-services.md) for action reasons and the
+`{ workflow: name }` when the user selects a workflow. See the
+[runs section](./codemaps/project-apis.md#runs) for action reasons and the
 service recipes.
 
 ## 3. Notes
@@ -85,8 +87,8 @@ in memory per run and use `run_log` to refill after a reload.
 
 Every retry creates a new run and adds its id to `TaskItem.runs`; the history
 is oldest first and capped at 50 ids. `run.context` includes the current
-1-based `attempt`. The frontend task-history recipe and APIs are in
-[frontend-services.md](./frontend-services.md).
+1-based `attempt`. The frontend task-history recipe and APIs are in the
+[runs section](./codemaps/project-apis.md#runs).
 
 ## 5. Proposals
 
