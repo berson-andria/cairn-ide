@@ -43,6 +43,12 @@ API, not a closed agent.
    (max 64); input text is untrusted (UI renders plain text, never HTML).
 7. A script can never complete a task, create or edit tasks or notes, or
    change another task's subtasks.
+8. Project history is Rust-owned app data, capped at ten entries, and contains
+   canonical path, name, and last-opened timestamp; missing folders remain
+   with `missing: true`. Startup precedence is launch `--folder`, saved last
+   project for ordinary processes, then empty for `--new-window` or a missing
+   folder. History writes re-read app data, merge under the lock, and replace
+   atomically; window close and quit do not mutate history.
 
 ## 4. Task status rules (Rust enforces)
 
@@ -93,7 +99,11 @@ Completing a task (Ui) also completes its `needs_review` subtasks, one write.
 (committed), `cache/codemap.json`, `runs/<runId>/{run.json,run.log,trace.jsonl}`,
 `runs/proposals/<id>.json`. The app creates `.cairn/.gitignore` (`cache/ runs/
 tasks/ notes/`) only if missing and never edits it. App data: user settings and
-`workflow-trust.json`. Explorer hides `.git`, `.cairn/cache`, `.cairn/runs`;
+`workflow-trust.json`, plus `last-session.json` for project history. Every
+history write re-reads app data and merges by canonical path/timestamp before
+an atomic replace; window close and quit do not change history. Missing history
+entries remain marked missing, and startup is launch folder, saved last project
+for ordinary processes, then empty. Explorer hides `.git`, `.cairn/cache`, `.cairn/runs`;
 live events for heavy folders (`node_modules`, `.venv`, `target`...) pass only
 for the folder itself.
 

@@ -14,6 +14,15 @@ Session history is app data, not project data: Rust writes
 (`src-tauri/src/services/session_history.rs:9-12`,
 `src-tauri/src/services/session_history.rs:61-68`,
 `src/app/core/services/project-history.service.ts:9-16`).
+It is a device-local convenience record, not workspace data, git data, or a
+cross-device sync mechanism. It is not a privacy boundary or an attempt to
+redact paths from the local machine.
+
+Project history contains the canonical folder path, folder name, and
+last-opened timestamp for at most ten entries, plus the one last-project marker.
+`launch_args` is process input only (`--folder`, `--new-window`) and is not
+stored in history. It deliberately provides no privacy boundary, path
+redaction, secret handling, cloud sync, or cross-device backup.
 
 ## 2. Data shapes
 
@@ -40,6 +49,7 @@ and `src/app/core/services/tauri/work-api.service.ts:38-53`.
 | `ProjectState::root_path/services` | Read current root or require an open project. | `Io`, `NoProject` (`src-tauri/src/services/project.rs:213-227`). |
 | `session_history::record_open` | Record canonical path, timestamp, name, merge concurrent writes, and cap history. | `io::Result` (`src-tauri/src/services/session_history.rs:101-119`). |
 | `session_history::snapshot/remove_project/clear_projects/clear_last_project` | Build missing-aware snapshot or mutate history. | `io::Result` (`src-tauri/src/services/session_history.rs:76-99`, `src-tauri/src/services/session_history.rs:121-139`). |
+| History invariants | Deduplicate canonical paths, keep newest entries first, and cap at ten. Missing folders remain in history and are marked from the current filesystem state. | Rust history service. |
 
 ### Commands
 
@@ -55,6 +65,12 @@ and `src/app/core/services/tauri/work-api.service.ts:38-53`.
 
 Registered in `src-tauri/src/lib.rs:79-85`; implementations and args are in
 `src-tauri/src/commands/project.rs:23-142`.
+
+The app deliberately does not use `tauri-plugin-single-instance`. A new window
+must start the current executable as a separate OS process. Windows spawning
+uses detached-process behavior; Unix spawning detaches the standard streams.
+Rust project state, watchers, codemap state, and run state are therefore still
+owned once per process.
 
 ### Events
 
@@ -96,6 +112,9 @@ last project unless `newWindow`, checks existence, loads the node folder, then
 waits/restores workspace state (`src/app/core/services/project-startup.service.ts:23-48`,
 `src/app/shared/models/project-startup.model.ts:3-12`). The exact path is:
 UI/init -> API -> Rust commands -> `ProjectState` -> refresh.
+The startup rule is launch folder, then saved last project for an ordinary
+process, then no folder. A missing launch folder or missing saved folder starts
+empty without an error.
 
 **Subscribe/open/refresh:** `WorkSyncService` subscribes to work events in its
 constructor, observes `NodeStore.rootPath`, then clears caches and awaits event
@@ -119,6 +138,10 @@ reads app-data snapshot; remove/clear mutate and refresh
 (`src-tauri/src/commands/project.rs:63-72`,
 `src-tauri/src/commands/project.rs:124-142`,
 `src/app/core/services/project-history.service.ts:14-35`).
+Each open re-reads app data immediately before writing and merges rather than
+overwriting stale in-memory state. Explicit folder close clears `lastProject`
+only when it equals that window's folder; it never removes history entries.
+Window close and process quit mutate no history.
 
 ## 6. Gaps
 
@@ -146,6 +169,15 @@ reads app-data snapshot; remove/clear mutate and refresh
   `{ folder, newWindow }`, and `ProjectStartupService` is its caller
   (`src-tauri/src/commands/project.rs:23-36`,
   `src/app/core/services/project-startup.service.ts:23-27`).
+- No cross-process same-project lock is implemented. Two processes may therefore
+  open the same folder and run workflows concurrently; `ProjectState`, watchers,
+  codemap state, and run state remain process-local by decision.
+- Cross-process end-to-end smoke coverage for launch arguments, quit/relaunch,
+  missing folders, and nearly simultaneous history writes is not recorded in
+  the workspace tests. Rust and startup pure-function tests cover the merge
+  and selection rules, but do not prove actual OS-process behavior.
+- Project history and launch arguments have no encryption, privacy/redaction
+  guarantee, opt-out/retention UI beyond clearing, or sync/backup behavior.
 
 ## 7. Logic in the wrong layer
 
@@ -153,3 +185,12 @@ reads app-data snapshot; remove/clear mutate and refresh
 |---|---|
 | `src-tauri/src/commands/project.rs:63` | `project_open` performs run cancellation and session-history I/O instead of delegating project, run, and history services. |
 | `src-tauri/src/commands/project.rs:95` | `project_close` performs run cancellation and app-data history mutation instead of delegating project, run, and history services. |
+
+## 8. Rules for future changes
+
+Do not move session history into workspace files or git-tracked project data.
+Do not merge stale in-memory copies; every history write must re-read app data
+and merge under the history lock. Do not silently delete missing entries or
+change history during window close/quit. Preserve launch-folder precedence,
+new-window empty startup, canonical-path deduplication, the ten-entry cap,
+atomic writes, and the conditional close-folder rule.
