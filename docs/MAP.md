@@ -18,6 +18,8 @@ Last updated: 2026-11-21
 │   │   └── git.md
 │   ├── lsps/
 │   │   └── lsp.md
+│   ├── searchs/
+│   │   └── search.md
 │   ├── terminals/
 │   │   └── terminal.md
 │   ├── workspaces/
@@ -461,7 +463,7 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | Git | - | - | `src-tauri/src/commands/askpass.rs`<br>`src-tauri/src/commands/git.rs` | `src/app/feature/git/services/git-client.service.ts` | - | `src/app/feature/git/services/git-askpass.service.ts`<br>`src/app/feature/git/services/git-blame.service.ts`<br>`src/app/feature/git/services/git-dialog.service.ts`<br>`src/app/feature/git/services/git-diff.service.ts`<br>`src/app/feature/git/services/git.service.ts` | `docs/gits/git.md` |
 | LSP | - | - | `src-tauri/src/commands/lsp.rs` | `src/app/core/services/lsp/lsp-bridge.service.ts` | `src/app/core/services/lsp/lsp-monitor.service.ts` | `src/app/core/services/lsp/lsp-manager.service.ts`<br>`src/app/core/services/lsp/lsp-client.ts` | `docs/lsps/lsp.md` |
 | Terminal | - | - | `src-tauri/src/commands/pty.rs` | `src/app/feature/terminal/terminal.service.ts` | - | - | `docs/terminals/terminal.md` |
-| Search | `src-tauri/src/types/search.rs` | - | `src-tauri/src/commands/search.rs` | `src/app/feature/search/search.service.ts` | - | - | - |
+| Search | `src-tauri/src/types/search.rs` | - | `src-tauri/src/commands/search.rs` | `src/app/feature/search/search.service.ts` | - | - | `docs/searchs/search.md` |
 | Explorer and nodes | `src-tauri/src/types/workspace_node.rs` | `src-tauri/src/services/fs.rs` | `src-tauri/src/commands/fs.rs` | `src/app/core/services/file-system/file-system.service.ts` | `src/app/core/store/node.store.ts` | - | `docs/codemaps/project-apis.md#watcher-fs` |
 | Tabs and editor | - | - | - | - | `src/app/core/store/tab.store.ts` | `src/app/feature/editor/editor.commands.ts`<br>`src/app/feature/editor/services/editor.service.ts`<br>`src/app/feature/editor/services/model-source.service.ts` | - |
 | Diagnostics | - | - | `src-tauri/src/commands/diagnostics.rs` | `src/app/core/services/diagnostics.service.ts` | - | - | `docs/model.md` |
@@ -494,4 +496,8 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | `src-tauri/src/commands/diagnostics.rs:4` | String-to-`LevelFilter` mapping executes in the command module. | A Rust diagnostics/logging service. |
 | `src-tauri/src/commands/lsp.rs:43-102` | `lsp_start` owns process spawning, Windows flags, pipe extraction, state insertion, async read/exit tasks, and kill waiting. | A Rust LSP process/service module; the command should only validate arguments and delegate. |
 | `src-tauri/src/commands/lsp.rs:105-143` | `lsp_send` and `lsp_stop` contain transport lookup, Content-Length framing, pipe writes, and kill-signal lifecycle policy. | A Rust LSP service/module with command functions reduced to argument/result plumbing. |
+| `src-tauri/src/commands/search.rs:24-81` | Glob splitting and include/exclude override construction live in command-module helpers. | A Rust search service should own glob parsing and override policy. |
+| `src-tauri/src/commands/search.rs:83-176` | `global_search` owns supersession, blocking dispatch, workspace validation, regex compilation, file walking, binary filtering, parallel scanning, and result grouping. | A Rust search service should own the search operation; the command should be argument/result plumbing. |
+| `src-tauri/src/commands/search.rs:179-244` | `search_files` owns blocking dispatch, workspace validation, excluded-folder filtering, traversal, normalization, and filename matching. | A Rust search service should own traversal and matching; the command should be argument/result plumbing. |
+| `src/app/feature/search/search.ts:338-399` | Replace-all confirmation, bulk-target construction, progress state, and result/skipped-match reconciliation are sequenced in the component. | The replace/search facade or a dedicated replace workflow service should own orchestration; the component should render state and dispatch. |
 | `src-tauri/src/commands/lsp.rs:145-185` | `read_loop` and `stderr_loop` implement stdout framing and stderr draining in the command module. | A Rust LSP transport service/module used through a service handle. |
