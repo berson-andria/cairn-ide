@@ -14,6 +14,8 @@ Last updated: 2026-11-21
 │   ├── codemaps/
 │   │   ├── codemap.md
 │   │   └── project-apis.md
+│   ├── editors/
+│   │   └── editor.md
 │   ├── explorers/
 │   │   └── explorer.md
 │   ├── gits/
@@ -467,7 +469,7 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | Terminal | - | - | `src-tauri/src/commands/pty.rs` | `src/app/feature/terminal/terminal.service.ts` | - | - | `docs/terminals/terminal.md` |
 | Search | `src-tauri/src/types/search.rs` | - | `src-tauri/src/commands/search.rs` | `src/app/feature/search/search.service.ts` | - | - | `docs/searchs/search.md` |
 | Explorer and nodes | `src-tauri/src/types/workspace_node.rs` | `src-tauri/src/services/fs.rs` | `src-tauri/src/commands/fs.rs` | `src/app/core/services/file-system/file-system.service.ts` | `src/app/core/store/node.store.ts` | - | `docs/explorers/explorer.md` |
-| Tabs and editor | - | - | - | - | `src/app/core/store/tab.store.ts` | `src/app/feature/editor/editor.commands.ts`<br>`src/app/feature/editor/services/editor.service.ts`<br>`src/app/feature/editor/services/model-source.service.ts` | - |
+| Tabs and editor | - | - | - | - | `src/app/core/store/tab.store.ts` | `src/app/feature/editor/editor.commands.ts`<br>`src/app/feature/editor/services/editor.service.ts`<br>`src/app/feature/editor/services/model-source.service.ts` | `docs/editors/editor.md` |
 | Diagnostics | - | - | `src-tauri/src/commands/diagnostics.rs` | `src/app/core/services/diagnostics.service.ts` | - | - | `docs/model.md` |
 | Anything else | - | - | - | `src/app/core/services/tauri/tauri-bridge.service.ts` | - | `src/app/core/services/close-handler.service.ts`<br>`src/app/core/services/command/command.service.ts`<br>`src/app/core/services/command/keybinding.service.ts`<br>`src/app/core/services/dialog/dialog.service.ts`<br>`src/app/core/services/layout.service.ts`<br>`src/app/core/services/message.service.ts`<br>`src/app/core/services/monitoring.service.ts`<br>`src/app/core/services/notification/notification.service.ts`<br>`src/app/core/services/persistance.service.ts`<br>`src/app/core/services/replace.service.ts`<br>`src/app/core/services/tauri/tauri-boot.service.ts`<br>`src/app/core/services/tauri/work-sync.service.ts`<br>`src/app/feature/chat/chat.service.ts`<br>`src/app/feature/output/output.service.ts` | - |
 | Uncategorized | `src-tauri/src/types/mod.rs` | `src-tauri/src/services/mod.rs`<br>`src-tauri/src/services/service_error.rs`<br>`src-tauri/src/services/storage/mod.rs` | `src-tauri/src/commands/mod.rs` | - | - | - | - |
@@ -480,6 +482,7 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | `src/app/feature/tasks/task.service.ts:129` | Computes `canStart` from status and dependency data instead of consuming Rust's task eligibility result. | Rust task service; Angular should consume the Rust result. |
 | `src-tauri/src/commands/project.rs:63` | `project_open` cancels runs and records app-data history in the command boundary. | Project/run/history services, with the command reduced to argument/result plumbing. |
 | `src-tauri/src/commands/project.rs:95` | `project_close` cancels runs and clears the last-project marker in app data. | Project/run/history services, with the command reduced to argument/result plumbing. |
+| `src/app/feature/editor/features/diff-editor.component.ts:216` | Manages diff-model acquisition, stale-load races, missing-model errors, and held-side release in the component. | `ModelSourceService` should own source resolution/race-safe acquisition and held-model lifecycle; the component should only mount and render. |
 | `src-tauri/src/commands/codemap.rs:94-106` | `codemap_install_languages` sequences parser installation and code-map re-indexing. | A `CodeMapService` operation, leaving the command as argument/result plumbing. |
 | `src-tauri/src/commands/fs.rs:103-169` | `workspace_search` performs walking, exclusion, cancellation, file scanning, and channel output in the command boundary. | Rust filesystem/search service; command should only validate args and delegate. |
 | `src/app/feature/explorer/node/node-dnd.directive.ts:126-143` | Drag/drop target validation is duplicated in static directive helpers. | `NodeStore` move/copy policy; the directive should collect UI events only. |
