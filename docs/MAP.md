@@ -21,6 +21,7 @@ Last updated: 2026-11-21
 │   ├── architecture.md
 │   ├── current-state.md
 │   ├── frontend-services.md
+│   ├── model.md
 │   ├── slice-2-port-notes.md
 │   ├── ui-contract.md
 │   └── watch-policy-current.md
@@ -449,15 +450,15 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | Runs and workflows | - | `src-tauri/src/services/runs/mod.rs`<br>`src-tauri/src/services/runs/rpc.rs`<br>`src-tauri/src/services/runs/workflows.rs` | `src-tauri/src/commands/runs.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/run.store.ts` | `src/app/core/services/runs/run.service.ts`<br>`src/app/core/services/runs/workflow.service.ts` | `docs/codemaps/project-apis.md#runs` |
 | Watcher and fs | - | `src-tauri/src/services/watcher.rs` | `src-tauri/src/commands/watcher.rs` | `src/app/core/services/file-system/file-system.service.ts` | - | `src/app/core/services/file-system/workspace-watcher.service.ts` | `docs/codemaps/project-apis.md#watcher-fs` |
 | Codemap | `src-tauri/src/types/codemap.rs` | `src-tauri/src/services/codemap/extract.rs`<br>`src-tauri/src/services/codemap/graph.rs`<br>`src-tauri/src/services/codemap/languages.rs`<br>`src-tauri/src/services/codemap/mod.rs`<br>`src-tauri/src/services/codemap/service.rs`<br>`src-tauri/src/services/codemap/store.rs`<br>`src-tauri/src/services/codemap/tree.rs` | `src-tauri/src/commands/codemap.rs` | `src/app/core/services/codemap/codemap.service.ts` | - | - | `docs/codemaps/codemap.md` |
-| Settings and models | - | - | `src-tauri/src/commands/models.rs` | - | `src/app/core/store/setting.store.ts` | `src/app/feature/setting/settings.service.ts`<br>`src/app/core/services/settings-runtime.service.ts` | `docs/architecture.md` |
-| Secrets | - | - | `src-tauri/src/commands/secrets.rs` | - | - | - | `docs/architecture.md` |
+| Settings and models | - | - | `src-tauri/src/commands/models.rs` | - | `src/app/core/store/setting.store.ts` | `src/app/feature/setting/settings.service.ts`<br>`src/app/core/services/settings-runtime.service.ts` | `docs/model.md` |
+| Secrets | - | - | `src-tauri/src/commands/secrets.rs` | - | - | - | `docs/model.md` |
 | Git | - | - | `src-tauri/src/commands/askpass.rs`<br>`src-tauri/src/commands/git.rs` | `src/app/feature/git/services/git-client.service.ts` | - | `src/app/feature/git/services/git-askpass.service.ts`<br>`src/app/feature/git/services/git-blame.service.ts`<br>`src/app/feature/git/services/git-dialog.service.ts`<br>`src/app/feature/git/services/git-diff.service.ts`<br>`src/app/feature/git/services/git.service.ts` | - |
 | LSP | - | - | `src-tauri/src/commands/lsp.rs` | `src/app/core/services/lsp/lsp-bridge.service.ts` | - | `src/app/core/services/lsp/lsp-manager.service.ts`<br>`src/app/core/services/lsp/lsp-monitor.service.ts` | - |
 | Terminal | - | - | `src-tauri/src/commands/pty.rs` | `src/app/feature/terminal/terminal.service.ts` | - | - | - |
 | Search | `src-tauri/src/types/search.rs` | - | `src-tauri/src/commands/search.rs` | `src/app/feature/search/search.service.ts` | - | - | - |
 | Explorer and nodes | `src-tauri/src/types/workspace_node.rs` | `src-tauri/src/services/fs.rs` | `src-tauri/src/commands/fs.rs` | `src/app/core/services/file-system/file-system.service.ts` | `src/app/core/store/node.store.ts` | - | `docs/codemaps/project-apis.md#watcher-fs` |
 | Tabs and editor | - | - | - | - | `src/app/core/store/tab.store.ts` | `src/app/feature/editor/editor.commands.ts`<br>`src/app/feature/editor/services/editor.service.ts`<br>`src/app/feature/editor/services/model-source.service.ts` | - |
-| Diagnostics | - | - | `src-tauri/src/commands/diagnostics.rs` | `src/app/core/services/diagnostics.service.ts` | - | - | - |
+| Diagnostics | - | - | `src-tauri/src/commands/diagnostics.rs` | `src/app/core/services/diagnostics.service.ts` | - | - | `docs/model.md` |
 | Anything else | - | - | - | `src/app/core/services/tauri/tauri-bridge.service.ts` | - | `src/app/core/services/close-handler.service.ts`<br>`src/app/core/services/command/command.service.ts`<br>`src/app/core/services/command/keybinding.service.ts`<br>`src/app/core/services/dialog/dialog.service.ts`<br>`src/app/core/services/layout.service.ts`<br>`src/app/core/services/message.service.ts`<br>`src/app/core/services/monitoring.service.ts`<br>`src/app/core/services/notification/notification.service.ts`<br>`src/app/core/services/persistance.service.ts`<br>`src/app/core/services/replace.service.ts`<br>`src/app/core/services/tauri/tauri-boot.service.ts`<br>`src/app/core/services/tauri/work-sync.service.ts`<br>`src/app/feature/chat/chat.service.ts`<br>`src/app/feature/output/output.service.ts` | - |
 | Uncategorized | `src-tauri/src/types/mod.rs` | `src-tauri/src/services/mod.rs`<br>`src-tauri/src/services/service_error.rs`<br>`src-tauri/src/services/storage/mod.rs` | `src-tauri/src/commands/mod.rs` | - | - | - | - |
 
@@ -471,3 +472,9 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | `src-tauri/src/commands/project.rs:95` | `project_close` cancels runs and clears the last-project marker in app data. | Project/run/history services, with the command reduced to argument/result plumbing. |
 | `src-tauri/src/commands/codemap.rs:94-106` | `codemap_install_languages` sequences parser installation and code-map re-indexing. | A `CodeMapService` operation, leaving the command as argument/result plumbing. |
 | `src-tauri/src/commands/codemap.rs:155-163` | `codemap_search` applies the default limit of 50 at the IPC boundary. | `CodeMapService::search` or its input type, so the default is service policy. |
+| `src/app/feature/setting/model-setting/models-settings.ts:124` | Save validation, key migration/deletion, entry construction, and registry writes belong in a model/service facade. | A model settings service/facade; the component should render and dispatch. |
+| `src/app/feature/setting/model-setting/models-settings.ts:222` | API key retrieval and HTTP endpoint/testing logic belong in a model service, not the settings component. | A model test/service layer; the component should hold UI state only. |
+| `src/app/feature/setting/model-setting/models-settings.ts:290` | JSON parsing and default normalization belong outside the settings component. | A typed model settings parser or model service. |
+| `src-tauri/src/commands/models.rs:18` | GGUF validation, process spawning, polling, timeout, and kill logic execute in the command module. | A Rust model service; the command should perform argument/result plumbing. |
+| `src-tauri/src/commands/secrets.rs:13` | Keyring entry validation and secret lifecycle logic execute in the command module. | A Rust secrets service; the command should perform argument/result plumbing. |
+| `src-tauri/src/commands/diagnostics.rs:4` | String-to-`LevelFilter` mapping executes in the command module. | A Rust diagnostics/logging service. |
