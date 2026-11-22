@@ -152,6 +152,9 @@ The first SDK call automatically performs the `hello` handshake. API version
 | `run.finish` | `{ "outcome": "needs_review" \| "failed", "summary"?: string, "reason"?: string }` | `null` |
 | `step.start` | `{ "subtaskId": string }` | `null` |
 | `step.finish` | `{ "subtaskId": string, "outcome": "needs_review" \| "failed", "summary"?: string, "reason"?: string }` | `null` |
+| `files.read` | `{ "path": string, "maxBytes"?: number }` | `{ "path", "text", "truncated", "bytes", "sha256" }` |
+| `files.list` | `{ "path"?: string, "maxEntries"?: number }` | `{ "name", "kind": "file" \| "dir", "size"? }[]` |
+| `patch.propose` | `{ "title": string, "summary"?: string, "edits": [{ "op": "replace", "path", "search", "replace"} \| {"op":"write","path","content"}] }` | `{ "patchId", "files": [{"path","op"}] }` |
 
 `models.complete` accepts at most 100 messages and 1,000,000 message-content
 characters. Roles are `system`, `user`, or `assistant`. If `model` is omitted,
@@ -200,6 +203,14 @@ Proposal-related methods, permissions, and validation are documented in
 [proposals](./proposals.md). `run.finish` cannot complete a task; any outcome
 other than `needs_review` or `failed` returns `Forbidden`.
 
+`files.read` is project-confined and read-only. The default limit is 200,000
+bytes and the ceiling is 1,000,000 bytes; files larger than 5 MB or containing
+a NUL byte in the first 8 KB return `Validation`. `files.list` is directory-only,
+sorted, capped at 500 entries (default 200), and omits denied secret names.
+Project paths never expose `.git` or `.cairn`, secret files, or paths outside the
+project root. Script traces record file paths and byte counts but never file text.
+Scripts cannot apply or discard patches.
+
 ### Errors
 
 Standard JSON-RPC errors use `-32700` for parse errors, `-32600` for invalid
@@ -213,7 +224,8 @@ data:
 
 Service codes include `NotFound`, `StaleRev`, `InvalidTransition`, `Forbidden`,
 `Validation`, `RunActive`, `TrustRequired`, `RuntimeUnavailable`,
-`WorkflowNotFound`, `ModelUnavailable`, `ModelError`, and `ContextTooLarge`.
+`WorkflowNotFound`, `ModelUnavailable`, `ModelError`, `ContextTooLarge`, and
+`PatchConflict`. Patch conflicts list the conflicting workspace-relative paths.
 Network refusal, DNS, and timeout errors name only the endpoint host and port.
 HTTP errors include the status and at most 300 body characters after key-like
 text is redacted. A `hello` version mismatch returns an invalid-parameters
@@ -560,6 +572,8 @@ The stdlib-only SDK is imported from `cairn`. It performs the `hello` handshake 
 | `proposals` | `list()` |
 | `notes` | `get(note_id)`, `for_task(task_id)` |
 | `run` | `context()`, `pending_steps()`, `step_start(subtask_id)`, `step_finish(subtask_id, outcome, summary=None, reason=None)`, `step(subtask_id)`, `finish(outcome, summary=None, reason=None)` |
+| `files` | `read(path, max_bytes=None)`, `list(path="")` |
+| `patch` | `propose(title, edits, summary=None)` |
 
 Examples below are the SDK workflows shipped in `sdk/python/examples/`.
 

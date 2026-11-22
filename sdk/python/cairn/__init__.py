@@ -134,6 +134,28 @@ class _Notes:
         return call("notes.for_task", {"taskId": task_id})
 
 
+class _Files:
+    @staticmethod
+    def read(path, max_bytes=None):
+        params = {"path": path}
+        if max_bytes is not None:
+            params["maxBytes"] = max_bytes
+        return call("files.read", params)
+
+    @staticmethod
+    def list(path=""):
+        return call("files.list", {"path": path})
+
+
+class _Patch:
+    @staticmethod
+    def propose(title, edits, summary=None):
+        params = {"title": title, "edits": edits}
+        if summary is not None:
+            params["summary"] = summary
+        return call("patch.propose", params)
+
+
 class _Run:
     @staticmethod
     def context():
@@ -226,8 +248,18 @@ class _Step:
         return False
 
 
+def edit_replace(path, search, replace):
+    return {"op": "replace", "path": path, "search": search, "replace": replace}
+
+
+def edit_write(path, content):
+    return {"op": "write", "path": path, "content": content}
+
+
 tasks = _Tasks()
 proposals = _Proposals()
 notes = _Notes()
+files = _Files()
+patch = _Patch()
 run = _Run()
 models = _Models()

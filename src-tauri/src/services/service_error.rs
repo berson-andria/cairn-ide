@@ -24,6 +24,7 @@ pub enum ServiceErrorCode {
     ModelUnavailable,
     ModelError,
     ContextTooLarge,
+    PatchConflict,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,6 +111,8 @@ pub enum ChangeEvent {
     ProposalCreated(crate::types::proposal::Proposal),
     ProposalUpdated(crate::types::proposal::Proposal),
     ProposalDeleted(String),
+    PatchCreated(crate::services::runs::files::PatchSummary),
+    PatchUpdated(crate::services::runs::files::PatchSummary),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

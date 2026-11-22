@@ -322,6 +322,8 @@ pub fn event_parts(e: &ChangeEvent) -> Option<(&'static str, Value)> {
         ChangeEvent::ProposalCreated(x) => ("proposal:created", serde_json::to_value(x)),
         ChangeEvent::ProposalUpdated(x) => ("proposal:updated", serde_json::to_value(x)),
         ChangeEvent::ProposalDeleted(id) => ("proposal:deleted", Ok(json!({"id":id}))),
+        ChangeEvent::PatchCreated(x) => ("patch:created", serde_json::to_value(x)),
+        ChangeEvent::PatchUpdated(x) => ("patch:updated", serde_json::to_value(x)),
     };
     match part {
         (name, Ok(payload)) => Some((name, payload)),
@@ -668,6 +670,36 @@ mod tests {
                 ChangeEvent::ProposalDeleted("proposal-id".into()),
                 "proposal:deleted",
                 r#"{"id":"proposal-id"}"#,
+            ),
+            (
+                ChangeEvent::PatchCreated(crate::services::runs::files::PatchSummary {
+                    id: "patch-id".into(),
+                    run_id: "run-id".into(),
+                    task_id: "task-id".into(),
+                    subtask_id: Some("subtask-id".into()),
+                    title: "Patch title".into(),
+                    summary: Some("Patch summary".into()),
+                    status: crate::services::runs::files::PatchStatus::Pending,
+                    created_at: 8,
+                    applied_at: None,
+                }),
+                "patch:created",
+                r#"{"createdAt":8,"id":"patch-id","runId":"run-id","status":"pending","subtaskId":"subtask-id","summary":"Patch summary","taskId":"task-id","title":"Patch title"}"#,
+            ),
+            (
+                ChangeEvent::PatchUpdated(crate::services::runs::files::PatchSummary {
+                    id: "patch-id".into(),
+                    run_id: "run-id".into(),
+                    task_id: "task-id".into(),
+                    subtask_id: None,
+                    title: "Patch title".into(),
+                    summary: None,
+                    status: crate::services::runs::files::PatchStatus::Applied,
+                    created_at: 8,
+                    applied_at: Some(9),
+                }),
+                "patch:updated",
+                r#"{"appliedAt":9,"createdAt":8,"id":"patch-id","runId":"run-id","status":"applied","taskId":"task-id","title":"Patch title"}"#,
             ),
         ];
         for (event, name, payload) in cases {

@@ -1,3 +1,4 @@
+pub mod files;
 pub mod rpc;
 pub mod workflows;
 
@@ -1082,6 +1083,72 @@ impl RunManager {
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
             Err(error) => Err(ServiceError::new(ServiceErrorCode::Io, error.to_string())),
         }
+    }
+
+    pub fn patch_list(
+        &self,
+        projects: &ProjectState,
+        run_id: Option<&str>,
+    ) -> Result<Vec<crate::services::runs::files::PatchSummary>, ServiceError> {
+        let run_id = match run_id {
+            Some(run_id) => run_id.to_string(),
+            None => {
+                let state = self.lock_state()?;
+                if let Some(active) = &state.active {
+                    active
+                        .record
+                        .lock()
+                        .unwrap_or_else(|error| error.into_inner())
+                        .run_id
+                        .clone()
+                } else if let Some(last) = &state.last {
+                    last.run_id.clone()
+                } else {
+                    return Ok(Vec::new());
+                }
+            }
+        };
+        let project = projects.services()?;
+        crate::services::runs::files::patch_list(&project, &run_id)
+    }
+
+    pub fn patch_get(
+        &self,
+        projects: &ProjectState,
+        run_id: &str,
+        patch_id: &str,
+    ) -> Result<crate::services::runs::files::Patch, ServiceError> {
+        crate::services::runs::files::patch_get(projects.services()?.as_ref(), run_id, patch_id)
+    }
+
+    pub fn patch_discard(
+        &self,
+        projects: &ProjectState,
+        run_id: &str,
+        patch_id: &str,
+        sink: Arc<dyn EventSink>,
+    ) -> Result<crate::services::runs::files::PatchSummary, ServiceError> {
+        crate::services::runs::files::patch_discard(
+            projects.services()?.as_ref(),
+            run_id,
+            patch_id,
+            sink.as_ref(),
+        )
+    }
+
+    pub fn patch_apply(
+        &self,
+        projects: &ProjectState,
+        run_id: &str,
+        patch_id: &str,
+        sink: Arc<dyn EventSink>,
+    ) -> Result<crate::services::runs::files::PatchSummary, ServiceError> {
+        crate::services::runs::files::patch_apply(
+            projects.services()?.as_ref(),
+            run_id,
+            patch_id,
+            sink.as_ref(),
+        )
     }
 
     pub fn workflow_list(

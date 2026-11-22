@@ -102,3 +102,44 @@ pub async fn workspace_trust_revoke(
 ) -> Result<(), ServiceError> {
     runs.workspace_trust_revoke(&projects)
 }
+
+#[tauri::command]
+pub async fn patch_list(
+    run_id: Option<String>,
+    projects: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
+) -> Result<Vec<crate::services::runs::files::PatchSummary>, ServiceError> {
+    runs.patch_list(&projects, run_id.as_deref())
+}
+
+#[tauri::command]
+pub async fn patch_get(
+    run_id: String,
+    patch_id: String,
+    projects: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
+) -> Result<crate::services::runs::files::Patch, ServiceError> {
+    runs.patch_get(&projects, &run_id, &patch_id)
+}
+
+#[tauri::command]
+pub async fn patch_discard(
+    run_id: String,
+    patch_id: String,
+    app: AppHandle,
+    projects: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
+) -> Result<crate::services::runs::files::PatchSummary, ServiceError> {
+    runs.patch_discard(&projects, &run_id, &patch_id, Arc::new(TauriEventSink(app)))
+}
+
+#[tauri::command]
+pub async fn patch_apply(
+    run_id: String,
+    patch_id: String,
+    app: AppHandle,
+    projects: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
+) -> Result<crate::services::runs::files::PatchSummary, ServiceError> {
+    runs.patch_apply(&projects, &run_id, &patch_id, Arc::new(TauriEventSink(app)))
+}

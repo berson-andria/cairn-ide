@@ -2,6 +2,7 @@ use crate::{
     services::{
         models::{ChatMessage, ModelBroker, ModelCompletion},
         project::ProjectServices,
+        runs::files::{self, PatchEdit},
         service_error::{
             now_ms, Actor, ChangeEvent, EventSink, RunOutcome, ServiceError, ServiceErrorCode,
         },
@@ -49,6 +50,29 @@ struct ProposeSubtasksParams {
     task_id: String,
     items: Vec<NewSubTask>,
     presentation: Option<Presentation>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct FilesReadParams {
+    path: String,
+    max_bytes: Option<u64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct FilesListParams {
+    #[serde(default)]
+    path: String,
+    max_entries: Option<u64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PatchProposeParams {
+    title: String,
+    summary: Option<String>,
+    edits: Vec<PatchEdit>,
 }
 
 #[derive(Debug, Default)]
@@ -172,6 +196,43 @@ pub fn dispatch(ctx: &RpcContext, request: RpcRequest) -> Value {
     let id = request.id.clone();
     let response = match request.method.as_str() {
         "hello" => dispatch_hello(ctx, &request.params),
+        "files.read" => serde_json::from_value::<FilesReadParams>(request.params.clone())
+            .map_err(|error| invalid_params(error.to_string()))
+            .and_then(|params| {
+                files::read_file(&ctx.project.root, &params.path, params.max_bytes)
+                    .and_then(|result| serde_json::to_value(result).map_err(|error| {
+                        ServiceError::new(ServiceErrorCode::Io, error.to_string())
+                    }))
+                    .map_err(domain_error)
+            }),
+        "files.list" => serde_json::from_value::<FilesListParams>(request.params.clone())
+            .map_err(|error| invalid_params(error.to_string()))
+            .and_then(|params| {
+                files::list_files(&ctx.project.root, &params.path, params.max_entries)
+                    .and_then(|result| serde_json::to_value(result).map_err(|error| {
+                        ServiceError::new(ServiceErrorCode::Io, error.to_string())
+                    }))
+                    .map_err(domain_error)
+            }),
+        "patch.propose" => serde_json::from_value::<PatchProposeParams>(request.params.clone())
+            .map_err(|error| invalid_params(error.to_string()))
+            .and_then(|params| {
+                let patch = files::propose(
+                    &ctx.project,
+                    &ctx.run_id,
+                    &ctx.task_id,
+                    &ctx.run_directory,
+                    params.edits,
+                    &params.title,
+                    params.summary,
+                    ctx.sink.as_ref(),
+                )
+                .map_err(domain_error)?;
+                Ok(json!({
+                    "patchId": patch.id,
+                    "files": patch.files.iter().map(|file| json!({"path":file.path,"op":file.op})).collect::<Vec<_>>()
+                }))
+            }),
         "models.list" => empty_params(&request.params).map(|()| json!(ctx.models.list())),
         "models.complete" => serde_json::from_value::<ModelCompleteParams>(request.params.clone())
             .map_err(|error| invalid_params(error.to_string()))
@@ -803,6 +864,27 @@ pub fn append_trace(
         "ok":error.is_none(),
         "ms":ms
     });
+    if let Some(result) = response.get("result") {
+        if method == Some("files.read") {
+            if let Some(path) = result.get("path") {
+                entry["path"] = path.clone();
+            }
+            if let Some(bytes) = result.get("bytes") {
+                entry["bytes"] = bytes.clone();
+            }
+        } else if method == Some("files.list") {
+            if let Some(items) = result.as_array() {
+                entry["bytes"] = json!(items
+                    .iter()
+                    .filter_map(|item| item.get("size").and_then(Value::as_u64))
+                    .sum::<u64>());
+            }
+        } else if method == Some("patch.propose") {
+            if let Some(files) = result.get("files") {
+                entry["files"] = files.clone();
+            }
+        }
+    }
     if let Some(usage) = response
         .get("result")
         .and_then(|result| result.get("usage"))
@@ -1002,6 +1084,9 @@ mod tests {
             "run.finish",
             "models.list",
             "models.complete",
+            "files.read",
+            "files.list",
+            "patch.propose",
         ];
         for method in allowed {
             let params = if method == "hello" {
@@ -1032,6 +1117,8 @@ mod tests {
         }
         for method in [
             "tasks.update",
+            "patch.apply",
+            "patch.discard",
             "tasks.create",
             "notes.create",
             "proposals.accept",
@@ -1967,6 +2054,68 @@ mod tests {
         );
         assert_eq!(result["previous"]["outcome"], "failed");
         assert_eq!(retry_task.status, TaskStatus::Running);
+    }
+
+    #[test]
+    #[ignore = "requires uv and Python"]
+    fn edit_file_example_proposes_pending_patch_without_writing() {
+        let (directory, context) = context();
+        let mut task = TaskItem::new("edit task");
+        task.id = context.task_id.clone();
+        context.project.tasks.create(task).unwrap();
+        fs::write(context.project.root.join("README.md"), "Cairn project").unwrap();
+        let sdk_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("sdk")
+            .join("python");
+        let script = sdk_dir.join("examples").join("edit_file.py");
+        let mut child = Command::new("uv")
+            .arg("run")
+            .arg("--script")
+            .arg(&script)
+            .current_dir(&context.project.root)
+            .env("PYTHONPATH", &sdk_dir)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("uv must be installed to run the ignored integration test");
+        let mut reader = BufReader::new(child.stdout.take().unwrap());
+        let mut input = child.stdin.take().unwrap();
+        let mut line = String::new();
+        loop {
+            line.clear();
+            if reader.read_line(&mut line).unwrap() == 0 {
+                break;
+            }
+            let response = handle_line(&context, line.trim_end());
+            serde_json::to_writer(&mut input, &response).unwrap();
+            input.write_all(b"\n").unwrap();
+            input.flush().unwrap();
+        }
+        drop(input);
+        let status = child.wait().unwrap();
+        let mut stderr = String::new();
+        child
+            .stderr
+            .take()
+            .unwrap()
+            .read_to_string(&mut stderr)
+            .unwrap();
+        assert!(status.success(), "edit_file.py failed: {stderr}");
+        assert_eq!(
+            fs::read_to_string(context.project.root.join("README.md")).unwrap(),
+            "Cairn project"
+        );
+        let patches = context
+            .project
+            .root
+            .join(".cairn/runs")
+            .join(&context.run_id)
+            .join("patches");
+        let count = fs::read_dir(patches).unwrap().count();
+        assert_eq!(count, 1);
+        drop(directory);
     }
 
     #[test]
