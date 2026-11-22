@@ -157,10 +157,6 @@ button.status-bar__item {
   align-items: center;
   gap: var(--space-6);
 }
-// .status-bar__item--strong,
-// .status-bar__strong {
-//   color: var(--color-text-secondary);
-// }
 .status-bar__hint {
   margin-left: var(--space-4);
   color: var(--color-text-muted);
@@ -171,4 +167,13 @@ button.status-bar__item {
     color: var(--color-text-muted);
     float: right;
   }
+}
+.restricted-mode {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-10);
+  padding: var(--space-6) var(--space-10);
+  background: var(--color-warning-bg);
+  color: var(--color-status-review);
 }

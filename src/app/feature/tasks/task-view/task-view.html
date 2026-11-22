@@ -60,29 +60,53 @@
         ></textarea>
 
         <div class="status-line">
-          <span class="status-pill" [class]="'status-pill status-pill--' + item.status">{{
-            statusLabel(item.status)
-          }}</span>
-          <span class="status-line__action">
-            <span class="muted">{{ availabilityLabel(item) }}</span>
-            @if (item.status === 'ready') {
-              <button class="btn-action run-button" [disabled]="!canStart()" (click)="startTask()">
-                Start
-              </button>
-            }
-            @if (item.status === 'running' || item.status === 'needs_review') {
-              <button class="btn-action run-button" (click)="completeTask()">Mark completed</button>
-            }
-            @if (item.status === 'needs_review') {
-              <button class="btn-action" (click)="setStatus('ready')">Send back</button>
-            }
-            @if (item.status === 'failed') {
-              <button class="btn-action" (click)="setStatus('ready')">Retry</button>
-            }
-            @if (item.status === 'completed') {
-              <button class="btn-action" (click)="setStatus('ready')">Reopen</button>
-            }
-          </span>
+          @if (workflow.trustState() === 'changed' || workflow.trustState() === 'unreviewed') {
+            <p style="margin-left: auto">
+              <span
+                style="
+                  margin-right: var(--space-10);
+                  background: var(--color-warning-bg);
+                  color: var(--color-attention);
+                  padding: var(--space-4) var(--space-6);
+                  border-radius: var(--radius-chip);
+                "
+              >
+                <ng-icon name="lucideLock" />
+                Workflow Run Locked
+              </span>
+              <a class="link" style="text-decoration: underline">Trust the workflow</a>
+            </p>
+          } @else {
+            <span class="status-pill" [class]="'status-pill status-pill--' + item.status">{{
+              statusLabel(item.status)
+            }}</span>
+            <span class="status-line__action">
+              <span class="muted">{{ availabilityLabel(item) }}</span>
+              @if (item.status === 'ready') {
+                <button
+                  class="btn-action run-button"
+                  [disabled]="!canStart()"
+                  (click)="startTask()"
+                >
+                  Start
+                </button>
+              }
+              @if (item.status === 'running' || item.status === 'needs_review') {
+                <button class="btn-action run-button" (click)="completeTask()">
+                  Mark completed
+                </button>
+              }
+              @if (item.status === 'needs_review') {
+                <button class="btn-action" (click)="setStatus('ready')">Send back</button>
+              }
+              @if (item.status === 'failed') {
+                <button class="btn-action" (click)="setStatus('ready')">Retry</button>
+              }
+              @if (item.status === 'completed') {
+                <button class="btn-action" (click)="setStatus('ready')">Reopen</button>
+              }
+            </span>
+          }
         </div>
 
         <section class="detail-section">
@@ -291,6 +315,7 @@
       [attr.aria-hidden]="asideCollapsed()"
       [attr.inert]="asideCollapsed() ? '' : null"
     >
+      <span>Task runs</span>
       <div class="task-details">
         @for (run of runs(); track $index) {
           <div class="run">

@@ -1,7 +1,3 @@
-<!--
-  data-tauri-drag-region does not cascade: it is set on the bar and on each
-  non-interactive zone/text. Buttons do not carry it, so they stay clickable.
--->
 <header class="title-bar" id="app-shell-header" data-tauri-drag-region>
   <div class="title-bar__start" data-tauri-drag-region>
     <!-- <img src="assets/icon.png" alt="" width="24px" /> -->
@@ -230,6 +226,16 @@
     </div>
   </div>
 </header>
+@if (workflowService.trustState() === 'changed' || workflowService.trustState() === 'unreviewed') {
+  <div class="restricted-mode">
+    <ng-icon name="lucideLock" />
+    <span>
+      <b>Restricted Mode.</b> Workflows in this project aren’t trusted, so runs are off. Tasks,
+      notes, editing and Git work as usual.
+    </span>
+    <a style="margin-left: var(--space-12)"><u>Manage</u></a>
+  </div>
+}
 
 <div class="app-shell__body">
   <left-panel id="left-panel" />

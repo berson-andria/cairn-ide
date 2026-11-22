@@ -43,6 +43,21 @@ export interface WorkflowTrustStatus {
   changes: { path: string; change: 'added' | 'modified' | 'removed' }[];
 }
 
+export type TrustState = 'unknown' | 'none' | 'unreviewed' | 'changed' | 'trusted';
+
+export interface TrustSummary {
+  added: number;
+  modified: number;
+  removed: number;
+  detailsAvailable: boolean;
+}
+
+export interface WorkflowTrustReview {
+  state: TrustState;
+  files: WorkflowTrustStatus['files'];
+  changes: WorkflowTrustStatus['changes'];
+}
+
 export interface BatchTaskItem extends NewTask {
   key: string;
   dependsOnKey?: string;

@@ -10,7 +10,11 @@ import { WorkApiService } from '../src/app/core/services/tauri/work-api.service'
 import { refreshFinishedRun } from '../src/app/core/services/tauri/work-sync.service';
 import { ProposalNotifier } from '../src/app/core/services/proposals/proposal-notifier.service';
 import { RunService } from '../src/app/core/services/runs/run.service';
-import { WorkflowService } from '../src/app/core/services/runs/workflow.service';
+import {
+  WorkflowService,
+  deriveTrustState,
+  summarizeChanges,
+} from '../src/app/core/services/runs/workflow.service';
 import { TaskService, type TaskItem, type TaskStatus } from '../src/app/feature/tasks/task.service';
 import type {
   Proposal,
@@ -58,15 +62,18 @@ const runRecord = (runId: string): RunRecord => ({
   outcome: 'needs_review',
 });
 
-function makeHarness(options: {
-  tasks?: TaskItem[];
-  current?: RunState | null;
-  rootPath?: string | null;
-  workflows?: WorkflowInfo[];
-  needsTrustReview?: boolean;
-  runStore?: Pick<RunStore, 'current' | 'logLines' | 'refresh' | 'record' | 'setRecord'>;
-  api?: Partial<WorkApiService>;
-} = {}) {
+function makeHarness(
+  options: {
+    tasks?: TaskItem[];
+    current?: RunState | null;
+    rootPath?: string | null;
+    workflows?: WorkflowInfo[];
+    needsTrustReview?: boolean;
+    trustState?: 'unknown' | 'none' | 'unreviewed' | 'changed' | 'trusted';
+    runStore?: Pick<RunStore, 'current' | 'logLines' | 'refresh' | 'record' | 'setRecord'>;
+    api?: Partial<WorkApiService>;
+  } = {},
+) {
   const taskStore = new TaskStore();
   taskStore.replace(options.tasks ?? [task('task-1')], []);
   const runRecords = signal<Record<string, RunRecord>>({});
@@ -75,22 +82,31 @@ function makeHarness(options: {
     logLines: () => signal<string[]>([]).asReadonly(),
     refresh: async () => {},
     record: (runId: string) => computed(() => runRecords()[runId]),
-    setRecord: (record: RunRecord) => runRecords.update(records => ({ ...records, [record.runId]: record })),
+    setRecord: (record: RunRecord) =>
+      runRecords.update((records) => ({ ...records, [record.runId]: record })),
   };
   const api = {
-    runStart: async () => ({} as RunRecord),
+    runStart: async () => ({}) as RunRecord,
     ...options.api,
   };
   const workflows = {
     workflows: signal(options.workflows ?? [workflow('default')]).asReadonly(),
     needsTrustReview: signal(options.needsTrustReview ?? false).asReadonly(),
+    trustState: signal(
+      options.trustState ?? (options.needsTrustReview ? 'unreviewed' : 'trusted'),
+    ).asReadonly(),
   };
   const injector = Injector.create({
     providers: [
       { provide: WorkApiService, useValue: api },
       { provide: RunStore, useValue: runStore },
       { provide: TaskStore, useValue: taskStore },
-      { provide: NodeStore, useValue: { rootPath: signal(options.rootPath === undefined ? '/project' : options.rootPath) } },
+      {
+        provide: NodeStore,
+        useValue: {
+          rootPath: signal(options.rootPath === undefined ? '/project' : options.rootPath),
+        },
+      },
       { provide: WorkflowService, useValue: workflows },
       { provide: NoticeManager, useValue: { error: () => {} } },
     ],
@@ -115,8 +131,9 @@ test('availableActions offers cancellation only for the task with the active run
     { action: 'complete', enabled: false, reason: 'A workflow is running; cancel it first' },
   ]);
 
-  const handStarted = makeHarness({ tasks: [task('task-1', 'running')] })
-    .taskService.availableActions(task('task-1', 'running'));
+  const handStarted = makeHarness({
+    tasks: [task('task-1', 'running')],
+  }).taskService.availableActions(task('task-1', 'running'));
   assert.deepEqual(handStarted, [{ action: 'complete', enabled: true }]);
 
   const anotherTask = makeHarness({
@@ -131,7 +148,11 @@ test('perform delegates cancelRun to RunService.cancel', async () => {
   const harness = makeHarness({
     tasks: [task('task-1', 'running')],
     current: { runId: 'run-1', taskId: 'task-1' },
-    api: { runCancel: async () => { cancelCalls++; } },
+    api: {
+      runCancel: async () => {
+        cancelCalls++;
+      },
+    },
   });
 
   await harness.taskService.perform(task('task-1', 'running'), 'cancelRun');
@@ -165,7 +186,9 @@ test('run:finished refreshes exactly once and replaces partial current state', a
       return fullRun;
     },
   };
-  const storeInjector = Injector.create({ providers: [{ provide: WorkApiService, useValue: api }] });
+  const storeInjector = Injector.create({
+    providers: [{ provide: WorkApiService, useValue: api }],
+  });
   const runStore = runInInjectionContext(storeInjector, () => new RunStore());
   runStore.started({ runId: 'run-1', taskId: 'task-1', workflow: 'default' });
   runStore.setRecord({ ...fullRun, outcome: 'failed' });
@@ -214,19 +237,28 @@ test('loadRunsFor fetches only missing recent ids and skips NotFound within its 
   harness.runStore.setRecord(cached);
 
   const records = await harness.runService.loadRunsFor(
-    { ...task('task-1'), runs: ['run-1', 'run-2', 'run-3', 'run-4', 'run-5', 'run-6', 'run-7', 'run-8'] },
+    {
+      ...task('task-1'),
+      runs: ['run-1', 'run-2', 'run-3', 'run-4', 'run-5', 'run-6', 'run-7', 'run-8'],
+    },
     3,
   );
 
   assert.deepEqual(calls, ['run-7', 'run-6']);
   assert.ok(calls.length <= 3);
-  assert.deepEqual(records.map(record => record.runId), ['run-8', 'run-6']);
+  assert.deepEqual(
+    records.map((record) => record.runId),
+    ['run-8', 'run-6'],
+  );
   assert.equal(harness.runStore.record('run-6')()?.runId, 'run-6');
 });
 
 test('runDisabledReason reports project, task, run, dependency, and workflow blockers', () => {
   const noProject = makeHarness({ rootPath: null }).runService;
-  assert.equal(noProject.runDisabledReason(task('task-1')), 'Open a project before starting a workflow.');
+  assert.equal(
+    noProject.runDisabledReason(task('task-1')),
+    'Open a project before starting a workflow.',
+  );
 
   const notReady = makeHarness().runService;
   assert.equal(notReady.runDisabledReason(task('task-1', 'running')), 'Task is not ready.');
@@ -240,7 +272,10 @@ test('runDisabledReason reports project, task, run, dependency, and workflow blo
   const dependency = makeHarness({
     tasks: [task('task-1', 'ready', 'dependency'), task('dependency', 'ready')],
   }).runService;
-  assert.equal(dependency.runDisabledReason(task('task-1', 'ready', 'dependency')), 'Complete the dependency first.');
+  assert.equal(
+    dependency.runDisabledReason(task('task-1', 'ready', 'dependency')),
+    'Complete the dependency first.',
+  );
 
   const noWorkflows = makeHarness({ workflows: [] }).runService;
   assert.equal(noWorkflows.runDisabledReason(task('task-1')), 'No workflows are available.');
@@ -252,10 +287,20 @@ test('runDisabledReason reports project, task, run, dependency, and workflow blo
   const projectUntrusted = makeHarness({
     workflows: [workflow('project-workflow')],
     needsTrustReview: true,
+    trustState: 'unreviewed',
   }).runService;
   assert.equal(
     projectUntrusted.runDisabledReason(task('task-1'), 'project-workflow'),
-    'Workflows are not trusted; review them in Settings',
+    "Workflows in this project haven't been reviewed; review them in Settings",
+  );
+
+  const projectChanged = makeHarness({
+    workflows: [workflow('project-workflow')],
+    trustState: 'changed',
+  }).runService;
+  assert.equal(
+    projectChanged.runDisabledReason(task('task-1'), 'project-workflow'),
+    'Workflows changed since you approved them; review the changes in Settings',
   );
 
   const globalWorkflow = makeHarness({
@@ -335,6 +380,112 @@ function workflowServiceHarness(api: Partial<WorkApiService>, rootPath = '/proje
   return runInInjectionContext(injector, () => new WorkflowService());
 }
 
+test('deriveTrustState covers all workflow trust states and stale approval cases', () => {
+  assert.equal(deriveTrustState(null), 'unknown');
+  assert.equal(deriveTrustState(trustStatus({ hasWorkflows: false })), 'none');
+  assert.equal(deriveTrustState(trustStatus({ trusted: true })), 'trusted');
+  assert.equal(deriveTrustState(trustStatus({ approvedHash: undefined })), 'unreviewed');
+  assert.equal(
+    deriveTrustState(trustStatus({ approvedHash: 'old-hash', changes: [] })),
+    'changed',
+  );
+  assert.equal(
+    deriveTrustState(trustStatus({ hasWorkflows: false, approvedHash: 'old-hash' })),
+    'none',
+  );
+});
+
+test('summarizeChanges counts added modified removed and details availability', () => {
+  assert.deepEqual(
+    summarizeChanges(trustStatus({
+      changes: [
+        { path: 'a.py', change: 'added' },
+        { path: 'b.py', change: 'modified' },
+        { path: 'b.py', change: 'modified' },
+        { path: 'c.py', change: 'removed' },
+      ],
+    })),
+    { added: 1, modified: 2, removed: 1, detailsAvailable: true },
+  );
+  assert.deepEqual(
+    summarizeChanges(trustStatus({ approvedHash: 'old-hash', changes: [] })),
+    { added: 0, modified: 0, removed: 0, detailsAvailable: false },
+  );
+});
+
+test('trustReview$ emits once per hash and resets on workspace clear', async () => {
+  let status = trustStatus();
+  const service = workflowServiceHarness({
+    workspaceTrustStatus: async () => status,
+  });
+  const emissions: unknown[] = [];
+  const subscription = service.trustReview$.subscribe((review) => emissions.push(review));
+
+  await service.refreshTrust();
+  await service.refreshTrust();
+  assert.deepEqual(emissions, [{
+    state: 'unreviewed',
+    summary: { added: 0, modified: 0, removed: 0, detailsAvailable: false },
+  }]);
+
+  status = trustStatus({ folderHash: 'changed-hash', approvedHash: 'old-hash', changes: [
+    { path: 'main.py', change: 'modified' },
+  ] });
+  await service.refreshTrust();
+  assert.deepEqual(emissions.at(-1), {
+    state: 'changed',
+    summary: { added: 0, modified: 1, removed: 0, detailsAvailable: true },
+  });
+
+  status = trustStatus({ folderHash: 'changed-hash', trusted: true });
+  await service.refreshTrust();
+  assert.equal(emissions.length, 2);
+
+  status = trustStatus({ hasWorkflows: false, folderHash: 'none-hash' });
+  await service.refreshTrust();
+  assert.equal(emissions.length, 2);
+
+  service.clear();
+  status = trustStatus({ folderHash: 'changed-hash' });
+  await service.refreshTrust();
+  assert.equal(emissions.length, 3);
+  subscription.unsubscribe();
+});
+
+test('approve uses the displayed hash and handles validation by refreshing trust', async () => {
+  let displayedHash = '';
+  let status = trustStatus({ folderHash: 'displayed-hash' });
+  const service = workflowServiceHarness({
+    workspaceTrustStatus: async () => status,
+    workspaceTrust: async (hash: string) => {
+      displayedHash = hash;
+    },
+  });
+  await service.refreshTrust();
+  assert.deepEqual(await service.approve('displayed-hash'), { kind: 'approved' });
+  assert.equal(displayedHash, 'displayed-hash');
+
+  let refreshes = 0;
+  const changedService = workflowServiceHarness({
+    workspaceTrustStatus: async () => {
+      refreshes++;
+      return trustStatus({ folderHash: 'new-hash', approvedHash: 'old-hash', changes: [
+        { path: 'main.py', change: 'modified' },
+      ] });
+    },
+    workspaceTrust: async () => {
+      throw { code: 'Validation', message: 'The workflow files changed.' };
+    },
+  });
+  await changedService.refreshTrust();
+  refreshes = 0;
+  assert.deepEqual(
+    await changedService.approve('stale-hash'),
+    { kind: 'changed-while-reviewing' },
+  );
+  assert.equal(refreshes, 1);
+});
+
 test('needsTrustReview requires project workflows and an untrusted status', async () => {
   let status = trustStatus({ hasWorkflows: false });
   const service = workflowServiceHarness({
@@ -377,27 +528,6 @@ test('workflow trust status refresh is debounced and ignores unrelated filesyste
   service.clear();
 });
 
-test('trustReview$ emits once for each project open that needs review', async () => {
-  const service = workflowServiceHarness({
-    workspaceTrustStatus: async () => trustStatus(),
-  });
-  let emissions = 0;
-  const subscription = service.trustReview$.subscribe((status) => {
-    emissions++;
-    assert.equal(status.folderHash, 'folder-hash');
-  });
-
-  await service.projectOpened();
-  await service.refreshTrust();
-  assert.equal(emissions, 1);
-
-  service.clear();
-  await service.projectOpened();
-  assert.equal(emissions, 2);
-  subscription.unsubscribe();
-  service.clear();
-});
-
 test('subtaskProgress reports done running failed pending and percent', () => {
   const service = makeHarness().taskService;
   const progressTask: TaskItem = {
@@ -436,24 +566,18 @@ test('availableActions offers resume for failed tasks with finished and pending 
       { id: 'pending', title: 'Pending', status: 'ready', createdAt: 1 },
     ],
   };
-  assert.deepEqual(
-    makeHarness({ tasks: [partial] }).taskService.availableActions(partial),
-    [
-      { action: 'retry', enabled: true },
-      { action: 'resume', enabled: true, hint: '1 of 2 steps done' },
-    ],
-  );
+  assert.deepEqual(makeHarness({ tasks: [partial] }).taskService.availableActions(partial), [
+    { action: 'retry', enabled: true },
+    { action: 'resume', enabled: true, hint: '1 of 2 steps done' },
+  ]);
 
   const noDone: TaskItem = {
     ...task('task-2', 'failed'),
-    subTasks: [
-      { id: 'pending', title: 'Pending', status: 'ready', createdAt: 1 },
-    ],
+    subTasks: [{ id: 'pending', title: 'Pending', status: 'ready', createdAt: 1 }],
   };
-  assert.deepEqual(
-    makeHarness({ tasks: [noDone] }).taskService.availableActions(noDone),
-    [{ action: 'retry', enabled: true }],
-  );
+  assert.deepEqual(makeHarness({ tasks: [noDone] }).taskService.availableActions(noDone), [
+    { action: 'retry', enabled: true },
+  ]);
 });
 
 test('perform resume sets ready before run and stops on status error', async () => {
@@ -523,7 +647,7 @@ test('run step events update stepStatus and latest state', () => {
   assert.deepEqual(store.stepStatus('run-1')(), {});
 });
 
-test('proposal notifier emits on quiet time or the five-second maximum wait', t => {
+test('proposal notifier emits on quiet time or the five-second maximum wait', (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setInterval', 'setTimeout'] });
   const notifier = new ProposalNotifier();
   const emittedAt: number[] = [];

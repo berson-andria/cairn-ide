@@ -4,11 +4,13 @@ import {
   lucidePlay,
   lucideReply,
   lucideRotateCcw,
+  lucideShieldClose,
   lucideSquare,
   lucideTrash,
 } from '@ng-icons/lucide';
 import { TaskService, type TaskItem, type TaskStatus } from '../task.service';
 import { RunService } from '../../../core/services/runs/run.service';
+import { WorkflowService } from '../../../core/services/runs/workflow.service';
 
 @Component({
   selector: 'app-task',
@@ -16,16 +18,24 @@ import { RunService } from '../../../core/services/runs/run.service';
   styleUrl: './task.scss',
   imports: [NgIcon],
   providers: [
-    provideIcons({ lucideTrash, lucidePlay, lucideReply, lucideRotateCcw, lucideSquare }),
+    provideIcons({
+      lucideTrash,
+      lucidePlay,
+      lucideReply,
+      lucideRotateCcw,
+      lucideSquare,
+      lucideShieldClose,
+    }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Task {
   private readonly taskService = inject(TaskService);
+  readonly workflow = inject(WorkflowService);
+
   readonly task = input.required<TaskItem>();
   readonly selected = input(false);
   readonly taskSelected = output<TaskItem>();
-  readonly runService = inject(RunService);
 
   deleteTask(event: MouseEvent): void {
     event.stopPropagation();
@@ -34,19 +44,17 @@ export class Task {
 
   runTask(event: MouseEvent) {
     event.stopPropagation();
-    this.runService.run(this.task().id);
+    this.taskService.perform(this.task(), 'run');
   }
 
   canceltask(event: MouseEvent) {
     event.stopPropagation();
-    this.runService.cancel();
+    this.taskService.perform(this.task(), 'cancelRun');
   }
 
   rerunTask(event: MouseEvent) {
     event.stopPropagation();
-    this.taskService
-      .setStatus(this.task().id, 'ready')
-      .then((_) => this.runService.run(this.task().id));
+    this.taskService.perform(this.task(), 'retry');
   }
 
   statusLabel(status: TaskStatus): string {

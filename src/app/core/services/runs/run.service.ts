@@ -107,8 +107,16 @@ export class RunService {
     if (!selected) {
       return 'Workflow not found.';
     }
-    if (selected.source === 'project' && this.workflows.needsTrustReview())
-      return 'Workflows are not trusted; review them in Settings';
+    if (selected.source === 'project') {
+      const trustState = this.workflows.trustState?.() ??
+        (this.workflows.needsTrustReview() ? 'unreviewed' : null);
+      if (trustState === 'unreviewed') {
+        return "Workflows in this project haven't been reviewed; review them in Settings";
+      }
+      if (trustState === 'changed') {
+        return "Workflows changed since you approved them; review the changes in Settings";
+      }
+    }
     return null;
   }
 

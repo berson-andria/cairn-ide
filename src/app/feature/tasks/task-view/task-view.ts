@@ -23,6 +23,7 @@ import {
 import { ResizeHandle } from '../../../shared/components/resize-handle/resize-handle';
 import { RunService } from '../../../core/services/runs/run.service';
 import { RunRecord } from '../../../shared/models/agent.model';
+import { WorkflowService } from '../../../core/services/runs/workflow.service';
 
 @Component({
   selector: 'app-task-view',
@@ -43,6 +44,7 @@ export class TaskView {
   private readonly noteService = inject(NoteService);
   private readonly layoutService = inject(LayoutService);
   private readonly runService = inject(RunService);
+  readonly workflow = inject(WorkflowService);
 
   protected readonly mainWidth = signal<number | null>(null);
   protected readonly mainCollapsed = signal(false);

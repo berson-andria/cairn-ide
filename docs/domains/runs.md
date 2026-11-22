@@ -77,6 +77,55 @@ again immediately before spawning, Rust verifies the project workflow hash.
 An untrusted project workflow returns `TrustRequired` with the Settings review
 message.
 
+### Angular workflow trust state
+
+The Angular `WorkflowService` derives a trust state from the Rust status:
+
+| State | Fields |
+|---|---|
+| `unknown` | No trust status has been loaded |
+| `none` | `hasWorkflows` is false |
+| `trusted` | Workflows exist and `trusted` is true |
+| `unreviewed` | Workflows exist, are not trusted, and `approvedHash` is absent |
+| `changed` | Workflows exist, are not trusted, and `approvedHash` is present |
+
+The state checks use this order: a missing status is `unknown`; no workflows is
+`none`; a Rust `trusted` result is `trusted`; no `approvedHash` is
+`unreviewed`; otherwise it is `changed`. This last row includes legacy approvals
+with an `approvedHash` and no per-file change inventory: it is `changed`, and
+`detailsAvailable` is false until Rust reports changes.
+
+`approvedHash` is the folder hash stored at the time of approval. It is not an
+approval entry point and is never passed back by Angular to approve workflows.
+The Settings card receives the displayed `folderHash` and calls `approve(hash)`
+with that exact value. Approval happens only for the current hash accepted by
+Rust. If files change while the review is open, Rust returns `Validation`;
+Angular refreshes the trust status and reports `changed-while-reviewing` instead
+of approving stale files.
+
+The service computes change counts and exposes the Settings review as
+`{ state, files, changes }`. `files` is the current Rust inventory, while
+`changes` is the Rust change list and includes removed paths even when they are
+no longer in `files`. `detailsAvailable` is true only when at least one change
+is present.
+
+Trust notices use these recipes:
+
+- **Notice at open:** refresh trust after opening the project. Emit a notice for
+  `unreviewed` or `changed` once per `folderHash` in the current workspace
+  session. `trusted` and `none` do not emit, and workspace changes clear the
+  announced hashes.
+- **Settings review:** show the current inventory and change summary. Approve
+  only the hash currently displayed after the user reviews it.
+- **Files changed during review:** Rust rejects a stale approval with
+  `Validation`; refresh trust, show the new state and changes, and require a
+  separate approval.
+
+Global and bundled workflows do not require project approval and are not
+affected by these project trust states. Project scripts run with the user's
+operating-system permissions; approval grants trust for the workflow folder and
+is **not a sandbox**.
+
 Approval is not a sandbox: **approved scripts run with your permissions**.
 Users should inspect the current file inventory and all reported changes in
 Settings before approving.

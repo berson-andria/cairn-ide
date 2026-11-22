@@ -1,3 +1,4 @@
+import { WorkflowService } from './../../core/services/runs/workflow.service';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -30,6 +31,7 @@ import {
   lucideGitCommitHorizontal,
   lucideGitGraph,
   lucideHighlighter,
+  lucideLock,
   lucideOctagonX,
   lucidePanelLeft,
   lucidePlus,
@@ -77,6 +79,7 @@ import { ProjectHistoryService } from '../../core/services/project-history.servi
       lucideFolderTree,
       lucideSettings2,
       lucideHighlighter,
+      lucideLock,
     }),
   ],
 })
@@ -94,6 +97,7 @@ export class AppShell {
   readonly monitoring = inject(MonitoringService);
   readonly chatService = inject(ChatService);
   readonly projectHistory = inject(ProjectHistoryService);
+  readonly workflowService = inject(WorkflowService);
 
   protected readonly project = computed(() => {
     return this.nodeStore.rootName() ? this.nodeStore.rootName() : 'cairn-ide';
@@ -126,7 +130,6 @@ export class AppShell {
       col: this.monitoring.editorData()?.cursorPosition?.col,
     };
   });
-  // openedFolderHistory = computed(() => this.projectHistory.history().projects);
 
   constructor() {
     this.currentWindow = getCurrentWindow();

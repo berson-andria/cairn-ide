@@ -338,6 +338,9 @@ Last updated: 2026-11-21
 │   │   │   │   │   ├── resize-handle.scss
 │   │   │   │   │   └── resize-handle.ts
 │   │   │   │   ├── trust/
+│   │   │   │   │   ├── trust.html
+│   │   │   │   │   ├── trust.scss
+│   │   │   │   │   └── trust.ts
 │   │   │   │   ├── file-icon.ts
 │   │   │   │   └── link-file.ts
 │   │   │   ├── directives/
