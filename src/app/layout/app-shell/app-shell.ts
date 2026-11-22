@@ -40,7 +40,6 @@ import {
   lucideTextAlignJustify,
 } from '@ng-icons/lucide';
 import { DiagnosticsService } from '../../core/services/diagnostics.service';
-import { LspBridgeService } from '../../core/services/lsp/lsp-bridge.service';
 import { GitService } from '../../feature/git/services/git.service';
 import { MonitoringService } from '../../core/services/monitoring.service';
 import { CommonModule } from '@angular/common';
@@ -52,6 +51,8 @@ import { ChatService } from '../../feature/chat/chat.service';
 import { ChatHistory } from '../../feature/chat/component/history/chat-history';
 import { NoticeList } from '../../core/services/notification/notification-list';
 import { ProjectHistoryService } from '../../core/services/project-history.service';
+import { DialogService } from '../../core/services/dialog/dialog.service';
+import { TrustSetting } from '../../shared/components/trust-setting/trust';
 
 @Component({
   selector: 'app-shell',
@@ -92,12 +93,12 @@ export class AppShell {
   readonly git = inject(GitService);
   readonly gitClient = inject(GitClient);
   readonly ngZone = inject(NgZone);
-  readonly lsp = inject(LspBridgeService);
   protected tabStore = inject(TabStore);
   readonly monitoring = inject(MonitoringService);
   readonly chatService = inject(ChatService);
   readonly projectHistory = inject(ProjectHistoryService);
   readonly workflowService = inject(WorkflowService);
+  readonly dialogService = inject(DialogService);
 
   protected readonly project = computed(() => {
     return this.nodeStore.rootName() ? this.nodeStore.rootName() : 'cairn-ide';
@@ -162,6 +163,10 @@ export class AppShell {
     } else {
       return await this.commands.saveFile(id);
     }
+  }
+
+  async manageTrsut() {
+    this.dialogService.open(TrustSetting);
   }
 
   protected minimize(): void {

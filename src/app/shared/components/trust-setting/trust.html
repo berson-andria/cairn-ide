@@ -1,0 +1,98 @@
+@if (workflow.trustState() === 'unreviewed') {
+  <div class="dg">
+    <div class="hd">
+      <span class="ic"
+        ><svg
+          width="18"
+          height="18"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.4"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M8 1.5l5.5 2v4.2c0 3-2.3 5.3-5.5 6.8C4.8 13 2.5 10.7 2.5 7.7V3.5z"></path>
+          <path d="M8 5.5v3M8 10.5v.1" stroke-linecap="round"></path></svg
+      ></span>
+      <h2>Trust the workflows in auth-client?</h2>
+    </div>
+    <p>
+      Workflows are Python scripts. They run on this computer with your permissions. Trust covers
+      every file in <span class="m">.cairn/workflows</span>, helpers included, because any of them
+      can change what runs.
+    </p>
+    <p>Set entry point:</p>
+    <div class="ls">
+      <div class="ro"><span class="m">plan_feature.py</span><span class="sz">3.1 KB</span></div>
+      <div class="ro"><span class="m">split_task.py</span><span class="sz">1.8 KB</span></div>
+      <div class="ro">
+        <span class="m">_helpers/git_utils.py</span><span class="sz">2.4 KB</span>
+      </div>
+    </div>
+    <div class="nt">
+      <span aria-hidden="true">·</span
+      ><span
+        >Scripts can only propose tasks. Nothing is created or completed until you accept it.</span
+      >
+    </div>
+    <div class="nt">
+      <span aria-hidden="true">·</span
+      ><span>Cairn asks again if any file in the folder changes.</span>
+    </div>
+    <div class="bt">
+      <button class="b">Stay in Restricted Mode</button
+      ><button class="b pm">Trust workflows</button>
+    </div>
+  </div>
+} @else if (workflow.trustState() === 'changed') {
+  <div class="dg" style="left: 740px; top: 52px">
+    <div class="hd">
+      <span class="ic"
+        ><svg
+          width="18"
+          height="18"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.4"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M8 1.5l5.5 2v4.2c0 3-2.3 5.3-5.5 6.8C4.8 13 2.5 10.7 2.5 7.7V3.5z"></path>
+          <path d="M8 5.5v3M8 10.5v.1" stroke-linecap="round"></path></svg
+      ></span>
+      <h2>Workflows changed. Trust them again?</h2>
+    </div>
+    <p>
+      You trusted this folder before, but 3 files are different now. A pull, a branch switch or an
+      edit can do this. Review the changes before you run.
+    </p>
+    <div class="ls">
+      <div class="ro">
+        <span class="tg" style="background: #382f1c; color: #e2c27b">Modified</span
+        ><span class="m">plan_feature.py</span><span class="sz">+12 −3</span>
+      </div>
+      <div class="ro">
+        <span class="tg" style="background: #1f2a1e; color: #b9d2ae">Added</span
+        ><span class="m">_helpers/shell.py</span><span class="sz">+27</span>
+      </div>
+      <div class="ro">
+        <span class="tg" style="background: #2e1d1b; color: #e0b0a6">Removed</span
+        ><span class="m">split_task.py</span><span class="sz">−41</span>
+      </div>
+    </div>
+    <div class="hs">
+      <span>Trusted <span class="m" style="color: #a39b8b">7f3a9c…c91e</span></span
+      ><span>Now <span class="m" style="color: #a39b8b">b02d41…58aa</span></span>
+    </div>
+    <div class="nt">
+      <span aria-hidden="true">·</span
+      ><span>Trusting replaces the old approval for the whole folder.</span>
+    </div>
+    <div class="bt">
+      <button class="b">Stay in Restricted Mode</button><button class="b">Review changes</button
+      ><button class="b pm">Trust and Run</button>
+    </div>
+  </div>
+}

@@ -43,8 +43,9 @@ Cairn is a native desktop application: Rust owns project data and process lifecy
 - Proposal records and the proposal stores are implemented for task, batch, and subtask kinds.
 
 ### 3. The Python Agent SDK
-
 The stdlib-only SDK in `sdk/python/cairn` talks to the host over JSON-RPC 2.0. Stdout is reserved for RPC; Python `print()` output is redirected to stderr and becomes run log output.
+
+> **Workflows run through uv, which installs the packages a workflow lists in its header into an isolated environment. Install uv first; Cairn shows a clear message if it's missing.**
 
 The SDK exposes:
 
