@@ -1,7 +1,7 @@
 use crate::services::{
     models::Registry,
     project::{ProjectState, TauriEventSink},
-    runs::workflows::{WorkflowInfo, WorkflowTrustStatus},
+    runs::workflows::{WorkflowCreated, WorkflowStatus, WorkflowTemplate, WorkflowTrustStatus},
     runs::{RunManager, RunRecord},
     service_error::ServiceError,
 };
@@ -12,7 +12,6 @@ use tauri::{AppHandle, Manager, State};
 pub async fn run_start(
     task_id: String,
     expected_rev: u64,
-    workflow: Option<String>,
     app: AppHandle,
     projects: State<'_, ProjectState>,
     runs: State<'_, RunManager>,
@@ -28,7 +27,6 @@ pub async fn run_start(
         &projects,
         task_id,
         expected_rev,
-        workflow,
         Arc::new(registry),
         Arc::new(TauriEventSink(app)),
     )
@@ -71,11 +69,28 @@ pub async fn run_log(
 }
 
 #[tauri::command]
-pub async fn workflow_list(
+pub async fn workflow_status(
     projects: State<'_, ProjectState>,
     runs: State<'_, RunManager>,
-) -> Result<Vec<WorkflowInfo>, ServiceError> {
-    runs.workflow_list(&projects)
+) -> Result<WorkflowStatus, ServiceError> {
+    runs.workflow_status(&projects)
+}
+
+#[tauri::command]
+pub async fn workflow_templates(
+    runs: State<'_, RunManager>,
+) -> Result<Vec<WorkflowTemplate>, ServiceError> {
+    runs.workflow_templates()
+}
+
+#[tauri::command]
+pub async fn workflow_create(
+    scope: String,
+    template: String,
+    projects: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
+) -> Result<WorkflowCreated, ServiceError> {
+    runs.workflow_create(&projects, &scope, &template)
 }
 
 #[tauri::command]

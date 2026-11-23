@@ -2,6 +2,11 @@
 # requires-python = ">=3.10"
 # dependencies = []
 # ///
+# This file is the workflow entry point.
+# Import helpers with absolute imports (for example, `import prompts`), not `from . import`.
+# Never name a file `cairn.py`; avoid standard-library module names.
+# title: Read task and notes
+# description: Read the current task and linked notes, then finish the run.
 
 import sys
 

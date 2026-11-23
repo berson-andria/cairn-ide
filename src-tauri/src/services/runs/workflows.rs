@@ -2,14 +2,70 @@ use crate::services::service_error::{now_ms, ServiceError, ServiceErrorCode};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     fs,
+    fs::OpenOptions,
+    io::Write,
     path::{Path, PathBuf},
     sync::Mutex,
 };
 
 const TRUST_FILE: &str = "workflow-trust.json";
+pub const ENTRY_FILE: &str = "main.py";
+const PROJECT_FOLDER: &str = ".cairn/workflows";
+const GLOBAL_FOLDER: &str = "<config dir>/cairn/workflows";
+const BUNDLED_FOLDER: &str = "<app>/workflows";
+const STDLIB_MODULES: &[&str] = &[
+    "abc",
+    "argparse",
+    "array",
+    "asyncio",
+    "base64",
+    "bisect",
+    "calendar",
+    "cmath",
+    "collections",
+    "concurrent",
+    "copy",
+    "csv",
+    "dataclasses",
+    "datetime",
+    "decimal",
+    "email",
+    "enum",
+    "fractions",
+    "functools",
+    "hashlib",
+    "heapq",
+    "http",
+    "io",
+    "itertools",
+    "json",
+    "logging",
+    "math",
+    "multiprocessing",
+    "operator",
+    "os",
+    "pathlib",
+    "pickle",
+    "queue",
+    "random",
+    "re",
+    "shutil",
+    "socket",
+    "statistics",
+    "string",
+    "subprocess",
+    "sys",
+    "threading",
+    "time",
+    "typing",
+    "unittest",
+    "urllib",
+    "uuid",
+];
 static TRUST_STORE_LOCK: Mutex<()> = Mutex::new(());
+static WORKFLOW_CREATE_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -21,12 +77,48 @@ pub enum WorkflowSource {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WorkflowInfo {
-    pub name: String,
+pub struct WorkflowScopeStatus {
     pub source: WorkflowSource,
-    pub overrides: Vec<WorkflowSource>,
-    pub trusted: bool,
+    pub folder: String,
+    pub status: WorkflowFolderStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    pub warnings: Vec<String>,
+    pub trusted: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum WorkflowFolderStatus {
+    Empty,
+    Ok,
+    NoEntry,
+    ReservedName,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowStatus {
+    pub active: Option<WorkflowSource>,
+    pub sources: Vec<WorkflowScopeStatus>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowTemplate {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowCreated {
+    pub source: WorkflowSource,
     pub entry: String,
+    pub entry_path: PathBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -71,7 +163,6 @@ pub struct Workflow {
     pub source: WorkflowSource,
     pub script_hash: String,
     pub trusted: bool,
-    pub entry: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -106,98 +197,427 @@ impl TrustEntry {
 
 type TrustStore = BTreeMap<String, TrustEntry>;
 
-pub fn resolve(root: &Path, name: &str) -> Result<Workflow, ServiceError> {
-    resolve_in(root, name, None)
-}
-
-pub fn resolve_in(
+pub fn workflow_status(
     root: &Path,
-    name: &str,
-    data_dir: Option<&Path>,
-) -> Result<Workflow, ServiceError> {
-    resolve_with_sources(
-        root,
-        name,
-        data_dir,
-        bundled_workflows_dir(
-            cfg!(debug_assertions),
-            Path::new(env!("CARGO_MANIFEST_DIR")),
-            None,
-        )
-        .as_deref(),
-    )
-}
-
-pub fn resolve_with_sources(
-    root: &Path,
-    name: &str,
     data_dir: Option<&Path>,
     bundled_dir: Option<&Path>,
-) -> Result<Workflow, ServiceError> {
-    validate_name(name)?;
-    let candidates = workflow_candidates(root, name, bundled_dir);
-    let selected = candidates
+) -> Result<WorkflowStatus, ServiceError> {
+    let global_dir = global_workflows_dir();
+    workflow_status_with_dirs(root, data_dir, global_dir.as_deref(), bundled_dir)
+}
+
+pub fn workflow_status_with_dirs(
+    root: &Path,
+    data_dir: Option<&Path>,
+    global_dir: Option<&Path>,
+    bundled_dir: Option<&Path>,
+) -> Result<WorkflowStatus, ServiceError> {
+    let definitions = [
+        (
+            WorkflowSource::Project,
+            Some(root.join(PROJECT_FOLDER)),
+            PROJECT_FOLDER,
+        ),
+        (
+            WorkflowSource::Global,
+            global_dir.map(Path::to_path_buf),
+            GLOBAL_FOLDER,
+        ),
+        (
+            WorkflowSource::Bundled,
+            bundled_dir.map(Path::to_path_buf),
+            BUNDLED_FOLDER,
+        ),
+    ];
+    let mut sources = Vec::with_capacity(definitions.len());
+    for (source, directory, display_folder) in definitions {
+        sources.push(scope_status(
+            root,
+            source,
+            directory.as_deref(),
+            display_folder,
+            data_dir,
+            true,
+        )?);
+    }
+    let active = sources
         .iter()
-        .find(|(_, path)| path.as_ref().is_some_and(|path| is_regular_file(path)))
-        .ok_or_else(|| {
+        .find(|scope| scope.status != WorkflowFolderStatus::Empty)
+        .map(|scope| scope.source);
+    Ok(WorkflowStatus { active, sources })
+}
+
+pub fn resolve_active_with_dirs(
+    root: &Path,
+    data_dir: Option<&Path>,
+    global_dir: Option<&Path>,
+    bundled_dir: Option<&Path>,
+) -> Result<Workflow, ServiceError> {
+    let status = workflow_status_with_dirs(root, data_dir, global_dir, bundled_dir)?;
+    let source = status
+        .active
+        .ok_or_else(|| ServiceError::validation("no workflow is available in any scope"))?;
+    let scope = status
+        .sources
+        .iter()
+        .find(|scope| scope.source == source)
+        .expect("active source comes from the source list");
+    if scope.status != WorkflowFolderStatus::Ok {
+        return Err(ServiceError::validation(
+            scope
+                .message
+                .as_deref()
+                .unwrap_or("workflow scope is not runnable"),
+        ));
+    }
+
+    let directory = match source {
+        WorkflowSource::Project => root.join(PROJECT_FOLDER),
+        WorkflowSource::Global => global_dir.map(Path::to_path_buf).ok_or_else(|| {
             ServiceError::new(
-                ServiceErrorCode::WorkflowNotFound,
-                format!("Workflow '{name}' was not found"),
+                ServiceErrorCode::RuntimeUnavailable,
+                "Could not determine the global workflows directory",
             )
-        })?;
-    let source = selected.0;
-    let path = selected
-        .1
-        .as_ref()
-        .unwrap()
+        })?,
+        WorkflowSource::Bundled => bundled_dir.map(Path::to_path_buf).ok_or_else(|| {
+            ServiceError::new(
+                ServiceErrorCode::RuntimeUnavailable,
+                "Bundled workflows are unavailable",
+            )
+        })?,
+    };
+    let path = directory
+        .join(ENTRY_FILE)
         .canonicalize()
         .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
     let script_hash = match source {
-        WorkflowSource::Project => hash_workflows_dir(&root.join(".cairn").join("workflows"))?.hash,
+        WorkflowSource::Project => hash_workflows_dir(&directory)?.hash,
         WorkflowSource::Global | WorkflowSource::Bundled => hash_file(&path)?,
-    };
-    let trusted = match source {
-        WorkflowSource::Project => is_trusted(root, &script_hash, data_dir)?,
-        WorkflowSource::Global | WorkflowSource::Bundled => true,
     };
     Ok(Workflow {
         path,
         source,
         script_hash,
-        trusted,
-        entry: display_entry(source, name),
+        trusted: scope.trusted.unwrap_or(false),
     })
 }
 
-fn workflow_candidates(
+fn scope_status(
     root: &Path,
-    name: &str,
-    bundled_dir: Option<&Path>,
-) -> Vec<(WorkflowSource, Option<PathBuf>)> {
-    let project = root
-        .join(".cairn")
-        .join("workflows")
-        .join(format!("{name}.py"));
-    let global = dirs::config_dir().map(|directory| {
-        directory
-            .join("cairn")
-            .join("workflows")
-            .join(format!("{name}.py"))
-    });
-    let bundled = bundled_dir.map(|directory| directory.join(format!("{name}.py")));
-    vec![
-        (WorkflowSource::Project, Some(project)),
-        (WorkflowSource::Global, global),
-        (WorkflowSource::Bundled, bundled),
-    ]
+    source: WorkflowSource,
+    directory: Option<&Path>,
+    display_folder: &str,
+    data_dir: Option<&Path>,
+    include_trust: bool,
+) -> Result<WorkflowScopeStatus, ServiceError> {
+    let Some(directory) = directory else {
+        return Ok(WorkflowScopeStatus {
+            source,
+            folder: display_folder.into(),
+            status: WorkflowFolderStatus::Empty,
+            entry: None,
+            message: None,
+            warnings: Vec::new(),
+            trusted: None,
+        });
+    };
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries
+            .map(|entry| {
+                entry.map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(ServiceError::new(ServiceErrorCode::Io, error.to_string())),
+    };
+    let warnings = workflow_warnings(&entries)?;
+    let mut reserved_name = None;
+    let mut has_entry = false;
+    let mut has_content = false;
+    for entry in &entries {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let kind = entry
+            .file_type()
+            .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+        if (name.eq_ignore_ascii_case("cairn.py") && kind.is_file())
+            || (name.eq_ignore_ascii_case("cairn") && kind.is_dir())
+        {
+            reserved_name = Some(name.clone());
+        }
+        has_entry |= name == ENTRY_FILE && kind.is_file();
+        has_content |= !(name == "__pycache__" && kind.is_dir());
+    }
+    let (status, entry, message) = if let Some(name) = reserved_name {
+        (
+            WorkflowFolderStatus::ReservedName,
+            None,
+            Some(format!("{name} would shadow the Cairn SDK; rename it")),
+        )
+    } else if has_entry {
+        (
+            WorkflowFolderStatus::Ok,
+            Some(format!("{display_folder}/{ENTRY_FILE}")),
+            None,
+        )
+    } else if has_content {
+        (
+            WorkflowFolderStatus::NoEntry,
+            None,
+            Some(format!("no main.py in {display_folder}")),
+        )
+    } else {
+        (WorkflowFolderStatus::Empty, None, None)
+    };
+    let trusted = if status == WorkflowFolderStatus::Empty || !include_trust {
+        None
+    } else {
+        Some(match source {
+            WorkflowSource::Project => {
+                let hash = hash_workflows_dir(directory)?.hash;
+                is_trusted(root, &hash, data_dir)?
+            }
+            WorkflowSource::Global | WorkflowSource::Bundled => true,
+        })
+    };
+    Ok(WorkflowScopeStatus {
+        source,
+        folder: display_folder.into(),
+        status,
+        entry,
+        message,
+        warnings,
+        trusted,
+    })
 }
 
-fn display_entry(source: WorkflowSource, name: &str) -> String {
-    match source {
-        WorkflowSource::Project => format!(".cairn/workflows/{name}.py"),
-        WorkflowSource::Global => format!("cairn/workflows/{name}.py"),
-        WorkflowSource::Bundled => format!("workflows/{name}.py"),
+fn workflow_warnings(entries: &[fs::DirEntry]) -> Result<Vec<String>, ServiceError> {
+    let mut warnings = Vec::new();
+    for entry in entries {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let is_directory = entry
+            .file_type()
+            .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?
+            .is_dir();
+        let module = if is_directory {
+            name.as_str()
+        } else {
+            let path = Path::new(&name);
+            if path.extension().and_then(|extension| extension.to_str()) != Some("py") {
+                continue;
+            }
+            let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+                continue;
+            };
+            stem
+        };
+        if STDLIB_MODULES.contains(&module) {
+            let entry_name = if is_directory {
+                format!("{name}/")
+            } else {
+                name
+            };
+            warnings.push(format!("{entry_name} may shadow a standard library module"));
+        }
     }
+    warnings.sort();
+    Ok(warnings)
+}
+
+pub fn workflow_templates(sdk_path: &Path) -> Result<Vec<WorkflowTemplate>, ServiceError> {
+    let directory = sdk_path.join("templates");
+    let entries = fs::read_dir(&directory).map_err(|error| {
+        ServiceError::new(ServiceErrorCode::RuntimeUnavailable, error.to_string())
+    })?;
+    let mut templates = Vec::new();
+    for entry in entries {
+        let entry =
+            entry.map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+        let path = entry.path();
+        if !entry
+            .file_type()
+            .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?
+            .is_file()
+            || path.extension().and_then(|extension| extension.to_str()) != Some("py")
+        {
+            continue;
+        }
+        let id = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .ok_or_else(|| {
+                ServiceError::new(ServiceErrorCode::Corrupt, "Invalid template filename")
+            })?
+            .to_owned();
+        let contents = fs::read_to_string(&path)
+            .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+        let (title, description) = parse_template_metadata(&contents).ok_or_else(|| {
+            ServiceError::new(
+                ServiceErrorCode::Corrupt,
+                format!("Template '{id}' must define title and description in its first 10 lines"),
+            )
+        })?;
+        templates.push(WorkflowTemplate {
+            id,
+            title,
+            description,
+        });
+    }
+    templates.sort_by(|left, right| left.id.cmp(&right.id));
+    Ok(templates)
+}
+
+fn parse_template_metadata(contents: &str) -> Option<(String, String)> {
+    let mut title = None;
+    let mut description = None;
+    for line in contents.lines().take(10) {
+        if let Some(value) = line.strip_prefix("# title:") {
+            title = Some(value.trim().to_owned());
+        } else if let Some(value) = line.strip_prefix("# description:") {
+            description = Some(value.trim().to_owned());
+        }
+    }
+    match (title, description) {
+        (Some(title), Some(description)) if !title.is_empty() && !description.is_empty() => {
+            Some((title, description))
+        }
+        _ => None,
+    }
+}
+
+pub fn create_workflow(
+    root: &Path,
+    scope: &str,
+    template: &str,
+    sdk_path: &Path,
+    global_dir: Option<&Path>,
+    bundled_dir: Option<&Path>,
+) -> Result<WorkflowCreated, ServiceError> {
+    let source = match scope {
+        "project" => WorkflowSource::Project,
+        "global" => WorkflowSource::Global,
+        _ => return Err(ServiceError::validation("scope must be project or global")),
+    };
+    let directory = match source {
+        WorkflowSource::Project => root.join(PROJECT_FOLDER),
+        WorkflowSource::Global => global_dir.map(Path::to_path_buf).ok_or_else(|| {
+            ServiceError::new(
+                ServiceErrorCode::RuntimeUnavailable,
+                "Could not determine the global workflows directory",
+            )
+        })?,
+        WorkflowSource::Bundled => unreachable!(),
+    };
+    let display_folder = match source {
+        WorkflowSource::Project => PROJECT_FOLDER,
+        WorkflowSource::Global => GLOBAL_FOLDER,
+        WorkflowSource::Bundled => unreachable!(),
+    };
+    let _guard = WORKFLOW_CREATE_LOCK
+        .lock()
+        .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+    let existing = scope_status(root, source, Some(&directory), display_folder, None, false)?;
+    if existing.status != WorkflowFolderStatus::Empty {
+        return Err(ServiceError::validation(format!(
+            "a workflow already exists in {display_folder}"
+        )));
+    }
+
+    let bundled_source = if template == "bundled" {
+        let bundled_dir = bundled_dir.ok_or_else(|| {
+            ServiceError::new(
+                ServiceErrorCode::RuntimeUnavailable,
+                "Bundled workflows are unavailable",
+            )
+        })?;
+        if !bundled_dir.is_dir() {
+            return Err(ServiceError::new(
+                ServiceErrorCode::RuntimeUnavailable,
+                "Bundled workflows are unavailable",
+            ));
+        }
+        Some(bundled_dir)
+    } else {
+        None
+    };
+    let template_contents = if bundled_source.is_none() {
+        let templates = workflow_templates(sdk_path)?;
+        if !templates.iter().any(|item| item.id == template) {
+            return Err(ServiceError::validation(format!(
+                "unknown workflow template '{template}'"
+            )));
+        }
+        Some(
+            fs::read(sdk_path.join("templates").join(format!("{template}.py")))
+                .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?,
+        )
+    } else {
+        None
+    };
+    fs::create_dir_all(&directory)
+        .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+    if let Some(bundled_source) = bundled_source {
+        copy_directory(bundled_source, &directory)?;
+    } else if let Some(bytes) = template_contents {
+        let path = directory.join(ENTRY_FILE);
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+        file.write_all(&bytes)
+            .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+    } else {
+        unreachable!("workflow source was validated before creating the destination");
+    }
+    let entry_path = directory
+        .join(ENTRY_FILE)
+        .canonicalize()
+        .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+    Ok(WorkflowCreated {
+        source,
+        entry: format!("{display_folder}/{ENTRY_FILE}"),
+        entry_path,
+    })
+}
+
+fn copy_directory(source: &Path, destination: &Path) -> Result<(), ServiceError> {
+    let entries = fs::read_dir(source)
+        .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+    for entry in entries {
+        let entry =
+            entry.map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+        let kind = entry
+            .file_type()
+            .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+        let target = destination.join(entry.file_name());
+        if kind.is_dir() {
+            fs::create_dir(&target)
+                .or_else(|error| {
+                    if error.kind() == std::io::ErrorKind::AlreadyExists {
+                        Ok(())
+                    } else {
+                        Err(error)
+                    }
+                })
+                .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+            copy_directory(&entry.path(), &target)?;
+        } else if kind.is_file() {
+            let mut input = fs::File::open(entry.path())
+                .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+            let mut output = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&target)
+                .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+            std::io::copy(&mut input, &mut output)
+                .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+        } else {
+            return Err(ServiceError::validation(
+                "bundled workflows may contain only files and directories",
+            ));
+        }
+    }
+    Ok(())
 }
 
 pub fn require_trust(_root: &Path, workflow: &Workflow) -> Result<(), ServiceError> {
@@ -208,6 +628,10 @@ pub fn require_trust(_root: &Path, workflow: &Workflow) -> Result<(), ServiceErr
         ServiceErrorCode::TrustRequired,
         "Workflows in this project are not trusted. Review them in Settings.",
     ))
+}
+
+pub fn global_workflows_dir() -> Option<PathBuf> {
+    dirs::config_dir().map(|directory| directory.join("cairn").join("workflows"))
 }
 
 pub fn trust(root: &Path, hash: &str, data_dir: Option<&Path>) -> Result<(), ServiceError> {
@@ -326,104 +750,6 @@ fn diff_files(
         .into_iter()
         .map(|(path, kind)| WorkflowChange { path, kind })
         .collect()
-}
-
-pub fn list(root: &Path) -> Result<Vec<WorkflowInfo>, ServiceError> {
-    list_in(root, None)
-}
-
-pub fn list_in(root: &Path, data_dir: Option<&Path>) -> Result<Vec<WorkflowInfo>, ServiceError> {
-    list_with_sources(
-        root,
-        data_dir,
-        bundled_workflows_dir(
-            cfg!(debug_assertions),
-            Path::new(env!("CARGO_MANIFEST_DIR")),
-            None,
-        )
-        .as_deref(),
-    )
-}
-
-pub fn list_with_sources(
-    root: &Path,
-    data_dir: Option<&Path>,
-    bundled_dir: Option<&Path>,
-) -> Result<Vec<WorkflowInfo>, ServiceError> {
-    let mut names = BTreeSet::new();
-    for (_, directory) in [
-        (
-            WorkflowSource::Project,
-            Some(root.join(".cairn").join("workflows")),
-        ),
-        (
-            WorkflowSource::Global,
-            dirs::config_dir().map(|directory| directory.join("cairn").join("workflows")),
-        ),
-        (WorkflowSource::Bundled, bundled_dir.map(Path::to_path_buf)),
-    ] {
-        if let Some(directory) = directory {
-            collect_names(&directory, &mut names)?;
-        }
-    }
-    names
-        .into_iter()
-        .map(|name| {
-            let workflow = resolve_with_sources(root, &name, data_dir, bundled_dir)?;
-            let overrides = workflow_candidates(root, &name, bundled_dir)
-                .into_iter()
-                .filter_map(|(source, path)| {
-                    (source != workflow.source
-                        && path.as_ref().is_some_and(|path| is_regular_file(path)))
-                    .then_some(source)
-                })
-                .collect();
-            Ok(WorkflowInfo {
-                name,
-                source: workflow.source,
-                overrides,
-                trusted: workflow.trusted,
-                entry: workflow.entry,
-            })
-        })
-        .collect()
-}
-
-fn collect_names(directory: &Path, names: &mut BTreeSet<String>) -> Result<(), ServiceError> {
-    let entries = match fs::read_dir(directory) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(ServiceError::new(ServiceErrorCode::Io, error.to_string())),
-    };
-    for entry in entries {
-        let entry =
-            entry.map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
-        let path = entry.path();
-        if !is_regular_file(&path) || path.extension().and_then(|ext| ext.to_str()) != Some("py") {
-            continue;
-        }
-        let Some(name) = path.file_stem().and_then(|stem| stem.to_str()) else {
-            continue;
-        };
-        if validate_name(name).is_ok() {
-            names.insert(name.into());
-        }
-    }
-    Ok(())
-}
-
-fn validate_name(name: &str) -> Result<(), ServiceError> {
-    if (1..=64).contains(&name.len())
-        && name
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
-    {
-        Ok(())
-    } else {
-        Err(ServiceError::validation(
-            "Workflow name must match [A-Za-z0-9_-]{1,64}",
-        ))
-    }
 }
 
 fn hash_file(path: &Path) -> Result<String, ServiceError> {
@@ -610,9 +936,9 @@ mod tests {
         root.join(".cairn").join("workflows")
     }
 
-    fn create_workflow(directory: &Path, name: &str, body: &str) {
+    fn create_entry(directory: &Path, body: &str) {
         fs::create_dir_all(directory).unwrap();
-        fs::write(directory.join(format!("{name}.py")), body).unwrap();
+        fs::write(directory.join(ENTRY_FILE), body).unwrap();
     }
 
     #[test]
@@ -640,7 +966,7 @@ mod tests {
         assert!(!empty.has_workflows);
         assert!(empty.files.is_empty());
 
-        create_workflow(&workflow_dir(root.path()), "default", "pass\n");
+        create_entry(&workflow_dir(root.path()), "pass\n");
         let untrusted = trust_status(root.path(), Some(data.path())).unwrap();
         assert!(untrusted.has_workflows);
         assert!(!untrusted.trusted);
@@ -651,7 +977,7 @@ mod tests {
                 "trusted": false,
                 "folderHash": untrusted.folder_hash,
                 "files": [{
-                    "path": "default.py",
+                    "path": "main.py",
                     "size": 5,
                     "sha256": format!("{:x}", Sha256::digest(b"pass\n"))
                 }],
@@ -678,7 +1004,7 @@ mod tests {
             let root = tempdir().unwrap();
             let data = tempdir().unwrap();
             let directory = workflow_dir(root.path());
-            create_workflow(&directory, "main", "pass\n");
+            create_entry(&directory, "pass\n");
             fs::write(directory.join("helper.py"), "VALUE = 1\n").unwrap();
             let before = trust_status(root.path(), Some(data.path())).unwrap();
             trust(root.path(), &before.folder_hash, Some(data.path())).unwrap();
@@ -705,7 +1031,7 @@ mod tests {
         let root = tempdir().unwrap();
         let data = tempdir().unwrap();
         let directory = workflow_dir(root.path());
-        create_workflow(&directory, "main", "pass\n");
+        create_entry(&directory, "pass\n");
         let helper_dir = directory.join("helpers");
         fs::create_dir_all(&helper_dir).unwrap();
         fs::write(helper_dir.join("common.py"), "VALUE = 1\n").unwrap();
@@ -734,7 +1060,7 @@ mod tests {
     fn old_format_approval_loads_without_file_changes() {
         let root = tempdir().unwrap();
         let data = tempdir().unwrap();
-        create_workflow(&workflow_dir(root.path()), "main", "pass");
+        create_entry(&workflow_dir(root.path()), "pass");
         let current = trust_status(root.path(), Some(data.path())).unwrap();
         fs::write(
             data.path().join(TRUST_FILE),
@@ -758,8 +1084,8 @@ mod tests {
         let first = tempdir().unwrap();
         let second = tempdir().unwrap();
         let data = tempdir().unwrap();
-        create_workflow(&workflow_dir(first.path()), "main", "pass");
-        create_workflow(&workflow_dir(second.path()), "main", "pass");
+        create_entry(&workflow_dir(first.path()), "pass");
+        create_entry(&workflow_dir(second.path()), "pass");
         let hash = trust_status(first.path(), Some(data.path()))
             .unwrap()
             .folder_hash;
@@ -793,13 +1119,14 @@ mod tests {
         let root = tempdir().unwrap();
         let data = tempdir().unwrap();
         let directory = workflow_dir(root.path());
-        create_workflow(&directory, "main", "pass");
+        create_entry(&directory, "pass");
         fs::write(
             root.path().join(".cairn").join("settings.json"),
             r#"{"workflowTrusted":true,"folderHash":"anything"}"#,
         )
         .unwrap();
-        let workflow = resolve_with_sources(root.path(), "main", Some(data.path()), None).unwrap();
+        let workflow =
+            resolve_active_with_dirs(root.path(), Some(data.path()), None, None).unwrap();
         assert!(!workflow.trusted);
         assert!(
             !trust_status(root.path(), Some(data.path()))
@@ -808,88 +1135,331 @@ mod tests {
         );
     }
 
-    #[test]
-    fn source_precedence_and_overrides_cover_all_available_sources() {
-        let root = tempdir().unwrap();
-        let bundled = tempdir().unwrap();
-        let name = format!("slice7b-{}", uuid::Uuid::new_v4().simple());
-        let global_dir = dirs::config_dir().unwrap().join("cairn").join("workflows");
-        let global_path = global_dir.join(format!("{name}.py"));
-        let project_path = workflow_dir(root.path()).join(format!("{name}.py"));
-        create_workflow(bundled.path(), &name, "bundled");
-        create_workflow(&global_dir, &name, "global");
-        create_workflow(&workflow_dir(root.path()), &name, "project");
-        let data = tempdir().unwrap();
-
-        let project = list_with_sources(root.path(), Some(data.path()), Some(bundled.path()))
-            .unwrap()
-            .into_iter()
-            .find(|workflow| workflow.name == name)
-            .unwrap();
-        assert_eq!(project.source, WorkflowSource::Project);
-        assert_eq!(
-            project.overrides,
-            [WorkflowSource::Global, WorkflowSource::Bundled]
-        );
-        assert_eq!(project.entry, format!(".cairn/workflows/{name}.py"));
-
-        fs::remove_file(project_path).unwrap();
-        let global =
-            resolve_with_sources(root.path(), &name, Some(data.path()), Some(bundled.path()))
-                .unwrap();
-        assert_eq!(global.source, WorkflowSource::Global);
-        let global_list = list_with_sources(root.path(), Some(data.path()), Some(bundled.path()))
-            .unwrap()
-            .into_iter()
-            .find(|workflow| workflow.name == name)
-            .unwrap();
-        assert_eq!(global_list.overrides, [WorkflowSource::Bundled]);
-        assert_eq!(global_list.entry, format!("cairn/workflows/{name}.py"));
-
-        fs::remove_file(global_path).unwrap();
-        let bundled_workflow =
-            resolve_with_sources(root.path(), &name, Some(data.path()), Some(bundled.path()))
-                .unwrap();
-        assert_eq!(bundled_workflow.source, WorkflowSource::Bundled);
-        assert!(bundled_workflow.trusted);
-        assert_eq!(bundled_workflow.entry, format!("workflows/{name}.py"));
-        let bundled_list = list_with_sources(root.path(), Some(data.path()), Some(bundled.path()))
-            .unwrap()
-            .into_iter()
-            .find(|workflow| workflow.name == name)
-            .unwrap();
-        assert!(bundled_list.overrides.is_empty());
+    fn set_scope_state(directory: &Path, state: WorkflowFolderStatus) {
+        if directory.exists() {
+            fs::remove_dir_all(directory).unwrap();
+        }
+        match state {
+            WorkflowFolderStatus::Empty => {}
+            WorkflowFolderStatus::Ok => create_entry(directory, "pass"),
+            WorkflowFolderStatus::NoEntry => {
+                fs::create_dir_all(directory).unwrap();
+                fs::write(directory.join("helper.py"), "pass").unwrap();
+            }
+            WorkflowFolderStatus::ReservedName => {
+                fs::create_dir_all(directory).unwrap();
+                fs::write(directory.join("Cairn.py"), "pass").unwrap();
+            }
+        }
     }
 
     #[test]
-    fn global_and_bundled_workflows_pass_the_run_trust_gate_without_approval() {
+    fn workflow_status_selects_the_first_nonempty_scope_for_all_status_combinations() {
+        let states = [
+            WorkflowFolderStatus::Empty,
+            WorkflowFolderStatus::Ok,
+            WorkflowFolderStatus::NoEntry,
+            WorkflowFolderStatus::ReservedName,
+        ];
+        for project_state in states {
+            for global_state in states {
+                for bundled_state in states {
+                    let root = tempdir().unwrap();
+                    let global = tempdir().unwrap();
+                    let bundled = tempdir().unwrap();
+                    let data = tempdir().unwrap();
+                    let project_dir = workflow_dir(root.path());
+                    set_scope_state(&project_dir, project_state);
+                    set_scope_state(global.path(), global_state);
+                    set_scope_state(bundled.path(), bundled_state);
+                    let status = workflow_status_with_dirs(
+                        root.path(),
+                        Some(data.path()),
+                        Some(global.path()),
+                        Some(bundled.path()),
+                    )
+                    .unwrap();
+                    let expected = [
+                        (WorkflowSource::Project, project_state),
+                        (WorkflowSource::Global, global_state),
+                        (WorkflowSource::Bundled, bundled_state),
+                    ]
+                    .into_iter()
+                    .find(|(_, state)| *state != WorkflowFolderStatus::Empty)
+                    .map(|(source, _)| source);
+                    assert_eq!(
+                        status.active, expected,
+                        "unexpected active scope for {project_state:?}/{global_state:?}/{bundled_state:?}"
+                    );
+                    assert_eq!(
+                        status
+                            .sources
+                            .iter()
+                            .map(|scope| scope.status)
+                            .collect::<Vec<_>>(),
+                        [project_state, global_state, bundled_state]
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn workflow_status_has_stable_display_strings_and_exact_empty_json() {
         let root = tempdir().unwrap();
-        let data = tempdir().unwrap();
+        let global = tempdir().unwrap();
         let bundled = tempdir().unwrap();
-        let name = format!("slice7b-global-{}", uuid::Uuid::new_v4().simple());
-        let global_dir = dirs::config_dir().unwrap().join("cairn").join("workflows");
-        let global_path = global_dir.join(format!("{name}.py"));
-        create_workflow(&global_dir, &name, "pass");
-        create_workflow(bundled.path(), "only-bundled", "pass");
-
-        let global =
-            resolve_with_sources(root.path(), &name, Some(data.path()), Some(bundled.path()))
-                .unwrap();
-        assert_eq!(global.source, WorkflowSource::Global);
-        assert!(global.trusted);
-        require_trust(root.path(), &global).unwrap();
-
-        let bundled = resolve_with_sources(
+        let data = tempdir().unwrap();
+        let status = workflow_status_with_dirs(
             root.path(),
-            "only-bundled",
             Some(data.path()),
+            Some(global.path()),
             Some(bundled.path()),
         )
         .unwrap();
-        assert_eq!(bundled.source, WorkflowSource::Bundled);
-        assert!(bundled.trusted);
-        require_trust(root.path(), &bundled).unwrap();
-        fs::remove_file(global_path).unwrap();
+        assert_eq!(
+            serde_json::to_value(status).unwrap(),
+            serde_json::json!({
+                "active": null,
+                "sources": [
+                    {
+                        "source": "project",
+                        "folder": ".cairn/workflows",
+                        "status": "empty",
+                        "warnings": [],
+                        "trusted": null
+                    },
+                    {
+                        "source": "global",
+                        "folder": "<config dir>/cairn/workflows",
+                        "status": "empty",
+                        "warnings": [],
+                        "trusted": null
+                    },
+                    {
+                        "source": "bundled",
+                        "folder": "<app>/workflows",
+                        "status": "empty",
+                        "warnings": [],
+                        "trusted": null
+                    }
+                ]
+            })
+        );
+    }
+
+    #[test]
+    fn main_filename_is_case_sensitive_pycache_is_empty_and_reserved_names_are_case_insensitive() {
+        let root = tempdir().unwrap();
+        let data = tempdir().unwrap();
+        let directory = workflow_dir(root.path());
+        fs::create_dir_all(directory.join("__pycache__")).unwrap();
+        let empty = workflow_status_with_dirs(root.path(), Some(data.path()), None, None).unwrap();
+        assert_eq!(empty.active, None);
+
+        fs::write(directory.join("Main.py"), "pass").unwrap();
+        let status = workflow_status_with_dirs(root.path(), Some(data.path()), None, None).unwrap();
+        assert_eq!(status.active, Some(WorkflowSource::Project));
+        assert_eq!(status.sources[0].status, WorkflowFolderStatus::NoEntry);
+        assert_eq!(
+            status.sources[0].message.as_deref(),
+            Some("no main.py in .cairn/workflows")
+        );
+
+        fs::write(directory.join("main.py"), "pass").unwrap();
+        fs::write(directory.join("Cairn.py"), "shadow").unwrap();
+        let reserved =
+            workflow_status_with_dirs(root.path(), Some(data.path()), None, None).unwrap();
+        assert_eq!(
+            reserved.sources[0].status,
+            WorkflowFolderStatus::ReservedName
+        );
+        assert_eq!(
+            reserved.sources[0].message.as_deref(),
+            Some("Cairn.py would shadow the Cairn SDK; rename it")
+        );
+        fs::remove_file(directory.join("Cairn.py")).unwrap();
+        fs::create_dir(directory.join("CAIRN")).unwrap();
+        let reserved_directory =
+            workflow_status_with_dirs(root.path(), Some(data.path()), None, None).unwrap();
+        assert_eq!(
+            reserved_directory.sources[0].message.as_deref(),
+            Some("CAIRN would shadow the Cairn SDK; rename it")
+        );
+    }
+
+    #[test]
+    fn workflow_warnings_include_standard_module_files_and_directories() {
+        let root = tempdir().unwrap();
+        let data = tempdir().unwrap();
+        let directory = workflow_dir(root.path());
+        create_entry(&directory, "pass");
+        fs::write(directory.join("json.py"), "value = 1").unwrap();
+        fs::create_dir(directory.join("logging")).unwrap();
+        let status = workflow_status_with_dirs(root.path(), Some(data.path()), None, None).unwrap();
+        assert_eq!(
+            status.sources[0].warnings,
+            [
+                "json.py may shadow a standard library module",
+                "logging/ may shadow a standard library module"
+            ]
+        );
+    }
+
+    #[test]
+    fn resolve_active_does_not_fall_through_and_returns_scope_specific_validation() {
+        let root = tempdir().unwrap();
+        let global = tempdir().unwrap();
+        let bundled = tempdir().unwrap();
+        let data = tempdir().unwrap();
+        create_entry(global.path(), "pass");
+        create_entry(bundled.path(), "pass");
+        let project = workflow_dir(root.path());
+        fs::create_dir_all(&project).unwrap();
+        fs::write(project.join("helper.py"), "pass").unwrap();
+        let error = resolve_active_with_dirs(
+            root.path(),
+            Some(data.path()),
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::Validation);
+        assert_eq!(error.message, "no main.py in .cairn/workflows");
+
+        fs::remove_file(project.join("helper.py")).unwrap();
+        fs::write(project.join("cairn.py"), "shadow").unwrap();
+        let error = resolve_active_with_dirs(
+            root.path(),
+            Some(data.path()),
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::Validation);
+        assert_eq!(
+            error.message,
+            "cairn.py would shadow the Cairn SDK; rename it"
+        );
+
+        fs::remove_dir_all(&project).unwrap();
+        fs::remove_dir_all(global.path()).unwrap();
+        fs::create_dir_all(global.path()).unwrap();
+        fs::write(global.path().join("helper.py"), "pass").unwrap();
+        let error = resolve_active_with_dirs(
+            root.path(),
+            Some(data.path()),
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap_err();
+        assert_eq!(error.message, "no main.py in <config dir>/cairn/workflows");
+
+        fs::remove_dir_all(global.path()).unwrap();
+        fs::remove_dir_all(bundled.path()).unwrap();
+        fs::create_dir_all(bundled.path()).unwrap();
+        fs::write(bundled.path().join("helper.py"), "pass").unwrap();
+        let error = resolve_active_with_dirs(
+            root.path(),
+            Some(data.path()),
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap_err();
+        assert_eq!(error.message, "no main.py in <app>/workflows");
+    }
+
+    #[test]
+    fn workflow_templates_parse_comment_metadata_and_create_without_overwriting() {
+        let sdk_path =
+            super::super::sdk_dir(true, Path::new(env!("CARGO_MANIFEST_DIR")), None).unwrap();
+        let templates = workflow_templates(&sdk_path).unwrap();
+        assert_eq!(
+            templates
+                .iter()
+                .map(|template| template.id.as_str())
+                .collect::<Vec<_>>(),
+            ["blank", "edit-file", "steps"]
+        );
+        assert_eq!(templates[0].title, "Blank workflow");
+
+        for template in &templates {
+            let root = tempdir().unwrap();
+            let global = tempdir().unwrap();
+            let bundled = tempdir().unwrap();
+            let created = create_workflow(
+                root.path(),
+                "project",
+                &template.id,
+                &sdk_path,
+                Some(global.path()),
+                Some(bundled.path()),
+            )
+            .unwrap();
+            assert_eq!(created.source, WorkflowSource::Project);
+            assert_eq!(created.entry, ".cairn/workflows/main.py");
+            let created_text = fs::read_to_string(&created.entry_path).unwrap();
+            assert!(created_text.contains(&format!("# title: {}", template.title)));
+            let error = create_workflow(
+                root.path(),
+                "project",
+                &template.id,
+                &sdk_path,
+                Some(global.path()),
+                Some(bundled.path()),
+            )
+            .unwrap_err();
+            assert_eq!(error.code, ServiceErrorCode::Validation);
+            assert_eq!(
+                error.message,
+                "a workflow already exists in .cairn/workflows"
+            );
+            assert_eq!(
+                fs::read_to_string(created.entry_path).unwrap(),
+                created_text
+            );
+        }
+    }
+
+    #[test]
+    fn workflow_create_makes_global_directories_and_recursively_copies_bundled_files() {
+        let sdk_path =
+            super::super::sdk_dir(true, Path::new(env!("CARGO_MANIFEST_DIR")), None).unwrap();
+        let root = tempdir().unwrap();
+        let global_root = tempdir().unwrap();
+        let global = global_root.path().join("cairn").join("workflows");
+        let bundled = tempdir().unwrap();
+        fs::create_dir_all(bundled.path().join("helpers")).unwrap();
+        fs::write(bundled.path().join(ENTRY_FILE), "pass").unwrap();
+        fs::write(bundled.path().join("helpers/common.py"), "VALUE = 1").unwrap();
+        let created = create_workflow(
+            root.path(),
+            "global",
+            "bundled",
+            &sdk_path,
+            Some(&global),
+            Some(bundled.path()),
+        )
+        .unwrap();
+        assert_eq!(created.source, WorkflowSource::Global);
+        assert!(created.entry_path.is_file());
+        assert_eq!(
+            fs::read_to_string(global.join("helpers/common.py")).unwrap(),
+            "VALUE = 1"
+        );
+        let error = create_workflow(
+            root.path(),
+            "global",
+            "bundled",
+            &sdk_path,
+            Some(&global),
+            Some(bundled.path()),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.message,
+            "a workflow already exists in <config dir>/cairn/workflows"
+        );
     }
 
     #[cfg(unix)]
@@ -900,7 +1470,7 @@ mod tests {
         let root = tempdir().unwrap();
         let data = tempdir().unwrap();
         let directory = workflow_dir(root.path());
-        create_workflow(&directory, "main", "pass");
+        create_entry(&directory, "pass");
         symlink("missing-helper.py", directory.join("link.py")).unwrap();
         let status = trust_status(root.path(), Some(data.path())).unwrap();
         let link = status

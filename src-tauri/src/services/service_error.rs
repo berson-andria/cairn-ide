@@ -20,7 +20,6 @@ pub enum ServiceErrorCode {
     RunActive,
     TrustRequired,
     RuntimeUnavailable,
-    WorkflowNotFound,
     ModelUnavailable,
     ModelError,
     ContextTooLarge,

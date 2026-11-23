@@ -362,7 +362,7 @@ mod tests {
             ".cairn/settings.json",
             ".cairn/tasks/a.json",
             ".cairn/workflows",
-            ".cairn/workflows/default.py",
+            ".cairn/workflows/main.py",
             ".cairnx/cache",
             "src/cache",
             "src/runs",

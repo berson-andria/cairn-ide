@@ -520,7 +520,7 @@ mod tests {
         let hidden_python = write(&dir, ".venv/lib/hidden.py", "def hidden(): pass");
         let hidden_env = write(&dir, ".env", "SECRET=value");
         let cache = write(&dir, ".cairn/cache/codemap.json", "not source");
-        let workflow = write(&dir, ".cairn/workflows/default.py", "def hidden(): pass");
+        let workflow = write(&dir, ".cairn/workflows/main.py", "def hidden(): pass");
         let task = write(&dir, ".cairn/tasks/x.json", r#"{"title":"hidden"}"#);
         let git_head = write(&dir, ".git/HEAD", "ref: refs/heads/main");
         let git_object = write(&dir, ".git/objects/x.rs", "fn hidden() {}");

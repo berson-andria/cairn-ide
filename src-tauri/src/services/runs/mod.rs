@@ -27,7 +27,6 @@ use std::{
 pub const DEFAULT_RUN_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 pub const DEFAULT_FINISH_GRACE: Duration = Duration::from_secs(5);
 const MAX_LOG_BYTES: u64 = 5 * 1024 * 1024;
-const DEFAULT_WORKFLOW: &str = "default";
 
 #[derive(Debug, Clone)]
 pub struct RunContext {
@@ -393,6 +392,7 @@ struct ManagerInner {
     timeout: Duration,
     finish_grace: Duration,
     trust_data_dir: Option<PathBuf>,
+    global_workflows_dir: Option<PathBuf>,
     manifest_dir: PathBuf,
     resource_dir: Option<PathBuf>,
 }
@@ -511,6 +511,7 @@ impl RunManager {
                 timeout,
                 finish_grace,
                 trust_data_dir,
+                global_workflows_dir: workflows::global_workflows_dir(),
                 manifest_dir,
                 resource_dir,
             }),
@@ -522,14 +523,12 @@ impl RunManager {
         projects: &ProjectState,
         task_id: String,
         expected_rev: u64,
-        workflow_name: Option<String>,
         sink: Arc<dyn EventSink>,
     ) -> Result<RunRecord, ServiceError> {
         self.run_start_with_registry(
             projects,
             task_id,
             expected_rev,
-            workflow_name,
             Arc::new(Registry::default()),
             sink,
         )
@@ -540,7 +539,6 @@ impl RunManager {
         projects: &ProjectState,
         task_id: String,
         expected_rev: u64,
-        workflow_name: Option<String>,
         registry: Arc<Registry>,
         sink: Arc<dyn EventSink>,
     ) -> Result<RunRecord, ServiceError> {
@@ -548,7 +546,6 @@ impl RunManager {
             projects,
             task_id,
             expected_rev,
-            workflow_name,
             registry,
             sink,
             || Ok(()),
@@ -561,7 +558,6 @@ impl RunManager {
         projects: &ProjectState,
         task_id: String,
         expected_rev: u64,
-        workflow_name: Option<String>,
         sink: Arc<dyn EventSink>,
         after_spawn: impl FnOnce() -> Result<(), ServiceError>,
         before_active: impl FnOnce(),
@@ -570,7 +566,6 @@ impl RunManager {
             projects,
             task_id,
             expected_rev,
-            workflow_name,
             Arc::new(Registry::default()),
             sink,
             after_spawn,
@@ -583,7 +578,6 @@ impl RunManager {
         projects: &ProjectState,
         task_id: String,
         expected_rev: u64,
-        workflow_name: Option<String>,
         registry: Arc<Registry>,
         sink: Arc<dyn EventSink>,
         after_spawn: impl FnOnce() -> Result<(), ServiceError>,
@@ -609,7 +603,6 @@ impl RunManager {
             project,
             task_id,
             expected_rev,
-            workflow_name.unwrap_or_else(|| DEFAULT_WORKFLOW.into()),
             registry,
             sink,
             after_spawn,
@@ -622,19 +615,21 @@ impl RunManager {
         project: Arc<ProjectServices>,
         task_id: String,
         expected_rev: u64,
-        workflow_name: String,
         registry: Arc<Registry>,
         sink: Arc<dyn EventSink>,
         after_spawn: impl FnOnce() -> Result<(), ServiceError>,
         before_active: impl FnOnce(),
     ) -> Result<RunRecord, ServiceError> {
-        let workflow = workflows::resolve_with_sources(
+        let bundled_dir = self.bundled_workflows_dir();
+        let global_dir = self.inner.global_workflows_dir.clone();
+        let workflow = workflows::resolve_active_with_dirs(
             &project.root,
-            &workflow_name,
             self.inner.trust_data_dir.as_deref(),
-            self.bundled_workflows_dir().as_deref(),
+            global_dir.as_deref(),
+            bundled_dir.as_deref(),
         )?;
         workflows::require_trust(&project.root, &workflow)?;
+        let workflow_scope = workflow_source_label(workflow.source);
         let run_id = uuid::Uuid::new_v4().to_string();
         let task =
             project
@@ -654,7 +649,7 @@ impl RunManager {
         let record = RunRecord {
             run_id: run_id.clone(),
             task_id: task_id.clone(),
-            workflow: workflow_name.clone(),
+            workflow: workflow_scope.clone(),
             source: workflow.source,
             script_hash: workflow.script_hash.clone(),
             started_at: now_ms(),
@@ -698,11 +693,11 @@ impl RunManager {
                 sink,
             ));
         }
-        let verified_workflow = match workflows::resolve_with_sources(
+        let verified_workflow = match workflows::resolve_active_with_dirs(
             &project.root,
-            &workflow_name,
             self.inner.trust_data_dir.as_deref(),
-            self.bundled_workflows_dir().as_deref(),
+            global_dir.as_deref(),
+            bundled_dir.as_deref(),
         ) {
             Ok(workflow) => workflow,
             Err(error) => {
@@ -723,6 +718,16 @@ impl RunManager {
                 record,
                 error.message,
                 error.code,
+                sink,
+            ));
+        }
+        if verified_workflow.source != workflow.source {
+            return Err(self.fail_start(
+                &project,
+                &run_directory,
+                record,
+                "Active workflow scope changed while starting the run".into(),
+                ServiceErrorCode::Validation,
                 sink,
             ));
         }
@@ -844,12 +849,12 @@ impl RunManager {
         sink.emit(ChangeEvent::RunStarted {
             run_id: run_id.clone(),
             task_id: task_id.clone(),
-            workflow: workflow_name.clone(),
+            workflow: workflow_scope.clone(),
         });
         let rpc_context = Arc::new(rpc::RpcContext {
             run_id: record.run_id.clone(),
             task_id: task_id.clone(),
-            workflow: workflow_name,
+            workflow: workflow_scope,
             project,
             finish,
             record: control.record.clone(),
@@ -1151,14 +1156,69 @@ impl RunManager {
         )
     }
 
-    pub fn workflow_list(
+    pub fn workflow_status(
         &self,
         projects: &ProjectState,
-    ) -> Result<Vec<workflows::WorkflowInfo>, ServiceError> {
+    ) -> Result<workflows::WorkflowStatus, ServiceError> {
         let project = projects.services()?;
-        workflows::list_with_sources(
+        workflows::workflow_status_with_dirs(
             &project.root,
             self.inner.trust_data_dir.as_deref(),
+            self.inner.global_workflows_dir.as_deref(),
+            self.bundled_workflows_dir().as_deref(),
+        )
+    }
+
+    pub fn workflow_templates(&self) -> Result<Vec<workflows::WorkflowTemplate>, ServiceError> {
+        let sdk_dir = sdk_dir(
+            cfg!(debug_assertions),
+            &self.inner.manifest_dir,
+            self.inner.resource_dir.as_deref(),
+        )
+        .ok_or_else(|| {
+            ServiceError::new(
+                ServiceErrorCode::RuntimeUnavailable,
+                "Python SDK resource is unavailable",
+            )
+        })?;
+        workflows::workflow_templates(&sdk_dir)
+    }
+
+    pub fn workflow_create(
+        &self,
+        projects: &ProjectState,
+        scope: &str,
+        template: &str,
+    ) -> Result<workflows::WorkflowCreated, ServiceError> {
+        if !matches!(scope, "project" | "global") {
+            return Err(ServiceError::validation("scope must be project or global"));
+        }
+        let root = if scope == "project" {
+            let project = projects.services()?;
+            ensure_cairn_dir(&project.root)
+                .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+            project.root.clone()
+        } else {
+            PathBuf::new()
+        };
+        let sdk_dir = sdk_dir(
+            cfg!(debug_assertions),
+            &self.inner.manifest_dir,
+            self.inner.resource_dir.as_deref(),
+        )
+        .ok_or_else(|| {
+            ServiceError::new(
+                ServiceErrorCode::RuntimeUnavailable,
+                "Python SDK resource is unavailable",
+            )
+        })?;
+        let global_dir = self.inner.global_workflows_dir.clone();
+        workflows::create_workflow(
+            &root,
+            scope,
+            template,
+            &sdk_dir,
+            global_dir.as_deref(),
             self.bundled_workflows_dir().as_deref(),
         )
     }
@@ -1208,6 +1268,15 @@ pub fn sdk_dir(
     } else {
         resource_dir.map(|directory| directory.join("sdk").join("python"))
     }
+}
+
+fn workflow_source_label(source: workflows::WorkflowSource) -> String {
+    match source {
+        workflows::WorkflowSource::Project => "project",
+        workflows::WorkflowSource::Global => "global",
+        workflows::WorkflowSource::Bundled => "bundled",
+    }
+    .into()
 }
 
 fn validate_run_id(run_id: &str) -> Result<(), ServiceError> {
@@ -1654,8 +1723,10 @@ mod tests {
         let data = tempdir().unwrap();
         let workflow_dir = root.path().join(".cairn/workflows");
         fs::create_dir_all(&workflow_dir).unwrap();
-        fs::write(workflow_dir.join("flow.py"), "pass").unwrap();
-        let workflow = workflows::resolve_in(root.path(), "flow", Some(data.path())).unwrap();
+        fs::write(workflow_dir.join(workflows::ENTRY_FILE), "pass").unwrap();
+        let workflow =
+            workflows::resolve_active_with_dirs(root.path(), Some(data.path()), None, None)
+                .unwrap();
         workflows::trust(root.path(), &workflow.script_hash, Some(data.path())).unwrap();
         let sink = RecordingSink::default();
         let project = Arc::new(ProjectState::default());
@@ -1774,6 +1845,36 @@ mod tests {
                 "startedAt": 30,
                 "steps": []
             })
+        );
+    }
+
+    #[test]
+    fn run_start_refuses_missing_or_reserved_entry_with_exact_validation_messages() {
+        let h = harness(Duration::from_secs(3), false);
+        let directory = h._root.path().join(".cairn/workflows");
+        fs::remove_file(directory.join(workflows::ENTRY_FILE)).unwrap();
+        fs::write(directory.join("Main.py"), "pass").unwrap();
+        let error = start(&h).unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::Validation);
+        assert_eq!(error.message, "no main.py in .cairn/workflows");
+
+        fs::remove_file(directory.join("Main.py")).unwrap();
+        fs::write(directory.join("Cairn.py"), "pass").unwrap();
+        let error = start(&h).unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::Validation);
+        assert_eq!(
+            error.message,
+            "Cairn.py would shadow the Cairn SDK; rename it"
+        );
+        assert_eq!(
+            h.project
+                .services()
+                .unwrap()
+                .tasks
+                .get(&h.task_id)
+                .unwrap()
+                .status,
+            crate::types::task::TaskStatus::Ready
         );
     }
 
@@ -1905,7 +2006,6 @@ mod tests {
             &harness.project,
             task.id,
             task.rev,
-            Some("flow".into()),
             Arc::new(harness.sink.clone()),
         )
     }
@@ -2162,13 +2262,7 @@ mod tests {
                 inner: self.manager.clone(),
             };
             let result = manager
-                .run_start(
-                    &self.project,
-                    task_id,
-                    task.rev,
-                    Some("flow".into()),
-                    Arc::new(NoopSink),
-                )
+                .run_start(&self.project, task_id, task.rev, Arc::new(NoopSink))
                 .map(|_| ())
                 .map_err(|error| error.code);
             *self.result.lock().unwrap() = Some(result);
@@ -2413,13 +2507,7 @@ mod tests {
         });
         let task = h.project.services().unwrap().tasks.get(&h.task_id).unwrap();
         h.manager
-            .run_start(
-                &h.project,
-                task.id,
-                task.rev,
-                Some("flow".into()),
-                sink.clone(),
-            )
+            .run_start(&h.project, task.id, task.rev, sink.clone())
             .unwrap();
         h.fake.exit_code.store(0, Ordering::SeqCst);
         let deadline = Instant::now() + Duration::from_secs(2);
@@ -2518,7 +2606,9 @@ mod tests {
     #[test]
     fn normal_exit_and_nonzero_exit_finalize_expected_status() {
         let normal = harness(Duration::from_secs(3), false);
-        start(&normal).unwrap();
+        let project_run = start(&normal).unwrap();
+        assert_eq!(project_run.workflow, "project");
+        assert_eq!(project_run.source, workflows::WorkflowSource::Project);
         normal.fake.exit_code.store(0, Ordering::SeqCst);
         assert_eq!(
             wait_outcome(&normal.manager).outcome,
@@ -2602,7 +2692,9 @@ mod tests {
             crate::types::task::TaskStatus::Ready
         );
 
-        let workflow = workflows::resolve_in(h._root.path(), "flow", Some(h._data.path())).unwrap();
+        let workflow =
+            workflows::resolve_active_with_dirs(h._root.path(), Some(h._data.path()), None, None)
+                .unwrap();
         workflows::trust(h._root.path(), &workflow.script_hash, Some(h._data.path())).unwrap();
         fs::write(
             h._root.path().join(".cairn/workflows/helper.py"),
@@ -2633,22 +2725,22 @@ mod tests {
         let manifest_dir = layout.path().join("repo").join("src-tauri");
         let sdk_dir = manifest_dir.join("..").join("sdk").join("python");
         let bundled_dir = sdk_dir.join("workflows");
+        fs::create_dir_all(&sdk_dir).unwrap();
         fs::create_dir_all(&bundled_dir).unwrap();
-        let bundled_name = format!("bundled-{}", uuid::Uuid::new_v4().simple());
-        fs::write(bundled_dir.join(format!("{bundled_name}.py")), "pass").unwrap();
+        fs::write(bundled_dir.join(workflows::ENTRY_FILE), "pass").unwrap();
 
-        let global_name = format!("global-{}", uuid::Uuid::new_v4().simple());
-        let global_dir = dirs::config_dir().unwrap().join("cairn").join("workflows");
-        fs::create_dir_all(&global_dir).unwrap();
-        let global_path = global_dir.join(format!("{global_name}.py"));
-        fs::write(&global_path, "pass").unwrap();
-
-        for (workflow_name, expected_source) in [
-            (bundled_name.as_str(), workflows::WorkflowSource::Bundled),
-            (global_name.as_str(), workflows::WorkflowSource::Global),
+        for expected_source in [
+            workflows::WorkflowSource::Bundled,
+            workflows::WorkflowSource::Global,
         ] {
             let root = tempdir().unwrap();
             let data = tempdir().unwrap();
+            let global_root = tempdir().unwrap();
+            let global_dir = global_root.path().join("cairn").join("workflows");
+            if expected_source == workflows::WorkflowSource::Global {
+                fs::create_dir_all(&global_dir).unwrap();
+                fs::write(global_dir.join(workflows::ENTRY_FILE), "pass").unwrap();
+            }
             let projects = ProjectState::default();
             projects.open(root.path(), NoopSink).unwrap();
             let task = projects
@@ -2660,7 +2752,7 @@ mod tests {
             let fake = Arc::new(FakeState {
                 exit_code: AtomicI32::new(-1),
             });
-            let manager = RunManager::with_options(
+            let mut manager = RunManager::with_options(
                 Arc::new(FakeLauncher {
                     state: fake,
                     fail: false,
@@ -2670,21 +2762,17 @@ mod tests {
                 manifest_dir.clone(),
                 None,
             );
+            Arc::get_mut(&mut manager.inner)
+                .unwrap()
+                .global_workflows_dir = Some(global_dir);
             let run = manager
-                .run_start(
-                    &projects,
-                    task.id,
-                    task.rev,
-                    Some(workflow_name.into()),
-                    Arc::new(NoopSink),
-                )
+                .run_start(&projects, task.id, task.rev, Arc::new(NoopSink))
                 .unwrap();
             assert_eq!(run.source, expected_source);
+            assert_eq!(run.workflow, workflow_source_label(expected_source));
             manager.run_cancel().unwrap();
             wait_inactive(&manager);
         }
-
-        fs::remove_file(global_path).unwrap();
     }
 
     #[test]
@@ -2716,7 +2804,6 @@ mod tests {
                     &h.project,
                     task.id.clone(),
                     task.rev,
-                    Some("flow".into()),
                     Arc::new(h.sink.clone())
                 )
                 .unwrap_err()
@@ -2753,22 +2840,29 @@ mod tests {
         });
         assert!(poisoner.join().is_err());
 
+        let workflow_dir = h._root.path().join(".cairn/workflows");
+        fs::remove_file(workflow_dir.join(workflows::ENTRY_FILE)).unwrap();
+        fs::write(workflow_dir.join("helper.py"), "pass").unwrap();
         let task = h.project.services().unwrap().tasks.get(&h.task_id).unwrap();
-        assert_eq!(
-            h.manager
-                .run_start(
-                    &h.project,
-                    task.id.clone(),
-                    task.rev,
-                    Some("missing-workflow".into()),
-                    Arc::new(h.sink.clone()),
-                )
-                .unwrap_err()
-                .code,
-            ServiceErrorCode::WorkflowNotFound
-        );
+        let error = h
+            .manager
+            .run_start(
+                &h.project,
+                task.id.clone(),
+                task.rev,
+                Arc::new(h.sink.clone()),
+            )
+            .unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::Validation);
+        assert_eq!(error.message, "no main.py in .cairn/workflows");
         assert!(!h.manager.lock_state().unwrap().starting);
 
+        fs::remove_file(workflow_dir.join("helper.py")).unwrap();
+        fs::write(workflow_dir.join(workflows::ENTRY_FILE), "pass").unwrap();
+        let workflow =
+            workflows::resolve_active_with_dirs(h._root.path(), Some(h._data.path()), None, None)
+                .unwrap();
+        workflows::trust(h._root.path(), &workflow.script_hash, Some(h._data.path())).unwrap();
         start(&h).unwrap();
         assert!(h.manager.lock_state().unwrap().active.is_some());
         h.manager.run_cancel().unwrap();
@@ -2785,7 +2879,6 @@ mod tests {
                 &h.project,
                 task.id,
                 task.rev,
-                Some("flow".into()),
                 Arc::new(h.sink.clone()),
                 || {
                     Err(ServiceError::new(
@@ -2828,7 +2921,6 @@ mod tests {
                 &cancelled.project,
                 task.id,
                 task.rev,
-                Some("flow".into()),
                 Arc::new(cancelled.sink.clone()),
                 || Ok(()),
                 || cancelled.manager.run_cancel().unwrap(),
@@ -2853,7 +2945,6 @@ mod tests {
                 &closed.project,
                 task.id,
                 task.rev,
-                Some("flow".into()),
                 Arc::new(closed.sink.clone()),
                 || Ok(()),
                 || {
@@ -2899,13 +2990,7 @@ mod tests {
         let task = h.project.services().unwrap().tasks.get(&h.task_id).unwrap();
         let run = h
             .manager
-            .run_start(
-                &h.project,
-                task.id,
-                task.rev,
-                Some("flow".into()),
-                sink.clone(),
-            )
+            .run_start(&h.project, task.id, task.rev, sink.clone())
             .unwrap();
 
         let observed = sink.observed.lock().unwrap().clone().unwrap();
@@ -2917,14 +3002,14 @@ mod tests {
 
     #[test]
     #[ignore = "requires uv and a working Python runtime"]
-    fn real_hello_workflow_runs_through_uv_and_the_sdk() {
+    fn real_main_workflow_runs_through_uv_and_the_sdk() {
         let root = tempdir().unwrap();
         let data = tempdir().unwrap();
         let workflow_dir = root.path().join(".cairn/workflows");
         fs::create_dir_all(&workflow_dir).unwrap();
         fs::write(
-            workflow_dir.join("hello.py"),
-            include_str!("../../../../sdk/python/examples/hello.py"),
+            workflow_dir.join(workflows::ENTRY_FILE),
+            include_str!("../../../../sdk/python/workflows/main.py"),
         )
         .unwrap();
         let project_sink = RecordingSink::default();
@@ -2936,7 +3021,9 @@ mod tests {
             .tasks
             .create(crate::types::task::TaskItem::new("integration"))
             .unwrap();
-        let workflow = workflows::resolve_in(root.path(), "hello", Some(data.path())).unwrap();
+        let workflow =
+            workflows::resolve_active_with_dirs(root.path(), Some(data.path()), None, None)
+                .unwrap();
         workflows::trust(root.path(), &workflow.script_hash, Some(data.path())).unwrap();
         let manager = RunManager::with_options(
             Arc::new(SystemLauncher),
@@ -2946,13 +3033,7 @@ mod tests {
             None,
         );
         manager
-            .run_start(
-                &projects,
-                task.id.clone(),
-                task.rev,
-                Some("hello".into()),
-                Arc::new(project_sink),
-            )
+            .run_start(&projects, task.id.clone(), task.rev, Arc::new(project_sink))
             .unwrap();
         let deadline = Instant::now() + Duration::from_secs(120);
         let record = loop {
@@ -2966,6 +3047,72 @@ mod tests {
         };
         assert_eq!(record.outcome, Some(RunOutcome::NeedsReview));
         assert!(record.summary.unwrap().contains("integration"));
+    }
+
+    #[test]
+    #[ignore = "requires uv and a working Python runtime"]
+    fn blank_template_runs_through_uv_and_all_templates_compile() {
+        let root = tempdir().unwrap();
+        let data = tempdir().unwrap();
+        let compile_cache = tempdir().unwrap();
+        let projects = ProjectState::default();
+        projects.open(root.path(), NoopSink).unwrap();
+        let task = projects
+            .services()
+            .unwrap()
+            .tasks
+            .create(crate::types::task::TaskItem::new(
+                "blank template integration",
+            ))
+            .unwrap();
+        let manager = RunManager::with_options(
+            Arc::new(SystemLauncher),
+            Duration::from_secs(90),
+            Some(data.path().to_path_buf()),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            None,
+        );
+        let created = manager
+            .workflow_create(&projects, "project", "blank")
+            .unwrap();
+        assert_eq!(created.entry, ".cairn/workflows/main.py");
+        let trust = manager.workspace_trust_status(&projects).unwrap();
+        manager
+            .workspace_trust(&projects, &trust.folder_hash)
+            .unwrap();
+        manager
+            .run_start(&projects, task.id, task.rev, Arc::new(NoopSink))
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(120);
+        let record = loop {
+            if let Some(record) = manager.run_get().unwrap() {
+                if record.outcome.is_some() {
+                    break record;
+                }
+            }
+            assert!(Instant::now() < deadline, "blank workflow did not finish");
+            thread::sleep(Duration::from_millis(100));
+        };
+        assert_eq!(record.outcome, Some(RunOutcome::NeedsReview));
+        assert!(record
+            .summary
+            .unwrap()
+            .contains("blank template integration"));
+
+        let sdk_path = sdk_dir(true, Path::new(env!("CARGO_MANIFEST_DIR")), None).unwrap();
+        let templates = manager.workflow_templates().unwrap();
+        let compile = Command::new("python")
+            .arg("-m")
+            .arg("py_compile")
+            .args(templates.iter().map(|template| {
+                sdk_path
+                    .join("templates")
+                    .join(format!("{}.py", template.id))
+            }))
+            .env("PYTHONPYCACHEPREFIX", compile_cache.path())
+            .status()
+            .expect("python must be available to compile templates");
+        assert!(compile.success(), "python -m py_compile failed");
     }
 
     #[test]
@@ -2989,7 +3136,7 @@ mod tests {
         let data = tempdir().unwrap();
         let workflow_dir = root.path().join(".cairn/workflows");
         fs::create_dir_all(&workflow_dir).unwrap();
-        let script = workflow_dir.join("sleepy.py");
+        let script = workflow_dir.join(workflows::ENTRY_FILE);
         fs::write(
             &script,
             "# /// script\n# requires-python = \">=3.10\"\n# dependencies = []\n# ///\nimport cairn\nimport os, time\nprint(os.getpid(), flush=True)\ntime.sleep(120)\n",
@@ -3004,7 +3151,9 @@ mod tests {
             .tasks
             .create(crate::types::task::TaskItem::new("sleeping integration"))
             .unwrap();
-        let workflow = workflows::resolve_in(root.path(), "sleepy", Some(data.path())).unwrap();
+        let workflow =
+            workflows::resolve_active_with_dirs(root.path(), Some(data.path()), None, None)
+                .unwrap();
         workflows::trust(root.path(), &workflow.script_hash, Some(data.path())).unwrap();
         let manager = RunManager::with_options(
             Arc::new(SystemLauncher),
@@ -3014,13 +3163,7 @@ mod tests {
             None,
         );
         let run = manager
-            .run_start(
-                &project,
-                task.id,
-                task.rev,
-                Some("sleepy".into()),
-                Arc::new(sink),
-            )
+            .run_start(&project, task.id, task.rev, Arc::new(sink))
             .unwrap();
         let log_path = root
             .path()

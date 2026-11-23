@@ -15,12 +15,14 @@ The Tauri commands are:
 
 | Command | Arguments | Result |
 |---|---|---|
-| `run_start` | `taskId`, `expectedRev`, optional `workflow` | run record |
+| `run_start` | `taskId`, `expectedRev` | run record |
 | `run_cancel` | — | `null` |
 | `run_get` | optional `runId` | with an id, that run record; without one, active run record, last run record, or `null` |
 | `run_list` | `limit` | run records, newest first |
 | `run_log` | `runId`, `maxLines` | `string[]` |
-| `workflow_list` | — | `{ name, source, overrides, trusted, entry }[]` |
+| `workflow_status` | — | active scope and per-scope folder status |
+| `workflow_templates` | — | `[{ id, title, description }]` |
+| `workflow_create` | `scope`, `template` | `{ source, entry, entryPath }` |
 | `workspace_trust_status` | — | current folder hash, file inventory, approval and changes |
 | `workspace_trust` | `hash` | `null` |
 | `workspace_trust_revoke` | — | `null` |
@@ -34,17 +36,54 @@ returns `NotFound`; malformed ids return `Validation`.
 1–2000; a missing log returns an empty array. `runId` must match
 `[A-Za-z0-9-]{1,64}`.
 
-`run_start` requires an open project, no active run, a resolvable trusted
-workflow, and a startable task with the supplied revision. If `workflow` is
-omitted, the name `default` is used. Workflows are resolved by name (without
-the `.py` extension) from `.cairn/workflows/<name>.py` in the project first,
-then from the global `cairn/workflows/<name>.py` directory under the platform
-config directory, then from the bundled `workflows/<name>.py` directory beside
-the SDK. Bundled workflows are resolved from app resources in release builds
-and from `sdk/python/workflows` in development. `entry` is relative to the
-project, config, or SDK root respectively. When a name exists in more than one
-source, `overrides` lists the lower-precedence sources in resolution order.
-Names must match `[A-Za-z0-9_-]{1,64}`.
+Each scope is a `workflows/` directory with one entry point, exactly
+`main.py` directly inside it. The scopes are `.cairn/workflows` in the project,
+`cairn/workflows` under the platform config directory, then the bundled
+`workflows` directory (app resources in release builds,
+`sdk/python/workflows` in development). Nothing is selected by filename.
+
+`workflow_status` returns
+`{ active, sources: [{ source, folder, status, entry?, message?, warnings, trusted }] }`.
+`active` is the first nonempty scope in project/global/bundled order, or `null`.
+Statuses are `empty` (missing directory or only `__pycache__`), `ok`,
+`no-entry` (has entries but no exact-case `main.py`), and `reserved-name`
+(a root `cairn.py` file or `cairn` directory, case-insensitive). An active
+scope that is not `ok` fails `run_start` with `Validation`; it never falls
+through. The messages are `no main.py in <display folder>` and
+`<conflicting name> would shadow the Cairn SDK; rename it`. Display folders
+are `.cairn/workflows`, `<config dir>/cairn/workflows`, and
+`<app>/workflows`; they never expose an absolute path or username. `entry` is
+the display folder plus `/main.py`. Warnings identify top-level files and
+directories named after common standard-library modules; they do not block
+execution.
+`trusted` is the project folder's 7b trust state, `true` for nonempty global
+and bundled scopes, and `null` for an empty scope.
+
+An empty project scope permits selection of global, then bundled. Once a scope
+contains any other entry, it becomes active even when it has no `main.py`.
+`run_start` launches `uv run --script <active folder>/main.py` with the project
+root as cwd. The run record's `workflow` and `source` fields both hold the scope
+label (`project`, `global`, or `bundled`). The UI-facing run command has no
+workflow-name argument.
+
+`workflow_templates` reads `sdk/python/templates/*.py`; each template's `id`,
+`title`, and `description` come from its filename and `# title:` /
+`# description:` comments in the first ten lines. The built-in templates are
+`blank`, `steps`, and `edit-file`. `workflow_create` accepts scope `project` or
+`global` and either one of those ids or `bundled` (a recursive copy of the
+bundled workflow directory). Creation is refused unless that scope is empty;
+it never overwrites an existing workflow. Project creation first ensures
+`.cairn`, and global creation creates its directories. `entryPath` is the real
+absolute path to open in the editor; unlike status display strings, it is not
+redacted.
+
+Workflow scripts must use absolute imports for local helpers, for example
+`import prompts` or `from helpers import x`; do not use `from . import helper`.
+`uv run --script` adds the entry file's directory to imports, and namespace
+subfolders work without `__init__.py`. Never name a file `cairn.py` or a
+directory `cairn`, because it shadows the SDK on `PYTHONPATH`. Avoid
+standard-library module names for top-level files and folders.
+
 At run start, Rust reads the user's app-data `settings.json` once and snapshots
 the model registry/default into that run. Missing or malformed settings are
 logged and give the run an empty registry; later settings edits do not affect
@@ -224,8 +263,8 @@ data:
 
 Service codes include `NotFound`, `StaleRev`, `InvalidTransition`, `Forbidden`,
 `Validation`, `RunActive`, `TrustRequired`, `RuntimeUnavailable`,
-`WorkflowNotFound`, `ModelUnavailable`, `ModelError`, `ContextTooLarge`, and
-`PatchConflict`. Patch conflicts list the conflicting workspace-relative paths.
+`ModelUnavailable`, `ModelError`, `ContextTooLarge`, and `PatchConflict`.
+Patch conflicts list the conflicting workspace-relative paths.
 Network refusal, DNS, and timeout errors name only the endpoint host and port.
 HTTP errors include the status and at most 300 body characters after key-like
 text is redacted. A `hello` version mismatch returns an invalid-parameters
@@ -327,15 +366,20 @@ from opening. Run finalization retries a task status update once after
 
 #### `WorkApiService`
 
-Typed command boundary; it has no signals and consumes no events.
+Typed command boundary; it has no signals and consumes no events. The Rust
+workflow command contract for this slice is listed here; the existing Angular
+workflow/run wrappers are still on the previous named-workflow contract and
+must be migrated before the workflow UI can use these commands.
 
 | Method | Resolves to | Command errors |
 |---|---|---|
-| `workflowList()` | `WorkflowInfo[]` | `NoProject`, `Io`, `Corrupt`, `RuntimeUnavailable` |
+| `workflowStatus()` | `WorkflowStatus` | `NoProject`, `Io`, `Corrupt`, `RuntimeUnavailable` |
+| `workflowTemplates()` | `{ id, title, description }[]` | `RuntimeUnavailable`, `Io`, `Corrupt` |
+| `workflowCreate(scope, template)` | `{ source, entry, entryPath }` | `NoProject`, `Validation`, `RuntimeUnavailable`, `Io`, `Corrupt` |
 | `workspaceTrustStatus()` | `WorkflowTrustStatus` | `NoProject`, `Io`, `Corrupt`, `RuntimeUnavailable` |
 | `workspaceTrust(hash: string)` | `void` | `NoProject`, `Validation`, `Io`, `Corrupt`, `RuntimeUnavailable` |
 | `workspaceTrustRevoke()` | `void` | `NoProject`, `Io`, `Corrupt`, `RuntimeUnavailable` |
-| `runStart(taskId: string, expectedRev: number, workflow?: string)` | `RunRecord` | `NoProject`, `NotFound`, `StaleRev`, `InvalidTransition`, `RunActive`, `TrustRequired`, `RuntimeUnavailable`, `WorkflowNotFound`, `Validation`, `Io`, `Corrupt` |
+| `runStart(taskId: string, expectedRev: number)` | `RunRecord` | `NoProject`, `NotFound`, `StaleRev`, `InvalidTransition`, `RunActive`, `TrustRequired`, `RuntimeUnavailable`, `Validation`, `Io`, `Corrupt` |
 | `runCancel()` | `void` | `Io` |
 | `runGet(runId?)` | `RunRecord \| null` | `NotFound`, `Validation` when an id is supplied |
 | `runList(limit: number)` | `RunRecord[]` | `NoProject`, `Io` |
@@ -371,14 +415,16 @@ synthesized. Live lines may overlap lines fetched during refresh.
 
 #### `WorkflowService`
 
-Workflow list and project-level trust status.
+Scope status, templates, and project-level trust status.
 
 | API | Behavior |
 |---|---|
-| `workflows` | `Signal<WorkflowInfo[]>` of the latest workflow list |
+| `status` | `Signal<WorkflowStatus \| null>` with active scope and all scope statuses |
+| `templates` | `Signal<WorkflowTemplate[]>` parsed from template comments |
 | `trust` | `Signal<WorkflowTrustStatus \| null>` with current files and approval changes |
-| `needsTrustReview` | True when project workflows exist and the current folder is not trusted |
-| `refresh()` / `refreshTrust()` | Refresh the workflow list or project trust status |
+| `needsTrustReview` | True when the active project scope is not trusted |
+| `refresh()` / `refreshTrust()` | Refresh scope status or project trust status |
+| `create(scope, template)` | Create a template or recursively copy the bundled scope; never overwrite |
 | `projectOpened()` | Refresh trust status and emit `trustReview$` once when review is needed |
 | `trustReview$` | Emits the untrusted status once for each project open |
 | `approve()` / `revoke()` | Approve the latest displayed folder hash or remove the project approval |
@@ -397,18 +443,14 @@ Start/cancel workflows and expose live run state.
 | `current` | `Signal<RunState \| null>` from `RunStore` |
 | `isRunning` | `Signal<boolean>`; run is unfinished and its cached task is running when present |
 | `logLines(runId)` | `Signal<string[]>` from the bounded run buffer |
-| `runDisabledReason(task, workflow?)` / `canRun(task, workflow?)` | Explain or check project, task, run, dependency, and workflow eligibility |
-| `run(taskId, workflow?)` | Call `run_start`; return `started` or `{ kind: 'trust-required' }` without toasting |
+| `runDisabledReason(task)` / `canRun(task)` | Explain or check project, task, run, dependency, and active-scope eligibility |
+| `run(taskId)` | Call `run_start`; return `started` or `{ kind: 'trust-required' }` without toasting |
 | `cancel()` | Call `run_cancel()` |
 | `refresh()` | Refresh `run_get()` and the active run's log |
 | `loadHistory(limit)` / `loadLog(runId, maxLines)` | Call `run_list` / `run_log` and cache results |
 | `attemptCount(task)` / `lastRunId(task)` | Read task history locally; no command calls |
 | `loadRunsFor(task, limit = 5)` | Load the newest task attempts, fetching only cache misses and skipping deleted runs |
 | `clear()` | Clear run state on workspace change |
-
-Without a workflow name, selection uses `default` when present, otherwise the
-only listed workflow. If several non-default workflows exist, the run action
-requires an explicit choice.
 
 Errors other than the handled `TrustRequired` path are reported through
 `handleApiError`; `NoProject` is suppressed by that helper. The service consumes
@@ -440,7 +482,6 @@ app initializer.
 | `RunActive` | Another workflow is active | Reported; `isRunning` allows the UI to disable run actions. |
 | `TrustRequired` | Project workflow hash is not approved | `RunService.run` returns `{ kind: 'trust-required' }` and points the UI to Settings; it does not inspect or approve automatically. |
 | `RuntimeUnavailable` | Workflow launcher/SDK is unavailable | Reported with Rust's message. |
-| `WorkflowNotFound` | Workflow name cannot be resolved | Reported with Rust's message. |
 | `Io`, `Corrupt` | Disk or record problem | Reported with Rust's message; list-level storage errors remain in store `errors`. |
 | `BadArgs` | Tauri rejected a plain-string/bad-shape argument | Normalized by `WorkApiService`; reported as an error. |
 
@@ -448,7 +489,12 @@ app initializer.
 refresh callback. `RunService` is the sole special case for `TrustRequired`.
 No service retries a rejected mutation silently.
 
-### UI recipes
+### UI integration
+
+The Angular command wrappers and selectors are intentionally unchanged in this
+slice. They still need a follow-up migration from named workflows to
+`workflow_status`, `workflow_templates`, and the argument-free `run_start`.
+The intended UI behavior is:
 
 #### Run button and its states
 
@@ -456,9 +502,8 @@ No service retries a rejected mutation silently.
    `taskService.availableActions(task)`.
 2. Derive a run-in-progress state from `runService.isRunning()`; disabled
    actions include a `reason`.
-3. On the run action call
-   `await taskService.perform(task, 'run', { workflow })`; omit `workflow` to
-   use `default`, or the sole listed workflow when there is exactly one.
+3. On the run action call `await taskService.perform(task, 'run')`. Rust
+   chooses the active scope; the UI does not choose a workflow by name.
 4. On `{ kind: 'started', run }`, show the active state from
    `runService.current()` / `runService.isRunning()`. The event-fed task status
    also changes to `running`.
@@ -493,7 +538,7 @@ No service retries a rejected mutation silently.
 
 #### Failed run start
 
-1. If `runService.run(task.id, workflowName)` returns
+1. If `runService.run(task.id)` returns
    `{ kind: 'trust-required' }`, point the user to Settings; the result carries
    no script inspection data and the service does not trust or retry.
 2. Settings presents the latest `trust` status. If it is stale, refresh and

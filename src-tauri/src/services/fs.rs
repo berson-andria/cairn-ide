@@ -151,11 +151,11 @@ mod tests {
         );
 
         create_dir_all(root.path().join(".cairn/workflows")).unwrap();
-        std::fs::write(root.path().join(".cairn/workflows/default.py"), "pass").unwrap();
+        std::fs::write(root.path().join(".cairn/workflows/main.py"), "pass").unwrap();
         assert!(names(&root.path().join(".cairn")).contains(&"workflows".to_string()));
         assert_eq!(
             names(&root.path().join(".cairn/workflows")),
-            vec!["default.py".to_string()]
+            vec!["main.py".to_string()]
         );
         assert_eq!(names(&root.path().join(".venv")), vec!["lib.py"]);
         assert_eq!(names(&root.path().join("node_modules")), vec!["pkg.js"]);
