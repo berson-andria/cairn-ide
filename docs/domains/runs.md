@@ -131,6 +131,41 @@ subfolders work without `__init__.py`. Never name a file `cairn.py` or a
 directory `cairn`, because it shadows the SDK on `PYTHONPATH`. Avoid
 standard-library module names for top-level files and folders.
 
+### Bundled default workflow
+
+The bundled `sdk/python/workflows/main.py` processes the current task, or each
+pending subtask as a resumable step. It reads linked notes, seeds context from
+the task and note file anchors plus paths mentioned in their text, and makes
+one optional exploration request using a root/one-level project listing to
+choose up to six additional files. It then asks the configured default model
+for one JSON edit, a reason it cannot proceed, or (only for a task without
+subtasks) a proposed split. Changes are recorded with `patch.propose`; the
+workflow never writes project files itself. Split proposals use `notify` and
+require acceptance before the task is run again. A failed step stops the
+workflow so a retry resumes from that subtask.
+
+The workflow sends task and subtask text, linked-note text, the project listing
+and selected relative file names, and the bounded contents of selected project
+files to the configured model provider. In particular, task text and project
+files named above are sent to the configured model provider. The SDK rejects
+secret paths; the workflow also skips secret and generated paths and does not
+include file contents in run-log output. The root/one-level listing is capped
+at 200 entries and exploration selects at most six extra files. File text is
+limited to about three characters per token and at most 60% of the default
+model's remaining context after reserving output tokens; a missing
+`contextLimit` is treated as 16,000 tokens. Truncation is identified in the
+prompt, and replace edits are disallowed on truncated files. A
+`ContextTooLarge` response causes one retry with half the file-text budget;
+invalid model JSON and patch-validation errors may each be repaired up to two
+times.
+
+To customize it for a project, use Settings > Workflows to copy the `bundled`
+workflow into the project, then edit its `main.py` or helper files. The copy
+contains the whole bundled workflow folder; keep helpers beside the entry
+point and use absolute sibling imports. Project workflows take precedence over
+the bundled copy and are subject to the project-workflow trust review described
+above.
+
 At run start, Rust reads the user's app-data `settings.json` once and snapshots
 the model registry/default into that run. Missing or malformed settings are
 logged and give the run an empty registry; later settings edits do not affect

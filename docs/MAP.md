@@ -48,8 +48,13 @@ Last updated: 2026-11-21
 │       │   ├── blank.py
 │       │   ├── edit-file.py
 │       │   └── steps.py
+│       ├── tests/
+│       │   └── test_default_workflow.py
 │       └── workflows/
-│           └── main.py
+│           ├── context.py
+│           ├── main.py
+│           ├── parse.py
+│           └── prompts.py
 ├── src/
 │   ├── app/
 │   │   ├── core/

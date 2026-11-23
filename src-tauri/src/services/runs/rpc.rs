@@ -2262,4 +2262,234 @@ mod tests {
         );
         drop(directory);
     }
+
+    #[test]
+    #[ignore = "requires uv and Python"]
+    fn bundled_workflow_proposes_one_pending_patch_per_subtask_without_writing_files() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        let replies = [
+            r#"{"files":["first.txt"]}"#,
+            r#"{"action":"edit","summary":"Update first file","edits":[{"op":"replace","path":"first.txt","search":"old","replace":"first"}]}"#,
+            r#"{"files":["second.txt"]}"#,
+            r#"{"action":"edit","summary":"Update second file","edits":[{"op":"replace","path":"second.txt","search":"old","replace":"second"}]}"#,
+        ];
+        let server = thread::spawn(move || {
+            for reply in replies {
+                let deadline = std::time::Instant::now() + Duration::from_secs(60);
+                let (mut stream, _) = loop {
+                    match listener.accept() {
+                        Ok(connection) => break connection,
+                        Err(error)
+                            if error.kind() == std::io::ErrorKind::WouldBlock
+                                && std::time::Instant::now() < deadline =>
+                        {
+                            thread::sleep(Duration::from_millis(10));
+                        }
+                        Err(error) => {
+                            panic!("fake model server did not receive a request: {error}")
+                        }
+                    }
+                };
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut request = Vec::new();
+                let mut byte = [0; 1];
+                while !request.ends_with(b"\r\n\r\n") {
+                    stream.read_exact(&mut byte).unwrap();
+                    request.push(byte[0]);
+                }
+                let headers = String::from_utf8_lossy(&request).to_ascii_lowercase();
+                let content_length = headers
+                    .lines()
+                    .find_map(|line| line.strip_prefix("content-length:"))
+                    .and_then(|value| value.trim().parse::<usize>().ok())
+                    .unwrap();
+                let mut body = vec![0; content_length];
+                stream.read_exact(&mut body).unwrap();
+                let response_body = json!({
+                    "choices":[{
+                        "message":{"content":reply},
+                        "finish_reason":"stop"
+                    }],
+                    "usage":{"prompt_tokens":32,"completion_tokens":16}
+                })
+                .to_string();
+                write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    response_body.len(),
+                    response_body
+                )
+                .unwrap();
+            }
+        });
+
+        let directory = tempdir().unwrap();
+        let state = ProjectState::default();
+        state.open(directory.path(), NoopSink).unwrap();
+        let project = state.services().unwrap();
+        let mut task = TaskItem::new("Implement both changes");
+        task.sub_tasks = Some(vec![
+            SubTask::new("Update the first file"),
+            SubTask::new("Update the second file"),
+        ]);
+        let task = project.tasks.create(task).unwrap();
+        let subtask_ids = task
+            .sub_tasks
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|subtask| subtask.id.clone())
+            .collect::<Vec<_>>();
+        let run_id = "bundled-workflow-integration";
+        let task = project
+            .tasks
+            .start_with_run(&task.id, task.rev, run_id.into(), Actor::Ui)
+            .unwrap();
+        fs::write(project.root.join("first.txt"), "old first").unwrap();
+        fs::write(project.root.join("second.txt"), "old second").unwrap();
+        let original_first = fs::read(project.root.join("first.txt")).unwrap();
+        let original_second = fs::read(project.root.join("second.txt")).unwrap();
+
+        let run_directory = project.root.join(".cairn/runs").join(run_id);
+        let record = super::super::RunRecord {
+            run_id: run_id.into(),
+            task_id: task.id.clone(),
+            workflow: "bundled".into(),
+            source: super::super::workflows::WorkflowSource::Bundled,
+            script_hash: "test-hash".into(),
+            started_at: 1,
+            ended_at: None,
+            outcome: None,
+            reason: None,
+            summary: None,
+            steps: Vec::new(),
+        };
+        super::super::write_run_record(&run_directory, &record).unwrap();
+        let sdk_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("sdk")
+            .join("python");
+        let script = sdk_dir.join("workflows").join("main.py");
+        let mut child = Command::new("uv")
+            .arg("run")
+            .arg("--script")
+            .arg(&script)
+            .current_dir(&project.root)
+            .env("PYTHONPATH", &sdk_dir)
+            .env("CAIRN_RUN_ID", run_id)
+            .env("CAIRN_API_VERSION", "1")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("uv must be installed to run the ignored integration test");
+        let mut reader = BufReader::new(child.stdout.take().unwrap());
+        let mut input = child.stdin.take().unwrap();
+        let context = RpcContext {
+            run_id: run_id.into(),
+            task_id: task.id.clone(),
+            workflow: "bundled".into(),
+            project: project.clone(),
+            finish: Arc::new(Mutex::new(None)),
+            record: Arc::new(Mutex::new(record)),
+            run_directory: run_directory.clone(),
+            sink: Arc::new(NoopSink),
+            version_mismatch: Arc::new(AtomicBool::new(false)),
+            trace_path: run_directory.join("trace.jsonl"),
+            models: Arc::new(ModelBroker::with_default_client(
+                Arc::new(Registry {
+                    models: vec![ModelEntry {
+                        id: "fake".into(),
+                        model_type: "api".into(),
+                        context_limit: Some(4096),
+                        provider: Some("custom".into()),
+                        base_url: Some(format!("http://{address}")),
+                        model_name: Some("fake-model".into()),
+                        api_key_ref: None,
+                    }],
+                    default_model: Some("fake".into()),
+                }),
+                Arc::new(ModelCallControl::default()),
+                run_directory.clone(),
+            )),
+        };
+        let mut line = String::new();
+        loop {
+            line.clear();
+            if reader.read_line(&mut line).unwrap() == 0 {
+                break;
+            }
+            let response = handle_line(&context, line.trim_end());
+            serde_json::to_writer(&mut input, &response).unwrap();
+            input.write_all(b"\n").unwrap();
+            input.flush().unwrap();
+        }
+        drop(input);
+        let status = child.wait().unwrap();
+        let mut stderr = String::new();
+        child
+            .stderr
+            .take()
+            .unwrap()
+            .read_to_string(&mut stderr)
+            .unwrap();
+        server.join().unwrap();
+        assert!(status.success(), "bundled workflow failed: {stderr}");
+        assert!(!project.root.join(".cairn/workflows").exists());
+        assert_eq!(
+            fs::read(project.root.join("first.txt")).unwrap(),
+            original_first
+        );
+        assert_eq!(
+            fs::read(project.root.join("second.txt")).unwrap(),
+            original_second
+        );
+        assert_eq!(
+            context.finish.lock().unwrap().as_ref().unwrap().outcome,
+            RunOutcome::NeedsReview
+        );
+
+        let patches_directory = run_directory.join("patches");
+        let patches = fs::read_dir(patches_directory)
+            .unwrap()
+            .map(|entry| {
+                serde_json::from_slice::<Value>(&fs::read(entry.unwrap().path()).unwrap()).unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(patches.len(), 2);
+        assert!(patches.iter().all(|patch| patch["status"] == "pending"));
+        let mut patch_subtasks = patches
+            .iter()
+            .map(|patch| patch["subtaskId"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        let mut expected_subtasks = subtask_ids;
+        patch_subtasks.sort();
+        expected_subtasks.sort();
+        assert_eq!(patch_subtasks, expected_subtasks);
+        let current_task = project.tasks.get(&task.id).unwrap();
+        let final_task = project
+            .tasks
+            .set_status(
+                &task.id,
+                TaskStatus::NeedsReview,
+                current_task.rev,
+                Actor::System,
+            )
+            .unwrap();
+        assert_eq!(final_task.status, TaskStatus::NeedsReview);
+        assert_eq!(
+            final_task
+                .sub_tasks
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|subtask| subtask.status)
+                .collect::<Vec<_>>(),
+            [TaskStatus::NeedsReview, TaskStatus::NeedsReview]
+        );
+    }
 }
