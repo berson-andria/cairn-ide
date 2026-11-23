@@ -121,7 +121,7 @@
   align-items: center;
   justify-content: space-between;
   flex: none;
-  padding: var(--space-2) var(--space-14);
+  padding: var(--space-2) var(--space-8);
   border-top: 1px solid var(--color-divider);
   font-size: var(--font-size-small);
   color: var(--color-text-muted);
@@ -168,12 +168,36 @@ button.status-bar__item {
     float: right;
   }
 }
-.restricted-mode {
+.banner {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: var(--space-10);
   padding: var(--space-6) var(--space-10);
+  .alert {
+    display: flex;
+    flex-direction: row;
+    gap: var(--space-10);
+    align-items: center;
+  }
+}
+.no-entry {
+  background-color: var(--color-error-bg);
+  color: var(--color-error-fg);
+}
+.restricted-mode {
   background: var(--color-warning-bg);
   color: var(--color-status-review);
+}
+.workflow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-6);
+  background: color-mix(in srgb, var(--color-status-running) 25%, transparent);
+  color: var(--color-text-primary);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-chip);
+  &:hover {
+    background: color-mix(in srgb, var(--color-status-running) 35%, transparent);
+  }
 }

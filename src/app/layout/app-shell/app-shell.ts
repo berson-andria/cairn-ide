@@ -21,6 +21,7 @@ import { LayoutService, Toolkit } from '../../core/services/layout.service';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideAlertTriangle,
+  lucideBoneFracture,
   lucideBraces,
   lucideChevronDown,
   lucideChevronRight,
@@ -38,6 +39,8 @@ import {
   lucideRefreshCcw,
   lucideSettings2,
   lucideTextAlignJustify,
+  lucideWorkflow,
+  lucideX,
 } from '@ng-icons/lucide';
 import { DiagnosticsService } from '../../core/services/diagnostics.service';
 import { GitService } from '../../feature/git/services/git.service';
@@ -53,6 +56,7 @@ import { NoticeList } from '../../core/services/notification/notification-list';
 import { ProjectHistoryService } from '../../core/services/project-history.service';
 import { DialogService } from '../../core/services/dialog/dialog.service';
 import { TrustSetting } from '../../shared/components/trust-setting/trust';
+import { NoEntry } from '../../shared/components/no-entry/no-entry';
 
 @Component({
   selector: 'app-shell',
@@ -81,6 +85,8 @@ import { TrustSetting } from '../../shared/components/trust-setting/trust';
       lucideSettings2,
       lucideHighlighter,
       lucideLock,
+      lucideX,
+      lucideWorkflow,
     }),
   ],
 })
@@ -140,7 +146,16 @@ export class AppShell {
       if (root) untracked(() => void this.watcher.start(root));
       else untracked(() => void this.watcher.stop());
     });
+    effect(() => {
+      console.log(this.workflowService.status());
+
+      const activeWorkflow = this.workflowService.active();
+      if (activeWorkflow && activeWorkflow.status) {
+        this.dialogService.open(NoEntry, { width: '500px' });
+      }
+    });
   }
+
   async ngOnInit() {
     this.ngZone.run(async () => {
       await loadIconSprite();

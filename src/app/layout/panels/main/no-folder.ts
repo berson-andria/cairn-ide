@@ -25,7 +25,6 @@ import { lucideExternalLink, lucideX } from '@ng-icons/lucide';
           @if (history.history().projects.length) {
             <div class="s" style="letter-spacing:.08em;text-transform:uppercase;margin:34px 0 4px">
               Recent
-              <button class="s" type="button" (click)="history.clear()">Clear</button>
             </div>
             @for (project of history.history().projects; track project.path) {
               <div class="action-list">

@@ -226,16 +226,24 @@
     </div>
   </div>
 </header>
-@if (workflowService.trustState() === 'changed' || workflowService.trustState() === 'unreviewed') {
-  <div class="restricted-mode">
-    <ng-icon name="lucideLock" />
-    <span>
-      <b>Restricted Mode.</b> Workflows in this project aren’t trusted, so runs are off. Tasks,
-      notes, editing and Git work as usual.
-    </span>
-    <a style="margin-left: var(--space-12); cursor: pointer" (click)="manageTrsut()"
-      ><u>Manage</u></a
-    >
+@if (
+  (workflowService.trustState() === 'changed' || workflowService.trustState() === 'unreviewed') &&
+  workflowService.active()?.status !== 'no-entry'
+) {
+  <div class="restricted-mode banner">
+    <div class="alert">
+      <ng-icon name="lucideLock" />
+      <span>
+        <b>Restricted Mode.</b> Workflows in this project aren’t trusted, so runs are off. Tasks,
+        notes, editing and Git work as usual.
+      </span>
+      <a style="margin-left: var(--space-12); cursor: pointer" (click)="manageTrsut()"
+        ><u>Manage</u></a
+      >
+    </div>
+    <button class="btn-icon" style="margin-left: auto">
+      <ng-icon name="lucideX" />
+    </button>
   </div>
 }
 
@@ -247,51 +255,61 @@
 <footer class="status-bar" id="app-shell-footer">
   <div class="status-bar__group">
     @if (nodeStore.rootPath()) {
-      <div class="git-btn-group">
-        <button
-          class="status-bar__item status-bar__item--strong"
-          type="button"
-          aria-label="Switch Branch"
-          title="Switch Branch"
-          (click)="layoutService.openGitBranch()"
-        >
-          <ng-icon name="lucideGitBranch " />
-          <span>{{ currentBranch() }}</span>
-        </button>
-        @if (needsPublish()) {
+      <button class="workflow">
+        <ng-icon name="lucideWorkflow" />
+        <span>{{
+          workflowService.status()?.active === 'project'
+            ? 'Local'
+            : (workflowService.status()?.active | titlecase)
+        }}</span>
+      </button>
+      @if (git.isRepo()) {
+        <div class="git-btn-group">
           <button
-            class="icon-btn notif"
-            title="Publish branch"
-            aria-label="Publish branch"
-            (click)="publishBranch()"
+            class="status-bar__item status-bar__item--strong"
+            type="button"
+            aria-label="Switch Branch"
+            title="Switch Branch"
+            (click)="layoutService.openGitBranch()"
           >
-            <ng-icon name="lucideCloudUpload" />
+            <ng-icon name="lucideGitBranch " />
+            <span>{{ currentBranch() }}</span>
           </button>
-        }
-        @if (git.status() && (git.status()!.ahead || git.status()!.behind)) {
+          @if (needsPublish()) {
+            <button
+              class="icon-btn notif"
+              title="Publish branch"
+              aria-label="Publish branch"
+              (click)="publishBranch()"
+            >
+              <ng-icon name="lucideCloudUpload" />
+            </button>
+          }
+          @if (git.status() && (git.status()!.ahead || git.status()!.behind)) {
+            <button
+              class="icon-btn notif"
+              title="Sync changes"
+              aria-label="Sync changes"
+              [disabled]="!git.status()?.upstream"
+              (click)="gitClient.sync()"
+            >
+              <ng-icon name="lucideRefreshCcw" />
+              <span class="hint" style="margin-left: var(--space-6)">
+                {{ git.status()!.behind }}↓ {{ git.status()!.ahead }}↑
+              </span>
+            </button>
+          }
           <button
-            class="icon-btn notif"
-            title="Sync changes"
-            aria-label="Sync changes"
-            [disabled]="!git.status()?.upstream"
-            (click)="gitClient.sync()"
+            class="status-bar__item status-bar__item--strong"
+            type="button"
+            aria-label="Open Git Graph"
+            title="Open Git Graph"
+            (click)="toggleToolkit('Git')"
           >
-            <ng-icon name="lucideRefreshCcw" />
-            <span class="hint" style="margin-left: var(--space-6)">
-              {{ git.status()!.behind }}↓ {{ git.status()!.ahead }}↑
-            </span>
+            <ng-icon name="lucideGitGraph" />
           </button>
-        }
-        <button
-          class="status-bar__item status-bar__item--strong"
-          type="button"
-          aria-label="Open Git Graph"
-          title="Open Git Graph"
-          (click)="toggleToolkit('Git')"
-        >
-          <ng-icon name="lucideGitGraph" />
-        </button>
-      </div>
+        </div>
+      }
     }
     <button
       class="status-bar_item status-bar__item--strong"
