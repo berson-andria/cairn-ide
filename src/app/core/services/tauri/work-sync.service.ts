@@ -14,6 +14,8 @@ import type { RunFinishedEvent } from '../../../shared/models/agent.model';
 import { RunService } from '../runs/run.service';
 import { WorkflowService } from '../runs/workflow.service';
 import { ProjectHistoryService } from '../project-history.service';
+import { PatchStore } from '../../store/patch.store';
+import { PatchService } from '../patches/patch.service';
 
 export function refreshFinishedRun(
   event: RunFinishedEvent,
@@ -34,6 +36,8 @@ export class WorkSyncService {
   private readonly api = inject(WorkApiService);
   private readonly notices = inject(NoticeManager);
   private readonly proposals = inject(ProposalStore);
+  private readonly patches = inject(PatchStore);
+  private readonly patchService = inject(PatchService);
   private readonly runs = inject(RunStore);
   private readonly proposalNotifier = inject(ProposalNotifier);
   private readonly runService = inject(RunService);
@@ -57,6 +61,8 @@ export class WorkSyncService {
       },
       proposalUpdated: (r) => this.proposals.upsert(r),
       proposalDeleted: (id) => this.proposals.remove(id),
+      patchCreated: (record) => this.patches.upsert(record),
+      patchUpdated: (record) => this.patches.upsert(record),
       runStarted: (event) => this.runs.started(event),
       runLog: (event) => this.runs.append(event),
       runStep: (event) => this.runs.step(event),
@@ -86,6 +92,7 @@ export class WorkSyncService {
     this.tasks.clear();
     this.notes.clear();
     this.proposals.clear();
+    this.patchService.clear();
     this.runs.clear();
     this.workflowService.clear();
     this.currentLoad = this.open(path, eventsReady);
@@ -103,6 +110,7 @@ export class WorkSyncService {
       await Promise.all([this.taskService.refresh(), this.noteService.refresh()]);
       void Promise.all([
         this.proposals.refresh(),
+        this.patches.refresh(),
         this.runService.refresh(),
         this.workflowService.refresh(),
         this.workflowService.projectOpened(),
@@ -120,6 +128,7 @@ export class WorkSyncService {
       this.taskService.refresh(),
       this.noteService.refresh(),
       this.proposals.refresh(),
+      this.patches.refresh(),
     ]);
   }
 }

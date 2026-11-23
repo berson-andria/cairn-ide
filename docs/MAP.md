@@ -80,6 +80,8 @@ Last updated: 2026-11-21
 │   │   │   │   ├── notification/
 │   │   │   │   │   ├── notification-list.ts
 │   │   │   │   │   └── notification.service.ts
+│   │   │   │   ├── patches/
+│   │   │   │   │   └── patch.service.ts
 │   │   │   │   ├── proposals/
 │   │   │   │   │   ├── proposal-notifier.service.ts
 │   │   │   │   │   └── proposal.service.ts
@@ -108,6 +110,7 @@ Last updated: 2026-11-21
 │   │   │       ├── node.state.ts
 │   │   │       ├── node.store.ts
 │   │   │       ├── note.store.ts
+│   │   │       ├── patch.store.ts
 │   │   │       ├── proposal.store.ts
 │   │   │       ├── run.store.ts
 │   │   │       ├── setting.store.ts

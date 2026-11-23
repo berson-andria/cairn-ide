@@ -3,12 +3,14 @@ import { Injector, computed, runInInjectionContext, signal } from '@angular/core
 import assert from 'node:assert/strict';
 import test, { mock } from 'node:test';
 import { RunStore } from '../src/app/core/store/run.store';
+import { PatchStore } from '../src/app/core/store/patch.store';
 import { TaskStore } from '../src/app/core/store/task.store';
 import { NodeStore } from '../src/app/core/store/node.store';
 import { NoticeManager } from '../src/app/core/services/notification/notification.service';
 import { WorkApiService } from '../src/app/core/services/tauri/work-api.service';
 import { refreshFinishedRun } from '../src/app/core/services/tauri/work-sync.service';
 import { ProposalNotifier } from '../src/app/core/services/proposals/proposal-notifier.service';
+import { PatchService } from '../src/app/core/services/patches/patch.service';
 import { RunService } from '../src/app/core/services/runs/run.service';
 import {
   WorkflowService,
@@ -19,6 +21,8 @@ import { TaskService, type TaskItem, type TaskStatus } from '../src/app/feature/
 import { SettingsService } from '../src/app/feature/setting/settings.service';
 import type {
   Proposal,
+  Patch,
+  PatchSummary,
   RunRecord,
   RunState,
   WorkflowScope,
@@ -53,7 +57,14 @@ const workflow = (
 const workflowStatus = (
   active: WorkflowScope | null = 'project',
   sources: WorkflowSourceStatus[] = [workflow()],
-): WorkflowStatus => ({ active, sources });
+): WorkflowStatus => ({
+  active,
+  sources,
+  needsChoice: false,
+  choice: null,
+  choiceOptions: { bundled: true, global: false },
+  activeVia: active === 'project' ? 'project' : active ? 'fallback' : null,
+});
 
 const trustStatus = (overrides: Partial<WorkflowTrustStatus> = {}): WorkflowTrustStatus => ({
   hasWorkflows: true,
@@ -73,6 +84,20 @@ const runRecord = (runId: string): RunRecord => ({
   endedAt: 2,
   outcome: 'needs_review',
 });
+const patchRecord = (id: string, overrides: Partial<Patch> = {}): Patch => ({
+  id,
+  runId: 'run-1',
+  taskId: 'task-1',
+  title: id,
+  status: 'pending',
+  createdAt: 1,
+  files: [{ path: `${id}.txt`, op: 'modify', before: 'old', after: 'new' }],
+  ...overrides,
+});
+const patchSummary = (id: string, overrides: Partial<PatchSummary> = {}): PatchSummary => {
+  const { files: _files, ...summary } = patchRecord(id, overrides);
+  return summary;
+};
 
 function makeHarness(
   options: {
@@ -84,6 +109,7 @@ function makeHarness(
     trustState?: 'unknown' | 'none' | 'unreviewed' | 'changed' | 'trusted';
     runStore?: Pick<RunStore, 'current' | 'logLines' | 'refresh' | 'record' | 'setRecord'>;
     api?: Partial<WorkApiService>;
+    choose?: (scope: Exclude<WorkflowScope, 'project'>) => Promise<boolean>;
   } = {},
 ) {
   const taskStore = new TaskStore();
@@ -97,7 +123,7 @@ function makeHarness(
     setRecord: (record: RunRecord) =>
       runRecords.update((records) => ({ ...records, [record.runId]: record })),
   };
-  const api = {
+  const api: Partial<WorkApiService> = {
     runStart: async () => ({}) as RunRecord,
     ...options.api,
   };
@@ -108,6 +134,8 @@ function makeHarness(
   );
   const workflows = {
     active: activeStatus,
+    needsChoice: signal(options.workflowStatus?.needsChoice ?? false).asReadonly(),
+    choose: options.choose ?? (async () => true),
     needsTrustReview: signal(options.needsTrustReview ?? false).asReadonly(),
     trustState: signal(
       options.trustState ?? (options.needsTrustReview ? 'unreviewed' : 'trusted'),
@@ -341,6 +369,18 @@ test('runDisabledReason reports every blocker in priority order', () => {
   assert.equal(globalWorkflow.runDisabledReason(task('task-1')), null);
 });
 
+test('runDisabledReason ignores needsChoice so the choice dialog can proceed', () => {
+  const choiceStatus = {
+    ...workflowStatus(null, []),
+    needsChoice: true,
+    choiceOptions: { bundled: true, global: true },
+  };
+  assert.equal(
+    makeHarness({ workflowStatus: choiceStatus }).runService.runDisabledReason(task('task-1')),
+    null,
+  );
+});
+
 test('run starts without a workflow argument', async () => {
   const calls: unknown[][] = [];
   const harness = makeHarness({
@@ -355,6 +395,65 @@ test('run starts without a workflow argument', async () => {
   assert.equal(harness.runService.canRun(task('task-1')), true);
   await harness.runService.run('task-1');
   assert.deepEqual(calls, [['task-1', 1]]);
+});
+
+test('run returns choice-required without showing an error notice', async () => {
+  let notices = 0;
+  const harness = makeHarness({
+    api: {
+      runStart: async () => {
+        throw { code: 'WorkflowChoiceRequired', message: 'Choose a workflow.' };
+      },
+    },
+  });
+  harness.injector.get(NoticeManager).error = () => {
+    notices++;
+  };
+
+  assert.deepEqual(await harness.runService.run('task-1'), { kind: 'choice-required' });
+  assert.equal(notices, 0);
+});
+
+test('chooseAndRun chooses before starting and stops when the choice fails', async () => {
+  const calls: string[] = [];
+  const success = makeHarness({
+    workflowStatus: {
+      ...workflowStatus(null, []),
+      needsChoice: true,
+      choiceOptions: { bundled: true, global: true },
+    },
+    choose: async (scope) => {
+      calls.push(`choose:${scope}`);
+      return true;
+    },
+    api: {
+      runStart: async () => {
+        calls.push('run');
+        return runRecord('run-1');
+      },
+    },
+  });
+  assert.deepEqual(await success.runService.chooseAndRun('task-1', 'global'), {
+    kind: 'started',
+    run: runRecord('run-1'),
+  });
+  assert.deepEqual(calls, ['choose:global', 'run']);
+
+  calls.length = 0;
+  const failed = makeHarness({
+    choose: async () => {
+      calls.push('choose');
+      return false;
+    },
+    api: {
+      runStart: async () => {
+        calls.push('run');
+        return runRecord('run-2');
+      },
+    },
+  });
+  assert.equal(await failed.runService.chooseAndRun('task-1', 'bundled'), undefined);
+  assert.deepEqual(calls, ['choose']);
 });
 
 test('perform starts a run without workflow options', async () => {
@@ -404,6 +503,150 @@ function workflowServiceHarness(
   });
   return runInInjectionContext(injector, () => new WorkflowService());
 }
+
+function patchServiceHarness(api: Partial<WorkApiService>) {
+  const errors: string[] = [];
+  const notices = { error: (message: string) => errors.push(message) };
+  const injector = Injector.create({
+    providers: [
+      { provide: WorkApiService, useValue: api },
+      { provide: NoticeManager, useValue: notices },
+    ],
+  });
+  const store = runInInjectionContext(injector, () => new PatchStore());
+  const serviceInjector = Injector.create({
+    providers: [
+      { provide: WorkApiService, useValue: api },
+      { provide: NoticeManager, useValue: notices },
+      { provide: PatchStore, useValue: store },
+    ],
+  });
+  const service = runInInjectionContext(serviceInjector, () => new PatchService());
+  return { store, service, errors };
+}
+
+test('patch store upserts status transitions and clears with patch cache for a new workspace', async () => {
+  let fetches = 0;
+  const { store, service } = patchServiceHarness({
+    patchGet: async (_runId: string, patchId: string) => {
+      fetches++;
+      return patchRecord(patchId);
+    },
+  });
+  await service.load('run-1', 'cache-me');
+  store.upsert(patchSummary('p-1', { createdAt: 2 }));
+  store.upsert(patchSummary('p-1', { createdAt: 1, title: 'stale' }));
+  assert.equal(store.summary('run-1', 'p-1')?.title, 'p-1');
+
+  store.upsert(patchSummary('p-1', { createdAt: 2, status: 'applied', appliedAt: 3 }));
+  store.upsert(patchSummary('p-1', { createdAt: 2, status: 'pending' }));
+  assert.equal(store.summary('run-1', 'p-1')?.status, 'applied');
+
+  service.clear();
+  assert.deepEqual(store.all(), []);
+  await service.load('run-1', 'cache-me');
+  assert.equal(fetches, 2);
+});
+
+test('patch service exposes task, run, and pending summary signals', () => {
+  const { store, service } = patchServiceHarness({});
+  store.upsert(patchSummary('p-1', { taskId: 'task-1', runId: 'run-1' }));
+  store.upsert(patchSummary('p-2', {
+    taskId: 'task-2',
+    runId: 'run-2',
+    status: 'applied',
+  }));
+  assert.deepEqual(service.pending().map((patch) => patch.id), ['p-1']);
+  assert.deepEqual(service.forTask('task-1')().map((patch) => patch.id), ['p-1']);
+  assert.deepEqual(service.forRun('run-2')().map((patch) => patch.id), ['p-2']);
+});
+
+test('patch load evicts the oldest cache entry and refetches when summary status changes', async () => {
+  let fetches = 0;
+  const { store, service } = patchServiceHarness({
+    patchGet: async (runId: string, patchId: string) => {
+      fetches++;
+      return patchRecord(patchId, { runId });
+    },
+  });
+  for (let index = 0; index < 21; index++) {
+    await service.load('run-1', `p-${index}`);
+  }
+  assert.equal(fetches, 21);
+  await service.load('run-1', 'p-0');
+  assert.equal(fetches, 22);
+
+  store.upsert(patchSummary('p-0', { status: 'applied', appliedAt: 10 }));
+  await service.load('run-1', 'p-0');
+  assert.equal(fetches, 23);
+});
+
+test('patch apply returns applied, plain-text conflict, and handled errors; refreshes after apply', async () => {
+  let listCalls = 0;
+  let mode: 'applied' | 'conflict' | 'error' = 'applied';
+  const { service, errors } = patchServiceHarness({
+    patchList: async () => {
+      listCalls++;
+      return [];
+    },
+    patchApply: async () => {
+      if (mode === 'conflict') {
+        throw { code: 'PatchConflict', message: '<stale> path' };
+      }
+      if (mode === 'error') throw { code: 'Io', message: 'disk error' };
+      return patchSummary('p-1', { status: 'applied' });
+    },
+  });
+
+  assert.deepEqual(await service.apply('run-1', 'p-1'), { kind: 'applied' });
+  assert.equal(listCalls, 1);
+  mode = 'conflict';
+  assert.deepEqual(await service.apply('run-1', 'p-1'), {
+    kind: 'conflict',
+    message: '<stale> path',
+  });
+  assert.equal(listCalls, 1);
+  mode = 'error';
+  assert.equal(await service.apply('run-1', 'p-1'), undefined);
+  assert.deepEqual(errors, ['disk error']);
+});
+
+test('workflow choice methods refresh status and expose choice signals', async () => {
+  const calls: string[] = [];
+  let current = {
+    ...workflowStatus(null, []),
+    needsChoice: true,
+    choiceOptions: { bundled: true, global: true },
+  };
+  const service = workflowServiceHarness({
+    workflowStatus: async () => current,
+    workflowTemplates: async () => [],
+    workflowChoose: async (scope: Exclude<WorkflowScope, 'project'>) => {
+      calls.push(`choose:${scope}`);
+      current = {
+        ...current,
+        needsChoice: false,
+        choice: scope,
+        active: scope,
+        activeVia: 'chosen',
+      };
+    },
+    workflowChoiceClear: async () => {
+      calls.push('clear');
+      current = { ...current, choice: null };
+    },
+  });
+
+  await service.refresh();
+  assert.equal(service.needsChoice(), true);
+  assert.deepEqual(service.choiceOptions(), { bundled: true, global: true });
+  assert.equal(await service.choose('global'), true);
+  assert.equal(service.choice(), 'global');
+  assert.equal(service.activeVia(), 'chosen');
+  assert.equal(await service.clearChoice(), true);
+  assert.equal(service.choice(), null);
+  assert.deepEqual(calls, ['choose:global', 'clear']);
+});
 
 test('deriveTrustState covers all workflow trust states and stale approval cases', () => {
   assert.equal(deriveTrustState(null), 'unknown');

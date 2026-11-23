@@ -4,6 +4,7 @@ import type { NoteItem } from '../../../feature/notes/note.service';
 import type {
   Proposal,
   ProposalDeletedEvent,
+  PatchSummary,
   RunFinishedEvent,
   RunLogEvent,
   RunStartedEvent,
@@ -18,6 +19,7 @@ export interface WorkEventHandlers {
   runStarted(event: RunStartedEvent): void; runLog(event: RunLogEvent): void; runFinished(event: RunFinishedEvent): void;
   runStep(event: RunStepEvent): void;
   proposalCreated(record: Proposal): void; proposalUpdated(record: Proposal): void; proposalDeleted(id: string): void;
+  patchCreated(record: PatchSummary): void; patchUpdated(record: PatchSummary): void;
 }
 export async function subscribeWorkEvents(handlers: WorkEventHandlers): Promise<UnlistenFn> {
   const unlisteners = await Promise.all([
@@ -34,6 +36,8 @@ export async function subscribeWorkEvents(handlers: WorkEventHandlers): Promise<
     listen<Proposal>('proposal:created', e => handlers.proposalCreated(e.payload)),
     listen<Proposal>('proposal:updated', e => handlers.proposalUpdated(e.payload)),
     listen<ProposalDeletedEvent>('proposal:deleted', e => handlers.proposalDeleted(e.payload.id)),
+    listen<PatchSummary>('patch:created', e => handlers.patchCreated(e.payload)),
+    listen<PatchSummary>('patch:updated', e => handlers.patchUpdated(e.payload)),
   ]);
   return () => unlisteners.forEach(fn => fn());
 }

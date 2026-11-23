@@ -50,6 +50,24 @@ their `before` content or removed if they were creates.
 `patch:created` and `patch:updated` carry patch summaries only: no file text
 or search/replace content.
 
+## Frontend
+
+`WorkApiService` provides typed workflow-choice and patch commands.
+`PatchStore` caches summaries by `runId/patchId`, merges refresh results and
+events by `createdAt` and status (there is no revision), and clears when the
+workspace changes. `PatchService` exposes `all`, `pending`,
+`forTask(taskId)`, and `forRun(runId)` signals, plus `refresh()`,
+`load(runId, patchId)`, `apply(runId, patchId)`, and
+`discard(runId, patchId)`. Full patch records are cached up to 20 entries and
+reloaded when the summary status changes.
+
+Review recipe: list pending patches for a task, load a patch, display its
+`before` and `after` values as plain text, then apply it. A conflict is returned
+as `{ kind: 'conflict', message }`; show the Rust message as plain text and do
+not parse it. Successful apply refreshes patch summaries because workspace
+files changed on disk; filesystem watcher events continue to update the
+explorer. Patch handling does not mutate node or tab stores.
+
 ## Secret deny list
 
 Read, list, and patch paths deny `.git` and `.cairn` components and these

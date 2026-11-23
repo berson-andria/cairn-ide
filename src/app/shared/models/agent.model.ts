@@ -39,6 +39,36 @@ export interface WorkflowSourceStatus {
 export interface WorkflowStatus {
   active: WorkflowScope | null;
   sources: WorkflowSourceStatus[];
+  needsChoice: boolean;
+  choice: Exclude<WorkflowScope, 'project'> | null;
+  choiceOptions: { bundled: boolean; global: boolean };
+  activeVia: 'project' | 'chosen' | 'fallback' | null;
+}
+
+export type PatchStatus = 'pending' | 'applied' | 'discarded';
+
+export interface PatchSummary {
+  id: string;
+  runId: string;
+  taskId: string;
+  subtaskId?: string;
+  title: string;
+  summary?: string;
+  status: PatchStatus;
+  createdAt: number;
+  appliedAt?: number;
+}
+
+export interface PatchFile {
+  path: string;
+  op: 'create' | 'modify';
+  baseSha256?: string;
+  before?: string;
+  after: string;
+}
+
+export interface Patch extends PatchSummary {
+  files: PatchFile[];
 }
 
 export interface WorkflowTemplate {
@@ -158,7 +188,10 @@ export type ApiErrorCode =
   | 'NoProject'
   | 'RunActive'
   | 'TrustRequired'
+  | 'WorkflowChoiceRequired'
   | 'RuntimeUnavailable'
   | 'ContextTooLarge'
   | 'ModelUnavailable'
+  | 'ModelError'
+  | 'PatchConflict'
   | 'BadArgs';

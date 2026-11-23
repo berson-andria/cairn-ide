@@ -71,6 +71,13 @@ export class WorkflowService {
 
   readonly status = this._status.asReadonly();
   readonly templates = this._templates.asReadonly();
+  readonly needsChoice = computed(() => this._status()?.needsChoice ?? false);
+  readonly choice = computed(() => this._status()?.choice ?? null);
+  readonly choiceOptions = computed(() => this._status()?.choiceOptions ?? {
+    bundled: false,
+    global: false,
+  });
+  readonly activeVia = computed(() => this._status()?.activeVia ?? null);
   readonly active = computed(() => {
     const status = this._status();
     if (!status?.active) return null;
@@ -115,6 +122,28 @@ export class WorkflowService {
       });
     this.refreshPromise = request;
     return request;
+  }
+
+  async choose(scope: Exclude<WorkflowScope, 'project'>): Promise<boolean> {
+    try {
+      await this.api.workflowChoose(scope);
+      await this.refresh();
+      return true;
+    } catch (error) {
+      await handleApiError(error, this.notices);
+      return false;
+    }
+  }
+
+  async clearChoice(): Promise<boolean> {
+    try {
+      await this.api.workflowChoiceClear();
+      await this.refresh();
+      return true;
+    } catch (error) {
+      await handleApiError(error, this.notices);
+      return false;
+    }
   }
 
   refreshTrust(): Promise<WorkflowTrustStatus | undefined> {

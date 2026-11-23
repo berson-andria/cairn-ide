@@ -95,6 +95,15 @@ that choice for this project. If the user instead creates a project workflow,
 the new `main.py` takes precedence and the remembered choice is cleared. Empty
 projects never show this dialog.
 
+The frontend exposes `needsChoice`, `choice`, `choiceOptions`, and `activeVia`
+signals on `WorkflowService`. When `RunService.run(taskId)` returns
+`{ kind: 'choice-required' }`, the caller opens the choice dialog without an
+error notice. The dialog calls `chooseAndRun(taskId, scope)`, which persists
+the selection, refreshes workflow status, and starts the run only after the
+choice succeeds. The run-button disabled-reason check does not block on
+`needsChoice`; the dialog owns that interaction. `choose(scope)` and
+`clearChoice()` refresh status after the Rust command completes.
+
 `run_start` launches `uv run --script <active folder>/main.py` with the project
 root as cwd. The run record's `workflow` and `source` fields both hold the scope
 label (`project`, `global`, or `bundled`). The UI-facing run command has no

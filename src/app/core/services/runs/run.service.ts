@@ -1,7 +1,7 @@
 import { Injectable, computed, inject } from '@angular/core';
 import type { Signal } from '@angular/core';
 import { WorkflowService } from './workflow.service';
-import { RunRecord } from '../../../shared/models/agent.model';
+import { RunRecord, WorkflowScope } from '../../../shared/models/agent.model';
 import { TaskItem } from '../../../feature/tasks/task.service';
 import { NodeStore } from '../../store/node.store';
 import { RunStore } from '../../store/run.store';
@@ -12,7 +12,8 @@ import { WorkApiService } from '../tauri/work-api.service';
 
 export type RunResult =
   | { kind: 'started'; run: RunRecord }
-  | { kind: 'trust-required' };
+  | { kind: 'trust-required' }
+  | { kind: 'choice-required' };
 
 @Injectable({ providedIn: 'root' })
 export class RunService {
@@ -98,9 +99,10 @@ export class RunService {
       return 'Complete the dependency first.';
     }
     const active = this.workflows.active();
-    if (!active) return 'No workflows are available.';
-    if (active.status !== 'ok') return active.message ?? 'The active workflow source is not available.';
-    if (active.source === 'project') {
+    const needsChoice = this.workflows.needsChoice?.() ?? false;
+    if (!active && !needsChoice) return 'No workflows are available.';
+    if (active && active.status !== 'ok') return active.message ?? 'The active workflow source is not available.';
+    if (active?.source === 'project') {
       const trustState = this.workflows.trustState?.() ??
         (this.workflows.needsTrustReview() ? 'unreviewed' : null);
       if (trustState === 'unreviewed') {
@@ -130,9 +132,20 @@ export class RunService {
       if ((error as { code?: string })?.code === 'TrustRequired') {
         return { kind: 'trust-required' };
       }
+      if ((error as { code?: string })?.code === 'WorkflowChoiceRequired') {
+        return { kind: 'choice-required' };
+      }
       await handleApiError(error, this.notices);
       return undefined;
     }
+  }
+
+  async chooseAndRun(
+    taskId: string,
+    scope: Exclude<WorkflowScope, 'project'>,
+  ): Promise<RunResult | undefined> {
+    if (!(await this.workflows.choose(scope))) return undefined;
+    return this.run(taskId);
   }
 
   async cancel(): Promise<void> {

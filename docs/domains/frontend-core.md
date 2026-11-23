@@ -28,6 +28,9 @@ Workflow trust status is also a shared domain shape:
 `{ hasWorkflows, trusted, folderHash, approvedHash?, files, changes }`.
 `files` carries relative paths, byte sizes, and SHA-256 values; `changes`
 classifies paths as added, modified, or removed.
+Workflow resolution also includes `needsChoice`, `choice`, `choiceOptions`,
+and `activeVia`. Patch summaries omit file text; a full patch carries file
+`before`/`after` text, which is untrusted plain text.
 
 ## 3. Rust
 
@@ -46,8 +49,8 @@ does not own UI state or subscribe to events.
 
 ### Event subscription helper
 
-`subscribeWorkEvents(handlers)` registers task, note, project, run, and
-proposal listeners and resolves to an unlisten function. `WorkSyncService`
+`subscribeWorkEvents(handlers)` registers task, note, project, run, proposal,
+and patch listeners and resolves to an unlisten function. `WorkSyncService`
 subscribes once, waits for registration before opening a project, applies
 events to the relevant stores, and coordinates project-scoped refreshes.
 `WorkspaceWatcherService` forwards filesystem batches to `WorkflowService`;
@@ -60,9 +63,11 @@ directly. Task, note, and proposal event updates replace a missing record or
 one with a lower `rev`. `task:reloaded` and `note:reloaded` replace
 unconditionally because external edits or branch changes can preserve or reduce
 revisions. List results replace their cache and retain per-record errors.
-Stores clear when the workspace changes. See
+Patch summaries have no `rev`; `PatchStore` resolves duplicate and out-of-order
+updates using `createdAt` and status. Stores clear when the workspace changes. See
 [tasks and notes](./tasks-notes.md#tasks-notes),
-[proposals](./proposals.md), and [runs](./runs.md#runs) for domain APIs.
+[proposals](./proposals.md), [runs](./runs.md#runs), and
+[patches](./patches.md#frontend) for domain APIs.
 
 ### Error handling and notifications
 
@@ -107,6 +112,17 @@ after project open. `active` is the active source status or `null`,
 contains the active source warnings. An `.cairn/workflows/` filesystem batch
 shares the 500 ms debounce with trust refresh: status and trust refresh once
 per window.
+
+When `WorkflowStatus.needsChoice` is true, the run choice dialog uses
+`choiceOptions` and `WorkflowService.choose`; `RunService.chooseAndRun` stops if
+choosing fails. This state is not a run-disabled reason because the dialog
+handles it.
+
+**Patch review:** `PatchService` provides the patch summary signals and
+load/apply/discard operations. Display all patch content as plain text. An
+apply conflict is a `{ kind: 'conflict', message }` result; a successful apply
+refreshes summaries while filesystem watcher events update the explorer.
+Patch review never mutates node or tab stores.
 
 **Settings workflow card:** show status, entry, warnings, and issues; create
 from templates or duplicate the bundled workflow. Duplicate means copy the

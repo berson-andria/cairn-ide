@@ -19,6 +19,8 @@ import type {
   ApiErrorCode,
   Proposal,
   ProposalPayload,
+  Patch,
+  PatchSummary,
   RunRecord,
   SourceAction,
   WorkflowScope,
@@ -179,6 +181,12 @@ export class WorkApiService {
   workflowStatus() {
     return this.call<WorkflowStatus>('workflow_status');
   }
+  workflowChoose(scope: Exclude<WorkflowScope, 'project'>) {
+    return this.call<void>('workflow_choose', { scope });
+  }
+  workflowChoiceClear() {
+    return this.call<void>('workflow_choice_clear');
+  }
   workflowTemplates() {
     return this.call<WorkflowTemplate[]>('workflow_templates');
   }
@@ -211,6 +219,18 @@ export class WorkApiService {
   }
   runLog(runId: string, maxLines: number) {
     return this.call<string[]>('run_log', { runId, maxLines });
+  }
+  patchList(runId?: string) {
+    return this.call<PatchSummary[]>('patch_list', runId === undefined ? undefined : { runId });
+  }
+  patchGet(runId: string, patchId: string) {
+    return this.call<Patch>('patch_get', { runId, patchId });
+  }
+  patchApply(runId: string, patchId: string) {
+    return this.call<PatchSummary>('patch_apply', { runId, patchId });
+  }
+  patchDiscard(runId: string, patchId: string) {
+    return this.call<PatchSummary>('patch_discard', { runId, patchId });
   }
   proposalList() {
     return this.call<ListResult<Proposal>>('proposal_list');
