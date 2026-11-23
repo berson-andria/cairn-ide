@@ -113,7 +113,10 @@ export class WorkspaceStateService {
     this.saveEnabled.set(true);
   }
 
-  async restoreProject(rootPath: string, openCodeFile: (id: string) => Promise<void>): Promise<boolean> {
+  async restoreProject(
+    rootPath: string,
+    openCodeFile: (id: string) => Promise<void>,
+  ): Promise<boolean> {
     this.saveEnabled.set(false);
     this.clearSaveTimer();
     if (this.nodes.rootPath() !== rootPath || this.nodes.isWorkspaceLoading()) return false;
@@ -211,7 +214,6 @@ export class WorkspaceStateService {
         const id = this.tabs.openNote(note.id, title);
         return this.tabs.getTab(id) ?? null;
       }
-      case 'Review':
       case 'Chat':
         this.reportSkippedTypes(rootPath, [saved.type]);
         return null;
@@ -251,8 +253,10 @@ export class WorkspaceStateService {
         if (node.children === null) await this.nodes.fetchFolderContents(node.id);
       }
       parentPath = await join(parentPath, parts[index]);
-      node = Object.values(this.nodes.nodes()).find((candidate) =>
-        candidate.path.replace(/\\/g, '/').toLowerCase() === parentPath.replace(/\\/g, '/').toLowerCase(),
+      node = Object.values(this.nodes.nodes()).find(
+        (candidate) =>
+          candidate.path.replace(/\\/g, '/').toLowerCase() ===
+          parentPath.replace(/\\/g, '/').toLowerCase(),
       );
       if (!node) return undefined;
     }
@@ -337,7 +341,9 @@ export class WorkspaceStateService {
     for (const type of types) {
       if (reported.has(type)) continue;
       reported.add(type);
-      this.notices.info(`Workspace restore skips ${type} tabs because they have no stable identifier.`);
+      this.notices.info(
+        `Workspace restore skips ${type} tabs because they have no stable identifier.`,
+      );
     }
   }
 }

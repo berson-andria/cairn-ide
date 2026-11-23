@@ -8,7 +8,6 @@ import {
 } from '@angular/core';
 import { ResizeHandle } from '../../../shared/components/resize-handle/resize-handle';
 import { FileTree } from '../../../feature/explorer/tree';
-import { ReviewList } from '../../../feature/review/review-list';
 import { NoteList } from '../../../feature/notes/note-list/note-list';
 import { LayoutService } from '../../../core/services/layout.service';
 import { GitChanges } from '../../../feature/git/features/changes/git-changes';
@@ -23,16 +22,7 @@ import { NodeStore } from '../../../core/store/node.store';
 @Component({
   selector: 'left-panel',
   standalone: true,
-  imports: [
-    ResizeHandle,
-    TaskList,
-    FileTree,
-    NoteList,
-    ReviewList,
-    GitChanges,
-    EmptyExplorer,
-    NgIcon,
-  ],
+  imports: [ResizeHandle, TaskList, FileTree, NoteList, GitChanges, EmptyExplorer, NgIcon],
   templateUrl: './left-panel.html',
   styleUrl: './left-panel.scss',
   providers: [provideIcons({ lucideFiles, lucideGitMerge, lucideListChecks, lucideNotebookPen })],

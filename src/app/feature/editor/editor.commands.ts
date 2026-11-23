@@ -76,7 +76,7 @@ export class EditorCommands {
             case 'DiffEditor':
               return !diffTabs[t.id]; // orphaned diff tab with no request metadata
             default:
-              return false; // Note, Task, Review, Chat don't depend on nodes
+              return false;
           }
         })
         .map((t) => t.id);
@@ -105,10 +105,13 @@ export class EditorCommands {
           for (const id of dirtyIds) {
             const previous = this.autoSaveTimers.get(id);
             if (previous) clearTimeout(previous);
-            this.autoSaveTimers.set(id, setTimeout(() => {
-              this.autoSaveTimers.delete(id);
-              void this.saveFile(id);
-            }, 1000));
+            this.autoSaveTimers.set(
+              id,
+              setTimeout(() => {
+                this.autoSaveTimers.delete(id);
+                void this.saveFile(id);
+              }, 1000),
+            );
           }
         } else {
           this.autoSaveTimers.forEach((timer) => clearTimeout(timer));
@@ -120,7 +123,8 @@ export class EditorCommands {
           previousActiveTab &&
           previousActiveTab !== activeTabId &&
           dirtyIds.includes(previousActiveTab)
-        ) void this.saveFile(previousActiveTab);
+        )
+          void this.saveFile(previousActiveTab);
         previousActiveTab = activeTabId;
       });
     });
@@ -302,7 +306,8 @@ export class EditorCommands {
     await this.nodes.loadFolder(path);
     const openedRoot = this.nodes.rootPath();
     if (!openedRoot || !samePath(openedRoot, path)) {
-      if (previousRoot) await this.workspaceState.restoreProject(previousRoot, (id) => this.openFile(id));
+      if (previousRoot)
+        await this.workspaceState.restoreProject(previousRoot, (id) => this.openFile(id));
       else this.workspaceState.cancelProjectSwitch();
       return;
     }

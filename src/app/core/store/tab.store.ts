@@ -2,7 +2,7 @@ import { computed } from '@angular/core';
 import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
 import { DiffTab, DiffRequest, diffTabId, diffTitle } from '../../feature/editor/features/diff-tab';
 
-export type TabContentType = 'CodeEditor' | 'DiffEditor' | 'Task' | 'Review' | 'Note' | 'Chat';
+export type TabContentType = 'CodeEditor' | 'DiffEditor' | 'Task' | 'Note' | 'Chat';
 
 export interface Tab<T = unknown> {
   id: string;
@@ -37,7 +37,7 @@ export const initialTabState: TabState = {
 };
 
 /**
- * TabStore manages all tabs opened in the main IDE panel (CodeEditor, DiffEditor, Task, Review, Note, Chat).
+ * TabStore manages all tabs opened in the main IDE panel (CodeEditor, DiffEditor, Task, Note, Chat).
  * Tracks tab ordering, focus history, active tab, diff metadata, and dirty state synchronously.
  */
 export const TabStore = signalStore(
@@ -164,17 +164,6 @@ export const TabStore = signalStore(
     /** Opens or focuses a Note view tab. Returns the note tab id. */
     openNote(id: string, title: string, data?: unknown): string {
       this.openTab({ id, type: 'Note', title, ...(data !== undefined ? { data } : {}) });
-      return id;
-    },
-
-    /** Opens or focuses a Review view tab. Returns the review tab id. */
-    openReview(id: string, title: string, data?: unknown): string {
-      this.openTab({
-        id,
-        type: 'Review',
-        title,
-        ...(data !== undefined ? { data } : {}),
-      });
       return id;
     },
 

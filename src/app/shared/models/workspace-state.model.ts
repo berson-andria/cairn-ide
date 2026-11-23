@@ -33,14 +33,7 @@ export interface WorkspaceRestorePlan {
   focus: number[];
 }
 
-const TAB_TYPES: readonly TabContentType[] = [
-  'CodeEditor',
-  'DiffEditor',
-  'Task',
-  'Review',
-  'Note',
-  'Chat',
-];
+const TAB_TYPES: readonly TabContentType[] = ['CodeEditor', 'DiffEditor', 'Task', 'Note', 'Chat'];
 
 export function isProjectRelativePath(path: string): boolean {
   if (!path || path.startsWith('/') || /^[a-zA-Z]:/.test(path)) return false;
@@ -97,7 +90,7 @@ export function createWorkspaceStateFile(
   for (const tab of openedTabs) {
     const persisted = serializeTab(tab, rootPath, nodes, diffTabs);
     if (!persisted) {
-      if (tab.type === 'Review' || tab.type === 'Chat') skippedTypes.add(tab.type);
+      if (tab.type === 'Chat') skippedTypes.add(tab.type);
       continue;
     }
     savedIndexByTabId.set(tab.id, savedTabs.length);
@@ -132,14 +125,21 @@ export function parseWorkspaceStateFile(raw: string | null): WorkspaceStateFile 
   if (raw === null) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!isRecord(parsed) || parsed['schemaVersion'] !== WORKSPACE_STATE_SCHEMA_VERSION) return null;
+    if (!isRecord(parsed) || parsed['schemaVersion'] !== WORKSPACE_STATE_SCHEMA_VERSION)
+      return null;
     const folders = parsed['expandedFolders'];
     const parsedTabs = parsed['tabs'];
     const parsedFocus = parsed['focus'];
     const expandedFolders = Array.isArray(folders)
-      ? [...new Set(folders.filter(
-          (path): path is string => typeof path === 'string' && isProjectRelativePath(path),
-        ).map((path) => path.replace(/\\/g, '/')))]
+      ? [
+          ...new Set(
+            folders
+              .filter(
+                (path): path is string => typeof path === 'string' && isProjectRelativePath(path),
+              )
+              .map((path) => path.replace(/\\/g, '/')),
+          ),
+        ]
       : [];
     const tabs = Array.isArray(parsedTabs)
       ? parsedTabs.map((entry): PersistedWorkspaceTab | null => {
@@ -245,7 +245,6 @@ function serializeTab(
     case 'Task':
     case 'Note':
       return { type: tab.type, ref: tab.id };
-    case 'Review':
     case 'Chat':
       return null;
   }

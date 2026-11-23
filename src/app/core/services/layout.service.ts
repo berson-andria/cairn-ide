@@ -8,7 +8,7 @@ import { NodeStore } from '../store/node.store';
 import { samePath } from './file-system/external-watcher.utils';
 import { Settings } from '../../feature/setting/settings';
 
-export type RailSection = 'Work' | 'Files' | 'Notes' | 'Changes' | 'Review';
+export type RailSection = 'Work' | 'Files' | 'Notes' | 'Changes';
 export type Toolkit = 'Terminal' | 'Git' | 'Log' | 'Problems';
 
 @Injectable({

@@ -152,21 +152,6 @@ export class MainPanel {
           ];
         }
 
-        case 'Review': {
-          const label = tab.title ?? 'Review';
-          return [
-            {
-              id,
-              kind: 'review',
-              type,
-              label,
-              dirty: this.tabStore.isDirty(id),
-              active: id === active,
-              tooltip: label,
-            },
-          ];
-        }
-
         case 'Note': {
           const label = tab.title ?? 'Notes';
           return [
