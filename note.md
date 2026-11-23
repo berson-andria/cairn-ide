@@ -43,6 +43,7 @@
 - highlight unsaved file.*LOW PRIORITY*
 - add persistance
 - add lsp installation process
+- delete from opened folder history deleted folder.
 
 - save file as
 - workspace reset after selecting

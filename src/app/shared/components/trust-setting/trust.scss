@@ -4,16 +4,26 @@
   padding: 22px;
   width: 600px;
 }
-.hd {
+.header {
   display: flex;
-  gap: 12px;
-  align-items: flex-start;
+  gap: var(--space-12);
+  align-items: center;
   margin-bottom: 12px;
 }
 p {
   margin: 0 0 14px;
   line-height: 1.5;
   color: var(--color-text-muted);
+}
+span.icon {
+  display: inline-block;
+  padding: var(--space-4);
+  border-radius: var(--radius-chip);
+  height: 100%;
+  width: auto;
+  aspect-ratio: 1/1;
+  background-color: var(--color-warning-bg);
+  color: var(--color-attention);
 }
 
 user agent stylesheet p {
@@ -35,9 +45,8 @@ user agent stylesheet p {
 .ro {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
-  font-size: 12px;
+  justify-content: space-between;
+  padding: var(--space-6) var(--space-10);
 }
 .nt {
   display: flex;
@@ -52,15 +61,4 @@ user agent stylesheet p {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 18px;
-}
-.b {
-  background: none;
-  border: 1px solid #4a443a;
-  border-radius: 6px;
-  color: #e8e2d6;
-  font: inherit;
-  font-size: 13px;
-  padding: 7px 14px;
-  min-height: 36px;
-  cursor: pointer;
 }
