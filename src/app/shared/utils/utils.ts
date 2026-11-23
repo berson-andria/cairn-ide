@@ -30,3 +30,30 @@ export function convertToDaysAndHours(
 
   return parts.length > 0 ? parts.join(' ') : '0 seconds';
 }
+export interface FormatBytesOptions {
+  /** Number of decimal places to display (default: 2) */
+  decimals?: number;
+  /** Use base-1024 (KiB, MiB) instead of base-1000 (KB, MB) (default: false) */
+  binary?: boolean;
+}
+
+export function formatBytes(bytes: number, options: FormatBytesOptions = {}): string {
+  const { decimals = 2, binary = false } = options;
+
+  if (!Number.isFinite(bytes)) return '0 B';
+  if (bytes === 0) return '0 B';
+
+  const isNegative = bytes < 0;
+  const absBytes = Math.abs(bytes);
+
+  const base = binary ? 1024 : 1000;
+  const units = binary
+    ? ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB']
+    : ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+
+  const dm = Math.max(0, decimals);
+  const exponent = Math.min(Math.floor(Math.log(absBytes) / Math.log(base)), units.length - 1);
+
+  const value = parseFloat((absBytes / Math.pow(base, exponent)).toFixed(dm));
+  return `${isNegative ? '-' : ''}${value} ${units[exponent]}`;
+}
