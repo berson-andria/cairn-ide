@@ -19,6 +19,7 @@ pub enum ServiceErrorCode {
     NoProject,
     RunActive,
     TrustRequired,
+    WorkflowChoiceRequired,
     RuntimeUnavailable,
     ModelUnavailable,
     ModelError,

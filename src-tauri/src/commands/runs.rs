@@ -77,6 +77,23 @@ pub async fn workflow_status(
 }
 
 #[tauri::command]
+pub async fn workflow_choose(
+    scope: String,
+    projects: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
+) -> Result<(), ServiceError> {
+    runs.workflow_choose(&projects, &scope)
+}
+
+#[tauri::command]
+pub async fn workflow_choice_clear(
+    projects: State<'_, ProjectState>,
+    runs: State<'_, RunManager>,
+) -> Result<(), ServiceError> {
+    runs.workflow_choice_clear(&projects)
+}
+
+#[tauri::command]
 pub async fn workflow_templates(
     runs: State<'_, RunManager>,
 ) -> Result<Vec<WorkflowTemplate>, ServiceError> {

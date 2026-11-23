@@ -63,5 +63,6 @@ contracts and status live in [CONTEXT.md](./CONTEXT.md) and
 - Single-file trust -> whole workflows folder: helper files can change run
   behavior too.
 - workflows chosen by name -> one workflow per scope with a main.py entry.
+- no-entry never falls through -> ask once, remember per project.
 - Full-record create inputs -> dedicated input types: clients must not choose
   identity, status, timestamps, schema version, or revision.

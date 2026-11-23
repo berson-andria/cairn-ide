@@ -98,6 +98,8 @@ pub fn run() {
             commands::runs::run_list,
             commands::runs::run_log,
             commands::runs::workflow_status,
+            commands::runs::workflow_choose,
+            commands::runs::workflow_choice_clear,
             commands::runs::workflow_templates,
             commands::runs::workflow_create,
             commands::runs::workspace_trust_status,

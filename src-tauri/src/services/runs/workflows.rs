@@ -11,6 +11,7 @@ use std::{
 };
 
 const TRUST_FILE: &str = "workflow-trust.json";
+const CHOICE_FILE: &str = "workflow-choice.json";
 pub const ENTRY_FILE: &str = "main.py";
 const PROJECT_FOLDER: &str = ".cairn/workflows";
 const GLOBAL_FOLDER: &str = "<config dir>/cairn/workflows";
@@ -65,6 +66,7 @@ const STDLIB_MODULES: &[&str] = &[
     "uuid",
 ];
 static TRUST_STORE_LOCK: Mutex<()> = Mutex::new(());
+static CHOICE_STORE_LOCK: Mutex<()> = Mutex::new(());
 static WORKFLOW_CREATE_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -103,6 +105,32 @@ pub enum WorkflowFolderStatus {
 pub struct WorkflowStatus {
     pub active: Option<WorkflowSource>,
     pub sources: Vec<WorkflowScopeStatus>,
+    pub needs_choice: bool,
+    pub choice: Option<WorkflowSource>,
+    pub choice_options: WorkflowChoiceOptions,
+    pub active_via: Option<WorkflowActiveVia>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowChoiceOptions {
+    pub bundled: bool,
+    pub global: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WorkflowActiveVia {
+    Project,
+    Chosen,
+    Fallback,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowChoice {
+    scope: WorkflowSource,
+    chosen_at: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -196,6 +224,7 @@ impl TrustEntry {
 }
 
 type TrustStore = BTreeMap<String, TrustEntry>;
+type WorkflowChoiceStore = BTreeMap<String, WorkflowChoice>;
 
 pub fn workflow_status(
     root: &Path,
@@ -240,11 +269,69 @@ pub fn workflow_status_with_dirs(
             true,
         )?);
     }
-    let active = sources
-        .iter()
-        .find(|scope| scope.status != WorkflowFolderStatus::Empty)
-        .map(|scope| scope.source);
-    Ok(WorkflowStatus { active, sources })
+    let choices = read_workflow_choice_store(data_dir)?;
+    let stored_choice = choices.get(&trust_key(root)?).map(|choice| choice.scope);
+    let project_status = sources[0].status;
+    let global_status = sources[1].status;
+    let bundled_status = sources[2].status;
+    let (active, needs_choice, choice, active_via) = match project_status {
+        WorkflowFolderStatus::Ok => (
+            Some(WorkflowSource::Project),
+            false,
+            None,
+            Some(WorkflowActiveVia::Project),
+        ),
+        WorkflowFolderStatus::ReservedName => (None, false, None, None),
+        WorkflowFolderStatus::NoEntry => {
+            let choice = match stored_choice {
+                Some(WorkflowSource::Bundled) => Some(WorkflowSource::Bundled),
+                Some(WorkflowSource::Global) if global_status == WorkflowFolderStatus::Ok => {
+                    Some(WorkflowSource::Global)
+                }
+                _ => None,
+            };
+            let active = choice.filter(|choice| {
+                let status = match choice {
+                    WorkflowSource::Global => global_status,
+                    WorkflowSource::Bundled => bundled_status,
+                    WorkflowSource::Project => unreachable!(),
+                };
+                status == WorkflowFolderStatus::Ok
+            });
+            (
+                active,
+                choice.is_none(),
+                choice,
+                active.map(|_| WorkflowActiveVia::Chosen),
+            )
+        }
+        WorkflowFolderStatus::Empty => {
+            let fallback = if global_status != WorkflowFolderStatus::Empty {
+                Some((WorkflowSource::Global, global_status))
+            } else if bundled_status != WorkflowFolderStatus::Empty {
+                Some((WorkflowSource::Bundled, bundled_status))
+            } else {
+                None
+            };
+            match fallback {
+                Some((source, WorkflowFolderStatus::Ok)) => {
+                    (Some(source), false, None, Some(WorkflowActiveVia::Fallback))
+                }
+                _ => (None, false, None, None),
+            }
+        }
+    };
+    Ok(WorkflowStatus {
+        active,
+        sources,
+        needs_choice,
+        choice,
+        choice_options: WorkflowChoiceOptions {
+            bundled: true,
+            global: global_status == WorkflowFolderStatus::Ok,
+        },
+        active_via,
+    })
 }
 
 pub fn resolve_active_with_dirs(
@@ -254,9 +341,39 @@ pub fn resolve_active_with_dirs(
     bundled_dir: Option<&Path>,
 ) -> Result<Workflow, ServiceError> {
     let status = workflow_status_with_dirs(root, data_dir, global_dir, bundled_dir)?;
-    let source = status
-        .active
-        .ok_or_else(|| ServiceError::validation("no workflow is available in any scope"))?;
+    if status.sources[0].status == WorkflowFolderStatus::Ok {
+        workflow_choice_clear(root, data_dir)?;
+    }
+    if status.sources[0].status == WorkflowFolderStatus::ReservedName {
+        return Err(scope_validation(&status.sources[0]));
+    }
+    if status.needs_choice {
+        return Err(ServiceError::new(
+            ServiceErrorCode::WorkflowChoiceRequired,
+            "This project's workflows folder has no main.py. Choose which workflow to use.",
+        ));
+    }
+    let source = status.active.ok_or_else(|| {
+        let failed_scope = if status.sources[0].status == WorkflowFolderStatus::NoEntry {
+            status
+                .choice
+                .and_then(|choice| status.sources.iter().find(|scope| scope.source == choice))
+        } else if status.sources[0].status == WorkflowFolderStatus::Empty
+            && status.sources[1].status != WorkflowFolderStatus::Empty
+        {
+            Some(&status.sources[1])
+        } else if status.sources[0].status == WorkflowFolderStatus::Empty
+            && status.sources[1].status == WorkflowFolderStatus::Empty
+            && status.sources[2].status != WorkflowFolderStatus::Empty
+        {
+            Some(&status.sources[2])
+        } else {
+            None
+        };
+        failed_scope
+            .map(scope_validation)
+            .unwrap_or_else(|| ServiceError::validation("no workflow is available in any scope"))
+    })?;
     let scope = status
         .sources
         .iter()
@@ -300,6 +417,15 @@ pub fn resolve_active_with_dirs(
         script_hash,
         trusted: scope.trusted.unwrap_or(false),
     })
+}
+
+fn scope_validation(scope: &WorkflowScopeStatus) -> ServiceError {
+    ServiceError::validation(
+        scope
+            .message
+            .as_deref()
+            .unwrap_or("workflow scope is not runnable"),
+    )
 }
 
 fn scope_status(
@@ -516,7 +642,26 @@ pub fn create_workflow(
         .lock()
         .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
     let existing = scope_status(root, source, Some(&directory), display_folder, None, false)?;
-    if existing.status != WorkflowFolderStatus::Empty {
+    if source == WorkflowSource::Project && directory.is_dir() {
+        for entry in fs::read_dir(&directory)
+            .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?
+        {
+            let entry = entry
+                .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.eq_ignore_ascii_case(ENTRY_FILE) && name != ENTRY_FILE {
+                return Err(ServiceError::validation(format!(
+                    "rename {name} to {ENTRY_FILE} instead"
+                )));
+            }
+        }
+    }
+    if source == WorkflowSource::Project && existing.status == WorkflowFolderStatus::ReservedName {
+        return Err(scope_validation(&existing));
+    }
+    if existing.status != WorkflowFolderStatus::Empty
+        && !(source == WorkflowSource::Project && existing.status == WorkflowFolderStatus::NoEntry)
+    {
         return Err(ServiceError::validation(format!(
             "a workflow already exists in {display_folder}"
         )));
@@ -539,6 +684,17 @@ pub fn create_workflow(
     } else {
         None
     };
+    if source == WorkflowSource::Project {
+        if let Some(bundled_source) = bundled_source {
+            let collisions = bundled_copy_collisions(bundled_source, &directory)?;
+            if !collisions.is_empty() {
+                return Err(ServiceError::validation(format!(
+                    "bundled workflow paths already exist: {}",
+                    collisions.join(", ")
+                )));
+            }
+        }
+    }
     let template_contents = if bundled_source.is_none() {
         let templates = workflow_templates(sdk_path)?;
         if !templates.iter().any(|item| item.id == template) {
@@ -578,6 +734,99 @@ pub fn create_workflow(
         entry: format!("{display_folder}/{ENTRY_FILE}"),
         entry_path,
     })
+}
+
+pub fn workflow_choose(
+    root: &Path,
+    scope: &str,
+    data_dir: Option<&Path>,
+    global_dir: Option<&Path>,
+) -> Result<(), ServiceError> {
+    let source = match scope {
+        "bundled" => WorkflowSource::Bundled,
+        "global" => {
+            let status = scope_status(
+                root,
+                WorkflowSource::Global,
+                global_dir,
+                GLOBAL_FOLDER,
+                None,
+                false,
+            )?;
+            if status.status != WorkflowFolderStatus::Ok {
+                return Err(ServiceError::validation("no usable global workflow"));
+            }
+            WorkflowSource::Global
+        }
+        _ => return Err(ServiceError::validation("scope must be bundled or global")),
+    };
+    let _guard = CHOICE_STORE_LOCK
+        .lock()
+        .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+    let mut store = read_workflow_choice_store(data_dir)?;
+    store.insert(
+        trust_key(root)?,
+        WorkflowChoice {
+            scope: source,
+            chosen_at: now_ms(),
+        },
+    );
+    write_workflow_choice_store(&store, data_dir)
+}
+
+pub fn workflow_choice_clear(root: &Path, data_dir: Option<&Path>) -> Result<(), ServiceError> {
+    let _guard = CHOICE_STORE_LOCK
+        .lock()
+        .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+    let mut store = read_workflow_choice_store(data_dir)?;
+    if store.remove(&trust_key(root)?).is_some() {
+        write_workflow_choice_store(&store, data_dir)?;
+    }
+    Ok(())
+}
+
+fn bundled_copy_collisions(source: &Path, destination: &Path) -> Result<Vec<String>, ServiceError> {
+    fn collect_paths(
+        root: &Path,
+        path: &Path,
+        paths: &mut BTreeMap<String, String>,
+    ) -> Result<(), ServiceError> {
+        let entries = fs::read_dir(path)
+            .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+        for entry in entries {
+            let entry = entry
+                .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+            let entry_path = entry.path();
+            let relative = entry_path
+                .strip_prefix(root)
+                .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+            let display = relative
+                .components()
+                .map(|component| component.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/");
+            paths.insert(display.to_lowercase(), display);
+            if entry
+                .file_type()
+                .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?
+                .is_dir()
+            {
+                collect_paths(root, &entry_path, paths)?;
+            }
+        }
+        Ok(())
+    }
+
+    let mut source_paths = BTreeMap::new();
+    collect_paths(source, source, &mut source_paths)?;
+    let mut destination_paths = BTreeMap::new();
+    if destination.is_dir() {
+        collect_paths(destination, destination, &mut destination_paths)?;
+    }
+    Ok(source_paths
+        .keys()
+        .filter_map(|path| destination_paths.get(path).cloned())
+        .collect())
 }
 
 fn copy_directory(source: &Path, destination: &Path) -> Result<(), ServiceError> {
@@ -688,19 +937,13 @@ fn trust_status_with_data(
 ) -> Result<WorkflowTrustStatus, ServiceError> {
     let directory = root.join(".cairn").join("workflows");
     let current = hash_workflows_dir(&directory)?;
-    let py_files = current.files.iter().any(|file| {
-        Path::new(&file.path)
-            .extension()
-            .and_then(|extension| extension.to_str())
-            == Some("py")
-            && is_regular_file(&directory.join(&file.path))
-    });
+    let has_workflows = has_main_entry(&directory)?;
     let store = read_trust_store(data_dir)?;
     let approved = store
         .get(&trust_key(root)?)
         .or_else(|| legacy_trust_key(root).ok().and_then(|key| store.get(&key)))
         .map(TrustEntry::project_trust);
-    let trusted = py_files
+    let trusted = has_workflows
         && approved
             .as_ref()
             .is_some_and(|approval| approval.folder_hash == current.hash);
@@ -712,13 +955,34 @@ fn trust_status_with_data(
         None => Vec::new(),
     };
     Ok(WorkflowTrustStatus {
-        has_workflows: py_files,
+        has_workflows,
         trusted,
         folder_hash: current.hash,
         approved_hash: approved.map(|approval| approval.folder_hash),
         files: current.files,
         changes,
     })
+}
+
+fn has_main_entry(directory: &Path) -> Result<bool, ServiceError> {
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(ServiceError::new(ServiceErrorCode::Io, error.to_string())),
+    };
+    for entry in entries {
+        let entry =
+            entry.map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+        if entry.file_name() == ENTRY_FILE
+            && entry
+                .file_type()
+                .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?
+                .is_file()
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn diff_files(
@@ -853,12 +1117,6 @@ fn hash_workflows_dir(directory: &Path) -> Result<WorkflowDirectoryHash, Service
     })
 }
 
-fn is_regular_file(path: &Path) -> bool {
-    fs::symlink_metadata(path)
-        .map(|metadata| metadata.file_type().is_file())
-        .unwrap_or(false)
-}
-
 fn app_data_dir(data_dir: Option<&Path>) -> Result<PathBuf, ServiceError> {
     match data_dir {
         Some(path) => Ok(path.to_path_buf()),
@@ -870,6 +1128,92 @@ fn app_data_dir(data_dir: Option<&Path>) -> Result<PathBuf, ServiceError> {
                     "Could not determine the application data directory",
                 )
             }),
+    }
+}
+
+fn read_workflow_choice_store(
+    data_dir: Option<&Path>,
+) -> Result<WorkflowChoiceStore, ServiceError> {
+    let path = app_data_dir(data_dir)?.join(CHOICE_FILE);
+    match fs::read(&path) {
+        Ok(bytes) => match serde_json::from_slice(&bytes) {
+            Ok(store) => Ok(store),
+            Err(error) => {
+                tauri_plugin_log::log::warn!(
+                    "Ignoring corrupt workflow choice store {}: {error}",
+                    path.display()
+                );
+                Ok(BTreeMap::new())
+            }
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            tauri_plugin_log::log::debug!(
+                "Workflow choice store does not exist yet: {}",
+                path.display()
+            );
+            Ok(BTreeMap::new())
+        }
+        Err(error) => Err(ServiceError::new(ServiceErrorCode::Io, error.to_string())),
+    }
+}
+
+fn write_workflow_choice_store(
+    store: &WorkflowChoiceStore,
+    data_dir: Option<&Path>,
+) -> Result<(), ServiceError> {
+    let directory = app_data_dir(data_dir)?;
+    fs::create_dir_all(&directory)
+        .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+    let path = directory.join(CHOICE_FILE);
+    let temporary = directory.join(format!("{CHOICE_FILE}.{}.tmp", std::process::id()));
+    let bytes = serde_json::to_vec_pretty(store)
+        .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+    let result = (|| {
+        let mut file = fs::File::create(&temporary)?;
+        file.write_all(&bytes)?;
+        file.sync_all()?;
+        replace_workflow_choice_file(&temporary, &path)
+    })();
+    if let Err(error) = result {
+        let _ = fs::remove_file(&temporary);
+        return Err(ServiceError::new(ServiceErrorCode::Io, error.to_string()));
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn replace_workflow_choice_file(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::rename(source, destination)
+}
+
+#[cfg(windows)]
+fn replace_workflow_choice_file(source: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+    };
+
+    let source = source
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let destination = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let result = unsafe {
+        MoveFileExW(
+            source.as_ptr(),
+            destination.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if result == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
     }
 }
 
@@ -1154,7 +1498,7 @@ mod tests {
     }
 
     #[test]
-    fn workflow_status_selects_the_first_nonempty_scope_for_all_status_combinations() {
+    fn workflow_status_resolves_fallbacks_and_requests_a_choice_for_project_no_entry() {
         let states = [
             WorkflowFolderStatus::Empty,
             WorkflowFolderStatus::Ok,
@@ -1179,14 +1523,30 @@ mod tests {
                         Some(bundled.path()),
                     )
                     .unwrap();
-                    let expected = [
-                        (WorkflowSource::Project, project_state),
-                        (WorkflowSource::Global, global_state),
-                        (WorkflowSource::Bundled, bundled_state),
-                    ]
-                    .into_iter()
-                    .find(|(_, state)| *state != WorkflowFolderStatus::Empty)
-                    .map(|(source, _)| source);
+                    let expected = match project_state {
+                        WorkflowFolderStatus::Ok => Some(WorkflowSource::Project),
+                        WorkflowFolderStatus::Empty if global_state == WorkflowFolderStatus::Ok => {
+                            Some(WorkflowSource::Global)
+                        }
+                        WorkflowFolderStatus::Empty
+                            if global_state == WorkflowFolderStatus::Empty
+                                && bundled_state == WorkflowFolderStatus::Ok =>
+                        {
+                            Some(WorkflowSource::Bundled)
+                        }
+                        _ => None,
+                    };
+                    assert_eq!(
+                        status.needs_choice,
+                        project_state == WorkflowFolderStatus::NoEntry
+                    );
+                    assert_eq!(
+                        status.choice_options,
+                        WorkflowChoiceOptions {
+                            bundled: true,
+                            global: global_state == WorkflowFolderStatus::Ok
+                        }
+                    );
                     assert_eq!(
                         status.active, expected,
                         "unexpected active scope for {project_state:?}/{global_state:?}/{bundled_state:?}"
@@ -1221,6 +1581,13 @@ mod tests {
             serde_json::to_value(status).unwrap(),
             serde_json::json!({
                 "active": null,
+                "needsChoice": false,
+                "choice": null,
+                "choiceOptions": {
+                    "bundled": true,
+                    "global": false
+                },
+                "activeVia": null,
                 "sources": [
                     {
                         "source": "project",
@@ -1249,6 +1616,161 @@ mod tests {
     }
 
     #[test]
+    fn workflow_status_serializes_project_reserved_and_fallback_states_exactly() {
+        let root = tempdir().unwrap();
+        let global = tempdir().unwrap();
+        let bundled = tempdir().unwrap();
+        let data = tempdir().unwrap();
+        create_entry(global.path(), "global");
+        create_entry(bundled.path(), "bundled");
+        workflow_choose(
+            root.path(),
+            "bundled",
+            Some(data.path()),
+            Some(global.path()),
+        )
+        .unwrap();
+
+        let project = workflow_dir(root.path());
+        create_entry(&project, "project");
+        let project_status = workflow_status_with_dirs(
+            root.path(),
+            Some(data.path()),
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(project_status).unwrap(),
+            serde_json::json!({
+                "active": "project",
+                "sources": [
+                    {
+                        "source": "project",
+                        "folder": ".cairn/workflows",
+                        "status": "ok",
+                        "entry": ".cairn/workflows/main.py",
+                        "warnings": [],
+                        "trusted": false
+                    },
+                    {
+                        "source": "global",
+                        "folder": "<config dir>/cairn/workflows",
+                        "status": "ok",
+                        "entry": "<config dir>/cairn/workflows/main.py",
+                        "warnings": [],
+                        "trusted": true
+                    },
+                    {
+                        "source": "bundled",
+                        "folder": "<app>/workflows",
+                        "status": "ok",
+                        "entry": "<app>/workflows/main.py",
+                        "warnings": [],
+                        "trusted": true
+                    }
+                ],
+                "needsChoice": false,
+                "choice": null,
+                "choiceOptions": {
+                    "bundled": true,
+                    "global": true
+                },
+                "activeVia": "project"
+            })
+        );
+
+        fs::remove_file(project.join(ENTRY_FILE)).unwrap();
+        fs::write(project.join("Cairn.py"), "reserved").unwrap();
+        let reserved = workflow_status_with_dirs(
+            root.path(),
+            Some(data.path()),
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(reserved).unwrap(),
+            serde_json::json!({
+                "active": null,
+                "sources": [
+                    {
+                        "source": "project",
+                        "folder": ".cairn/workflows",
+                        "status": "reserved-name",
+                        "message": "Cairn.py would shadow the Cairn SDK; rename it",
+                        "warnings": [],
+                        "trusted": false
+                    },
+                    {
+                        "source": "global",
+                        "folder": "<config dir>/cairn/workflows",
+                        "status": "ok",
+                        "entry": "<config dir>/cairn/workflows/main.py",
+                        "warnings": [],
+                        "trusted": true
+                    },
+                    {
+                        "source": "bundled",
+                        "folder": "<app>/workflows",
+                        "status": "ok",
+                        "entry": "<app>/workflows/main.py",
+                        "warnings": [],
+                        "trusted": true
+                    }
+                ],
+                "needsChoice": false,
+                "choice": null,
+                "choiceOptions": {
+                    "bundled": true,
+                    "global": true
+                },
+                "activeVia": null
+            })
+        );
+
+        fs::remove_dir_all(&project).unwrap();
+        let global_fallback = workflow_status_with_dirs(
+            root.path(),
+            Some(data.path()),
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(global_fallback).unwrap()["activeVia"],
+            "fallback"
+        );
+        assert_eq!(
+            serde_json::to_value(
+                workflow_status_with_dirs(
+                    root.path(),
+                    Some(data.path()),
+                    Some(global.path()),
+                    Some(bundled.path())
+                )
+                .unwrap()
+            )
+            .unwrap()["active"],
+            "global"
+        );
+
+        fs::remove_dir_all(global.path()).unwrap();
+        let bundled_fallback = workflow_status_with_dirs(
+            root.path(),
+            Some(data.path()),
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap();
+        assert_eq!(bundled_fallback.active, Some(WorkflowSource::Bundled));
+        assert_eq!(
+            serde_json::to_value(bundled_fallback).unwrap()["activeVia"],
+            "fallback"
+        );
+    }
+
+    #[test]
     fn main_filename_is_case_sensitive_pycache_is_empty_and_reserved_names_are_case_insensitive() {
         let root = tempdir().unwrap();
         let data = tempdir().unwrap();
@@ -1259,7 +1781,8 @@ mod tests {
 
         fs::write(directory.join("Main.py"), "pass").unwrap();
         let status = workflow_status_with_dirs(root.path(), Some(data.path()), None, None).unwrap();
-        assert_eq!(status.active, Some(WorkflowSource::Project));
+        assert_eq!(status.active, None);
+        assert!(status.needs_choice);
         assert_eq!(status.sources[0].status, WorkflowFolderStatus::NoEntry);
         assert_eq!(
             status.sources[0].message.as_deref(),
@@ -1307,7 +1830,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_active_does_not_fall_through_and_returns_scope_specific_validation() {
+    fn resolve_active_requires_choice_for_project_no_entry_and_keeps_other_invalid_scopes_hard() {
         let root = tempdir().unwrap();
         let global = tempdir().unwrap();
         let bundled = tempdir().unwrap();
@@ -1324,8 +1847,11 @@ mod tests {
             Some(bundled.path()),
         )
         .unwrap_err();
-        assert_eq!(error.code, ServiceErrorCode::Validation);
-        assert_eq!(error.message, "no main.py in .cairn/workflows");
+        assert_eq!(error.code, ServiceErrorCode::WorkflowChoiceRequired);
+        assert_eq!(
+            error.message,
+            "This project's workflows folder has no main.py. Choose which workflow to use."
+        );
 
         fs::remove_file(project.join("helper.py")).unwrap();
         fs::write(project.join("cairn.py"), "shadow").unwrap();
@@ -1367,6 +1893,278 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(error.message, "no main.py in <app>/workflows");
+    }
+
+    #[test]
+    fn workflow_choices_are_per_project_and_revalidate_global_usability() {
+        let root = tempdir().unwrap();
+        let other_root = tempdir().unwrap();
+        let global = tempdir().unwrap();
+        let bundled = tempdir().unwrap();
+        let data = tempdir().unwrap();
+        let project = workflow_dir(root.path());
+        fs::create_dir_all(&project).unwrap();
+        fs::write(project.join("helper.py"), "keep").unwrap();
+        let other_project = workflow_dir(other_root.path());
+        fs::create_dir_all(&other_project).unwrap();
+        fs::write(other_project.join("helper.py"), "keep").unwrap();
+        create_entry(global.path(), "global");
+        create_entry(bundled.path(), "bundled");
+
+        assert_eq!(
+            resolve_active_with_dirs(
+                root.path(),
+                Some(data.path()),
+                Some(global.path()),
+                Some(bundled.path())
+            )
+            .unwrap_err()
+            .code,
+            ServiceErrorCode::WorkflowChoiceRequired
+        );
+
+        workflow_choose(
+            root.path(),
+            "bundled",
+            Some(data.path()),
+            Some(global.path()),
+        )
+        .unwrap();
+        let chosen_status = workflow_status_with_dirs(
+            root.path(),
+            Some(data.path()),
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(&chosen_status).unwrap()["active"],
+            "bundled"
+        );
+        assert_eq!(
+            serde_json::to_value(&chosen_status).unwrap()["choice"],
+            "bundled"
+        );
+        assert_eq!(
+            serde_json::to_value(&chosen_status).unwrap()["activeVia"],
+            "chosen"
+        );
+        assert_eq!(
+            serde_json::to_value(&chosen_status).unwrap(),
+            serde_json::json!({
+                "active": "bundled",
+                "sources": [
+                    {
+                        "source": "project",
+                        "folder": ".cairn/workflows",
+                        "status": "no-entry",
+                        "message": "no main.py in .cairn/workflows",
+                        "warnings": [],
+                        "trusted": false
+                    },
+                    {
+                        "source": "global",
+                        "folder": "<config dir>/cairn/workflows",
+                        "status": "ok",
+                        "entry": "<config dir>/cairn/workflows/main.py",
+                        "warnings": [],
+                        "trusted": true
+                    },
+                    {
+                        "source": "bundled",
+                        "folder": "<app>/workflows",
+                        "status": "ok",
+                        "entry": "<app>/workflows/main.py",
+                        "warnings": [],
+                        "trusted": true
+                    }
+                ],
+                "needsChoice": false,
+                "choice": "bundled",
+                "choiceOptions": {
+                    "bundled": true,
+                    "global": true
+                },
+                "activeVia": "chosen"
+            })
+        );
+        assert!(!chosen_status.needs_choice);
+        assert_eq!(
+            resolve_active_with_dirs(
+                root.path(),
+                Some(data.path()),
+                Some(global.path()),
+                Some(bundled.path())
+            )
+            .unwrap()
+            .source,
+            WorkflowSource::Bundled
+        );
+
+        let stored: serde_json::Value =
+            serde_json::from_slice(&fs::read(data.path().join(CHOICE_FILE)).unwrap()).unwrap();
+        let key = trust_key(root.path()).unwrap();
+        assert_eq!(stored[&key]["scope"], "bundled");
+        assert!(stored[&key]["chosenAt"].as_u64().is_some());
+
+        workflow_choose(
+            other_root.path(),
+            "bundled",
+            Some(data.path()),
+            Some(global.path()),
+        )
+        .unwrap();
+        assert_eq!(
+            workflow_status_with_dirs(
+                other_root.path(),
+                Some(data.path()),
+                Some(global.path()),
+                Some(bundled.path())
+            )
+            .unwrap()
+            .choice,
+            Some(WorkflowSource::Bundled)
+        );
+
+        workflow_choose(
+            root.path(),
+            "global",
+            Some(data.path()),
+            Some(global.path()),
+        )
+        .unwrap();
+        assert_eq!(
+            resolve_active_with_dirs(
+                root.path(),
+                Some(data.path()),
+                Some(global.path()),
+                Some(bundled.path())
+            )
+            .unwrap()
+            .source,
+            WorkflowSource::Global
+        );
+        fs::remove_dir_all(global.path()).unwrap();
+        let removed = workflow_status_with_dirs(
+            root.path(),
+            Some(data.path()),
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap();
+        assert!(removed.needs_choice);
+        assert_eq!(removed.choice, None);
+        assert_eq!(removed.active, None);
+        assert_eq!(
+            resolve_active_with_dirs(
+                root.path(),
+                Some(data.path()),
+                Some(global.path()),
+                Some(bundled.path())
+            )
+            .unwrap_err()
+            .code,
+            ServiceErrorCode::WorkflowChoiceRequired
+        );
+        let error = workflow_choose(
+            root.path(),
+            "global",
+            Some(data.path()),
+            Some(global.path()),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::Validation);
+        assert_eq!(error.message, "no usable global workflow");
+
+        workflow_choice_clear(root.path(), Some(data.path())).unwrap();
+        let cleared = workflow_status_with_dirs(
+            root.path(),
+            Some(data.path()),
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap();
+        assert_eq!(cleared.choice, None);
+        assert!(cleared.needs_choice);
+    }
+
+    #[test]
+    fn corrupt_choice_store_is_ignored_and_reserved_projects_never_offer_a_choice() {
+        let root = tempdir().unwrap();
+        let data = tempdir().unwrap();
+        let project = workflow_dir(root.path());
+        fs::create_dir_all(&project).unwrap();
+        fs::write(project.join("helper.py"), "keep").unwrap();
+        fs::write(data.path().join(CHOICE_FILE), b"{ broken json").unwrap();
+        let status = workflow_status_with_dirs(root.path(), Some(data.path()), None, None).unwrap();
+        assert!(status.needs_choice);
+        assert_eq!(status.choice, None);
+        assert_eq!(status.active, None);
+        assert_eq!(
+            serde_json::to_value(&status).unwrap(),
+            serde_json::json!({
+                "active": null,
+                "sources": [
+                    {
+                        "source": "project",
+                        "folder": ".cairn/workflows",
+                        "status": "no-entry",
+                        "message": "no main.py in .cairn/workflows",
+                        "warnings": [],
+                        "trusted": false
+                    },
+                    {
+                        "source": "global",
+                        "folder": "<config dir>/cairn/workflows",
+                        "status": "empty",
+                        "warnings": [],
+                        "trusted": null
+                    },
+                    {
+                        "source": "bundled",
+                        "folder": "<app>/workflows",
+                        "status": "empty",
+                        "warnings": [],
+                        "trusted": null
+                    }
+                ],
+                "needsChoice": true,
+                "choice": null,
+                "choiceOptions": {
+                    "bundled": true,
+                    "global": false
+                },
+                "activeVia": null
+            })
+        );
+
+        fs::write(project.join("cairn.py"), "shadow").unwrap();
+        let reserved =
+            workflow_status_with_dirs(root.path(), Some(data.path()), None, None).unwrap();
+        assert_eq!(
+            reserved.sources[0].status,
+            WorkflowFolderStatus::ReservedName
+        );
+        assert!(!reserved.needs_choice);
+        assert_eq!(reserved.choice, None);
+        assert_eq!(
+            resolve_active_with_dirs(root.path(), Some(data.path()), None, None)
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::Validation
+        );
+    }
+
+    #[test]
+    fn no_entry_workflow_is_not_advertised_for_trust_review() {
+        let root = tempdir().unwrap();
+        let data = tempdir().unwrap();
+        let project = workflow_dir(root.path());
+        fs::create_dir_all(&project).unwrap();
+        fs::write(project.join("helper.py"), "pass").unwrap();
+        let status = trust_status(root.path(), Some(data.path())).unwrap();
+        assert!(!status.has_workflows);
+        assert!(!status.trusted);
     }
 
     #[test]
@@ -1419,6 +2217,99 @@ mod tests {
                 created_text
             );
         }
+    }
+
+    #[test]
+    fn project_workflow_create_preserves_no_entry_files_and_rejects_case_collisions() {
+        let sdk_path =
+            super::super::sdk_dir(true, Path::new(env!("CARGO_MANIFEST_DIR")), None).unwrap();
+        let global = tempdir().unwrap();
+        let bundled = tempdir().unwrap();
+
+        let root = tempdir().unwrap();
+        let directory = workflow_dir(root.path());
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("helper.py"), "preserve this").unwrap();
+        create_workflow(
+            root.path(),
+            "project",
+            "blank",
+            &sdk_path,
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(directory.join("helper.py")).unwrap(),
+            "preserve this"
+        );
+        assert!(directory.join(ENTRY_FILE).is_file());
+
+        let main_case_root = tempdir().unwrap();
+        let main_case_directory = workflow_dir(main_case_root.path());
+        fs::create_dir_all(&main_case_directory).unwrap();
+        fs::write(main_case_directory.join("Main.py"), "existing").unwrap();
+        let error = create_workflow(
+            main_case_root.path(),
+            "project",
+            "blank",
+            &sdk_path,
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::Validation);
+        assert_eq!(error.message, "rename Main.py to main.py instead");
+
+        let bundled_root = tempdir().unwrap();
+        let bundled_directory = workflow_dir(bundled_root.path());
+        fs::create_dir_all(bundled_directory.join("Helpers")).unwrap();
+        fs::write(bundled_directory.join("Helpers/shared.py"), "keep").unwrap();
+        fs::write(bundled.path().join(ENTRY_FILE), "bundled").unwrap();
+        fs::create_dir_all(bundled.path().join("helpers")).unwrap();
+        fs::write(bundled.path().join("helpers/shared.py"), "copy").unwrap();
+        let error = create_workflow(
+            bundled_root.path(),
+            "project",
+            "bundled",
+            &sdk_path,
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::Validation);
+        assert!(error.message.contains("Helpers"));
+        assert_eq!(
+            fs::read_to_string(bundled_directory.join("Helpers/shared.py")).unwrap(),
+            "keep"
+        );
+        assert!(!bundled_directory.join(ENTRY_FILE).exists());
+
+        let copied_root = tempdir().unwrap();
+        let copied_directory = workflow_dir(copied_root.path());
+        fs::create_dir_all(&copied_directory).unwrap();
+        fs::write(copied_directory.join("existing.txt"), "preserve").unwrap();
+        create_workflow(
+            copied_root.path(),
+            "project",
+            "bundled",
+            &sdk_path,
+            Some(global.path()),
+            Some(bundled.path()),
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(copied_directory.join("existing.txt")).unwrap(),
+            "preserve"
+        );
+        assert_eq!(
+            fs::read_to_string(copied_directory.join(ENTRY_FILE)).unwrap(),
+            "bundled"
+        );
+        assert_eq!(
+            fs::read_to_string(copied_directory.join("helpers/shared.py")).unwrap(),
+            "copy"
+        );
     }
 
     #[test]

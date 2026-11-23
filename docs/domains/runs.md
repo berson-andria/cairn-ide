@@ -20,7 +20,9 @@ The Tauri commands are:
 | `run_get` | optional `runId` | with an id, that run record; without one, active run record, last run record, or `null` |
 | `run_list` | `limit` | run records, newest first |
 | `run_log` | `runId`, `maxLines` | `string[]` |
-| `workflow_status` | — | active scope and per-scope folder status |
+| `workflow_status` | — | resolved scope, choice requirement, and per-scope folder status |
+| `workflow_choose` | `scope` (`bundled` or `global`) | `null` |
+| `workflow_choice_clear` | — | `null` |
 | `workflow_templates` | — | `[{ id, title, description }]` |
 | `workflow_create` | `scope`, `template` | `{ source, entry, entryPath }` |
 | `workspace_trust_status` | — | current folder hash, file inventory, approval and changes |
@@ -43,13 +45,19 @@ Each scope is a `workflows/` directory with one entry point, exactly
 `sdk/python/workflows` in development). Nothing is selected by filename.
 
 `workflow_status` returns
-`{ active, sources: [{ source, folder, status, entry?, message?, warnings, trusted }] }`.
-`active` is the first nonempty scope in project/global/bundled order, or `null`.
+`{ active, sources, needsChoice, choice, choiceOptions, activeVia }`, where
+`sources` contains `{ source, folder, status, entry?, message?, warnings,
+trusted }`, `choiceOptions` is `{ bundled: true, global: boolean }`, and
+`activeVia` is `project`, `chosen`, `fallback`, or `null`. `active` is the
+effective runnable scope or `null` if a choice is required or resolution has a
+hard error. `choice` is the usable remembered scope for a project `no-entry`
+folder; it is `null` when the saved choice is ignored or unusable.
+
 Statuses are `empty` (missing directory or only `__pycache__`), `ok`,
 `no-entry` (has entries but no exact-case `main.py`), and `reserved-name`
 (a root `cairn.py` file or `cairn` directory, case-insensitive). An active
-scope that is not `ok` fails `run_start` with `Validation`; it never falls
-through. The messages are `no main.py in <display folder>` and
+scope that is not `ok` fails `run_start` with `Validation`. The messages are
+`no main.py in <display folder>` and
 `<conflicting name> would shadow the Cairn SDK; rename it`. Display folders
 are `.cairn/workflows`, `<config dir>/cairn/workflows`, and
 `<app>/workflows`; they never expose an absolute path or username. `entry` is
@@ -59,8 +67,34 @@ execution.
 `trusted` is the project folder's 7b trust state, `true` for nonempty global
 and bundled scopes, and `null` for an empty scope.
 
-An empty project scope permits selection of global, then bundled. Once a scope
-contains any other entry, it becomes active even when it has no `main.py`.
+Resolution is intentionally different for the two non-runnable project states:
+
+1. Project `ok` always runs, and any remembered choice is ignored.
+2. Project `reserved-name` is a hard `Validation` error; no choice is offered.
+3. Project `no-entry` uses a remembered `bundled` choice, or a remembered
+   `global` choice only while global status is `ok`. Otherwise `needsChoice` is
+   true and `run_start` returns `WorkflowChoiceRequired` with
+   `This project's workflows folder has no main.py. Choose which workflow to use.`
+   A selected global or bundled workflow does not require project trust.
+4. Project `empty` falls back to nonempty global, then bundled, without asking.
+   A global `no-entry` or `reserved-name` is a hard `Validation` error rather
+   than a fall-through.
+
+`workflow_choose` accepts only `bundled` or `global`; global must currently be
+`ok`, otherwise it returns `Validation: no usable global workflow`. Choices are
+stored by canonical project root in app-data `workflow-choice.json` as
+`{ "<canonical root>": { "scope": "...", "chosenAt": <ms> } }` and replaced
+atomically. Missing or corrupt choice data is logged and treated as no choice.
+`workflow_choice_clear` clears only the current project's entry. `run_start`
+clears a saved choice when project status has become `ok`; successful project
+workflow creation also clears it.
+
+The dialog flow is limited to project `no-entry`: present the options indicated
+by `choiceOptions`, let the user choose bundled or usable global, and remember
+that choice for this project. If the user instead creates a project workflow,
+the new `main.py` takes precedence and the remembered choice is cleared. Empty
+projects never show this dialog.
+
 `run_start` launches `uv run --script <active folder>/main.py` with the project
 root as cwd. The run record's `workflow` and `source` fields both hold the scope
 label (`project`, `global`, or `bundled`). The UI-facing run command has no
@@ -71,9 +105,13 @@ workflow-name argument.
 `# description:` comments in the first ten lines. The built-in templates are
 `blank`, `steps`, and `edit-file`. `workflow_create` accepts scope `project` or
 `global` and either one of those ids or `bundled` (a recursive copy of the
-bundled workflow directory). Creation is refused unless that scope is empty;
-it never overwrites an existing workflow. Project creation first ensures
-`.cairn`, and global creation creates its directories. `entryPath` is the real
+bundled workflow directory). Project creation is allowed in `empty` or
+`no-entry` folders: ordinary templates create only `main.py` and preserve
+existing files; a case-insensitive `Main.py`-style entry must be renamed, and
+bundled copies are refused if any destination path collides case-insensitively.
+It never overwrites. Global creation behavior is unchanged. Project creation
+first ensures `.cairn`, and global creation creates its directories.
+`entryPath` is the real
 absolute path to open in the editor; unlike status display strings, it is not
 redacted.
 
@@ -104,7 +142,8 @@ remain readable; they establish trust when the current folder hash matches but
 cannot produce a per-file change list. The project’s settings or other files
 cannot grant trust.
 
-`workspace_trust_status` returns `hasWorkflows`, `trusted`, `folderHash`,
+`workspace_trust_status` returns `hasWorkflows` (true only when exact-case
+`main.py` exists in the project folder), `trusted`, `folderHash`,
 optional `approvedHash`, current `files` (`path`, `size`, `sha256`), and
 `changes` relative to the stored file inventory (`added`, `modified`, or
 `removed`). Changes are empty if there is no approval or the approval predates

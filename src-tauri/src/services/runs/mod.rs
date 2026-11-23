@@ -1169,6 +1169,25 @@ impl RunManager {
         )
     }
 
+    pub fn workflow_choose(
+        &self,
+        projects: &ProjectState,
+        scope: &str,
+    ) -> Result<(), ServiceError> {
+        let project = projects.services()?;
+        workflows::workflow_choose(
+            &project.root,
+            scope,
+            self.inner.trust_data_dir.as_deref(),
+            self.inner.global_workflows_dir.as_deref(),
+        )
+    }
+
+    pub fn workflow_choice_clear(&self, projects: &ProjectState) -> Result<(), ServiceError> {
+        let project = projects.services()?;
+        workflows::workflow_choice_clear(&project.root, self.inner.trust_data_dir.as_deref())
+    }
+
     pub fn workflow_templates(&self) -> Result<Vec<workflows::WorkflowTemplate>, ServiceError> {
         let sdk_dir = sdk_dir(
             cfg!(debug_assertions),
@@ -1193,10 +1212,22 @@ impl RunManager {
         if !matches!(scope, "project" | "global") {
             return Err(ServiceError::validation("scope must be project or global"));
         }
-        let root = if scope == "project" {
+        let project_root = if scope == "project" {
             let project = projects.services()?;
             ensure_cairn_dir(&project.root)
                 .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+            let status = workflows::workflow_status_with_dirs(
+                &project.root,
+                self.inner.trust_data_dir.as_deref(),
+                self.inner.global_workflows_dir.as_deref(),
+                self.bundled_workflows_dir().as_deref(),
+            )?;
+            if status.sources[0].status == workflows::WorkflowFolderStatus::Ok {
+                workflows::workflow_choice_clear(
+                    &project.root,
+                    self.inner.trust_data_dir.as_deref(),
+                )?;
+            }
             project.root.clone()
         } else {
             PathBuf::new()
@@ -1213,14 +1244,18 @@ impl RunManager {
             )
         })?;
         let global_dir = self.inner.global_workflows_dir.clone();
-        workflows::create_workflow(
-            &root,
+        let created = workflows::create_workflow(
+            &project_root,
             scope,
             template,
             &sdk_dir,
             global_dir.as_deref(),
             self.bundled_workflows_dir().as_deref(),
-        )
+        )?;
+        if scope == "project" {
+            workflows::workflow_choice_clear(&project_root, self.inner.trust_data_dir.as_deref())?;
+        }
+        Ok(created)
     }
 
     pub fn workspace_trust_status(
@@ -1666,6 +1701,7 @@ mod tests {
 
     struct FakeState {
         exit_code: AtomicI32,
+        script: Mutex<Option<PathBuf>>,
     }
 
     struct FakeChild(Arc<FakeState>);
@@ -1696,10 +1732,11 @@ mod tests {
     }
 
     impl ChildLauncher for FakeLauncher {
-        fn spawn(&self, _: &LaunchConfig) -> io::Result<Box<dyn ChildProcess>> {
+        fn spawn(&self, config: &LaunchConfig) -> io::Result<Box<dyn ChildProcess>> {
             if self.fail {
                 return Err(io::Error::new(io::ErrorKind::NotFound, "uv missing"));
             }
+            *self.state.script.lock().unwrap() = Some(config.script.clone());
             Ok(Box::new(FakeChild(self.state.clone())))
         }
     }
@@ -1739,6 +1776,7 @@ mod tests {
             .unwrap();
         let fake = Arc::new(FakeState {
             exit_code: AtomicI32::new(-1),
+            script: Mutex::new(None),
         });
         let manager = RunManager::with_options_and_grace(
             Arc::new(FakeLauncher {
@@ -1747,6 +1785,46 @@ mod tests {
             }),
             timeout,
             finish_grace,
+            Some(data.path().to_path_buf()),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            None,
+        );
+        Harness {
+            _root: root,
+            _data: data,
+            project,
+            task_id: task.id,
+            manager,
+            fake,
+            sink,
+        }
+    }
+
+    fn no_entry_harness() -> Harness {
+        let root = tempdir().unwrap();
+        let data = tempdir().unwrap();
+        let workflow_dir = root.path().join(".cairn/workflows");
+        fs::create_dir_all(&workflow_dir).unwrap();
+        fs::write(workflow_dir.join("helper.py"), "pass").unwrap();
+        let sink = RecordingSink::default();
+        let project = Arc::new(ProjectState::default());
+        project.open(root.path(), sink.clone()).unwrap();
+        let task = project
+            .services()
+            .unwrap()
+            .tasks
+            .create(crate::types::task::TaskItem::new("task"))
+            .unwrap();
+        let fake = Arc::new(FakeState {
+            exit_code: AtomicI32::new(-1),
+            script: Mutex::new(None),
+        });
+        let manager = RunManager::with_options(
+            Arc::new(FakeLauncher {
+                state: fake.clone(),
+                fail: false,
+            }),
+            Duration::from_secs(30),
             Some(data.path().to_path_buf()),
             PathBuf::from(env!("CARGO_MANIFEST_DIR")),
             None,
@@ -1849,14 +1927,17 @@ mod tests {
     }
 
     #[test]
-    fn run_start_refuses_missing_or_reserved_entry_with_exact_validation_messages() {
+    fn run_start_requires_a_choice_for_no_entry_and_refuses_reserved_entries() {
         let h = harness(Duration::from_secs(3), false);
         let directory = h._root.path().join(".cairn/workflows");
         fs::remove_file(directory.join(workflows::ENTRY_FILE)).unwrap();
         fs::write(directory.join("Main.py"), "pass").unwrap();
         let error = start(&h).unwrap_err();
-        assert_eq!(error.code, ServiceErrorCode::Validation);
-        assert_eq!(error.message, "no main.py in .cairn/workflows");
+        assert_eq!(error.code, ServiceErrorCode::WorkflowChoiceRequired);
+        assert_eq!(
+            error.message,
+            "This project's workflows folder has no main.py. Choose which workflow to use."
+        );
 
         fs::remove_file(directory.join("Main.py")).unwrap();
         fs::write(directory.join("Cairn.py"), "pass").unwrap();
@@ -2624,6 +2705,180 @@ mod tests {
     }
 
     #[test]
+    fn no_entry_requires_choice_without_starting_task_then_runs_the_chosen_bundled_workflow() {
+        let h = no_entry_harness();
+        let task = h.project.services().unwrap().tasks.get(&h.task_id).unwrap();
+        let error = h
+            .manager
+            .run_start(
+                &h.project,
+                task.id.clone(),
+                task.rev,
+                Arc::new(h.sink.clone()),
+            )
+            .unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::WorkflowChoiceRequired);
+        assert_eq!(
+            h.project
+                .services()
+                .unwrap()
+                .tasks
+                .get(&h.task_id)
+                .unwrap()
+                .status,
+            TaskStatus::Ready
+        );
+
+        h.manager.workflow_choose(&h.project, "bundled").unwrap();
+        let record = h
+            .manager
+            .run_start(&h.project, task.id, task.rev, Arc::new(h.sink.clone()))
+            .unwrap();
+        assert_eq!(record.workflow, "bundled");
+        assert_eq!(record.source, workflows::WorkflowSource::Bundled);
+        assert!(h
+            .fake
+            .script
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .ends_with(Path::new("sdk/python/workflows/main.py")));
+        h.fake.exit_code.store(0, Ordering::SeqCst);
+        assert_eq!(
+            wait_outcome(&h.manager).outcome,
+            Some(RunOutcome::NeedsReview)
+        );
+    }
+
+    #[test]
+    fn project_workflow_supersedes_and_clears_a_remembered_choice_on_run_start() {
+        let h = no_entry_harness();
+        h.manager.workflow_choose(&h.project, "bundled").unwrap();
+        let entry = h._root.path().join(".cairn/workflows/main.py");
+        fs::write(&entry, "pass").unwrap();
+        let status = h.manager.workflow_status(&h.project).unwrap();
+        assert_eq!(status.active, Some(workflows::WorkflowSource::Project));
+        assert_eq!(status.choice, None);
+        assert_eq!(
+            status.active_via,
+            Some(workflows::WorkflowActiveVia::Project)
+        );
+        let task = h.project.services().unwrap().tasks.get(&h.task_id).unwrap();
+        let error = h
+            .manager
+            .run_start(
+                &h.project,
+                task.id.clone(),
+                task.rev,
+                Arc::new(h.sink.clone()),
+            )
+            .unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::TrustRequired);
+        let choices: serde_json::Value =
+            serde_json::from_slice(&fs::read(h._data.path().join("workflow-choice.json")).unwrap())
+                .unwrap();
+        let root_key = h
+            ._root
+            .path()
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        assert!(choices.get(&root_key).is_none());
+        assert_eq!(
+            h.project
+                .services()
+                .unwrap()
+                .tasks
+                .get(&h.task_id)
+                .unwrap()
+                .status,
+            TaskStatus::Ready
+        );
+    }
+
+    #[test]
+    fn project_workflow_creation_clears_a_remembered_choice() {
+        let h = no_entry_harness();
+        h.manager.workflow_choose(&h.project, "bundled").unwrap();
+        let created = h
+            .manager
+            .workflow_create(&h.project, "project", "blank")
+            .unwrap();
+        assert_eq!(created.entry, ".cairn/workflows/main.py");
+        let choices: serde_json::Value =
+            serde_json::from_slice(&fs::read(h._data.path().join("workflow-choice.json")).unwrap())
+                .unwrap();
+        let root_key = h
+            ._root
+            .path()
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        assert!(choices.get(&root_key).is_none());
+    }
+
+    #[test]
+    fn workflow_choice_commands_require_an_open_project() {
+        let projects = ProjectState::default();
+        let manager = RunManager::default();
+        assert_eq!(
+            manager
+                .workflow_choose(&projects, "bundled")
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::NoProject
+        );
+        assert_eq!(
+            manager.workflow_choice_clear(&projects).unwrap_err().code,
+            ServiceErrorCode::NoProject
+        );
+    }
+
+    #[test]
+    #[ignore = "requires uv and executes the bundled workflow in a real Python process"]
+    fn ignored_no_entry_project_runs_the_remembered_bundled_workflow_with_uv() {
+        let root = tempdir().unwrap();
+        let data = tempdir().unwrap();
+        let project = root.path().join(".cairn/workflows");
+        fs::create_dir_all(&project).unwrap();
+        fs::write(project.join("helper.py"), "pass").unwrap();
+        let projects = ProjectState::default();
+        projects.open(root.path(), NoopSink).unwrap();
+        let task = projects
+            .services()
+            .unwrap()
+            .tasks
+            .create(crate::types::task::TaskItem::new("uv integration"))
+            .unwrap();
+        let manager = RunManager::with_options(
+            Arc::new(SystemLauncher),
+            Duration::from_secs(120),
+            Some(data.path().to_path_buf()),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            None,
+        );
+        manager.workflow_choose(&projects, "bundled").unwrap();
+        let record = manager
+            .run_start(&projects, task.id, task.rev, Arc::new(NoopSink))
+            .unwrap();
+        assert_eq!(record.source, workflows::WorkflowSource::Bundled);
+        let deadline = Instant::now() + Duration::from_secs(120);
+        loop {
+            if let Some(record) = manager.run_get().unwrap() {
+                if record.outcome.is_some() {
+                    assert_eq!(record.outcome, Some(RunOutcome::NeedsReview));
+                    return;
+                }
+            }
+            assert!(Instant::now() < deadline, "real uv workflow did not finish");
+            thread::sleep(Duration::from_millis(100));
+        }
+    }
+
+    #[test]
     fn cancel_timeout_and_project_close_fail_the_run() {
         let cancelled = harness(Duration::from_secs(3), false);
         start(&cancelled).unwrap();
@@ -2751,6 +3006,7 @@ mod tests {
                 .unwrap();
             let fake = Arc::new(FakeState {
                 exit_code: AtomicI32::new(-1),
+                script: Mutex::new(None),
             });
             let mut manager = RunManager::with_options(
                 Arc::new(FakeLauncher {
@@ -2853,8 +3109,11 @@ mod tests {
                 Arc::new(h.sink.clone()),
             )
             .unwrap_err();
-        assert_eq!(error.code, ServiceErrorCode::Validation);
-        assert_eq!(error.message, "no main.py in .cairn/workflows");
+        assert_eq!(error.code, ServiceErrorCode::WorkflowChoiceRequired);
+        assert_eq!(
+            error.message,
+            "This project's workflows folder has no main.py. Choose which workflow to use."
+        );
         assert!(!h.manager.lock_state().unwrap().starting);
 
         fs::remove_file(workflow_dir.join("helper.py")).unwrap();

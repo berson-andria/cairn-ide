@@ -34,6 +34,8 @@ Last updated: 2026-11-21
 ├── sdk/
 │   └── python/
 │       ├── cairn/
+│       │   ├── __pycache__/
+│       │   │   └── __init__.cpython-312.pyc
 │       │   └── __init__.py
 │       ├── examples/
 │       │   ├── ask.py
@@ -255,8 +257,6 @@ Last updated: 2026-11-21
 │   │   │   │   └── output.ts
 │   │   │   ├── problems/
 │   │   │   │   └── problems.ts
-│   │   │   ├── review/
-│   │   │   │   └── review-list.ts
 │   │   │   ├── run/
 │   │   │   │   ├── run.html
 │   │   │   │   ├── run.scss
@@ -338,6 +338,8 @@ Last updated: 2026-11-21
 │   │   │   │   │   ├── markdown-editor.html
 │   │   │   │   │   ├── markdown-editor.scss
 │   │   │   │   │   └── markdown-editor.ts
+│   │   │   │   ├── no-entry/
+│   │   │   │   │   └── no-entry.ts
 │   │   │   │   ├── resize-handle/
 │   │   │   │   │   ├── resize-handle.scss
 │   │   │   │   │   └── resize-handle.ts
@@ -464,7 +466,7 @@ Paths are relative to the repository root. Shared `work-api.service.ts` and
 | Tasks | `src-tauri/src/types/task.rs` | `src-tauri/src/services/task_service.rs` | `src-tauri/src/commands/tasks.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/task.store.ts` | `src/app/feature/tasks/task.service.ts` | - | `docs/domains/tasks-notes.md#tasks-notes` |
 | Notes | `src-tauri/src/types/note.rs` | `src-tauri/src/services/note_service.rs` | `src-tauri/src/commands/notes.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/note.store.ts` | `src/app/feature/notes/note.service.ts`<br>`src/app/shared/components/anchor-picker/picker.service.ts` | - | `docs/domains/tasks-notes.md#tasks-notes` |
 | Proposals | `src-tauri/src/types/proposal.rs` | `src-tauri/src/services/proposal_service.rs` | `src-tauri/src/commands/proposals.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/proposal.store.ts` | `src/app/core/services/proposals/proposal-notifier.service.ts`<br>`src/app/core/services/proposals/proposal.service.ts` | - | `docs/domains/proposals.md` |
-| Runs and workflows | - | `src-tauri/src/services/runs/mod.rs`<br>`src-tauri/src/services/runs/rpc.rs`<br>`src-tauri/src/services/runs/files.rs`<br>`src-tauri/src/services/runs/workflows.rs`<br>`src-tauri/src/services/models/mod.rs` | `src-tauri/src/commands/runs.rs` | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/run.store.ts` | `src/app/core/services/runs/run.service.ts`<br>`src/app/core/services/runs/workflow.service.ts`<br>`src/app/core/services/file-system/workspace-watcher.service.ts` | `sdk/python/workflows/main.py`<br>`sdk/python/templates/blank.py`<br>`sdk/python/templates/steps.py`<br>`sdk/python/templates/edit-file.py` | `docs/domains/runs.md#runs`<br>`docs/domains/patches.md`<br>`docs/domains/model.md` |
+| Runs and workflows | - | `src-tauri/src/services/runs/mod.rs`<br>`src-tauri/src/services/runs/rpc.rs`<br>`src-tauri/src/services/runs/files.rs`<br>`src-tauri/src/services/runs/workflows.rs`<br>`src-tauri/src/services/models/mod.rs` | `src-tauri/src/commands/runs.rs` (`workflow_choose`, `workflow_choice_clear`) | `src/app/core/services/tauri/work-api.service.ts` | `src/app/core/store/run.store.ts` | `src/app/core/services/runs/run.service.ts`<br>`src/app/core/services/runs/workflow.service.ts`<br>`src/app/core/services/file-system/workspace-watcher.service.ts` | `sdk/python/workflows/main.py`<br>`sdk/python/templates/blank.py`<br>`sdk/python/templates/steps.py`<br>`sdk/python/templates/edit-file.py` | `docs/domains/runs.md#runs`<br>`docs/domains/patches.md`<br>`docs/domains/model.md` |
 | Patches | - | `src-tauri/src/services/runs/files.rs` | `src-tauri/src/commands/runs.rs` | - | - | - | - | `docs/domains/patches.md` |
 | Watcher and fs | - | `src-tauri/src/services/watcher.rs` | `src-tauri/src/commands/watcher.rs` | `src/app/core/services/file-system/file-system.service.ts` | - | `src/app/core/services/file-system/workspace-watcher.service.ts` | - | `docs/domains/watcher-fs.md` |
 | Codemap | `src-tauri/src/types/codemap.rs` | `src-tauri/src/services/codemap/extract.rs`<br>`src-tauri/src/services/codemap/graph.rs`<br>`src-tauri/src/services/codemap/languages.rs`<br>`src-tauri/src/services/codemap/mod.rs`<br>`src-tauri/src/services/codemap/service.rs`<br>`src-tauri/src/services/codemap/store.rs`<br>`src-tauri/src/services/codemap/tree.rs` | `src-tauri/src/commands/codemap.rs` | `src/app/core/services/codemap/codemap.service.ts` | - | - | - | `docs/domains/codemap.md` |
