@@ -213,10 +213,9 @@ export class TaskService {
   async perform(
     task: TaskItem,
     action: TaskAction,
-    options?: { workflow?: string },
   ): Promise<TaskItem | RunResult | void> {
     if (action === 'run') {
-      if (!this.runService.canRun(task, options?.workflow)) return;
+      if (!this.runService.canRun(task)) return;
     } else if (
       !this.availableActions(task).some((item) => item.action === action && item.enabled)
     ) {
@@ -226,11 +225,11 @@ export class TaskService {
       case 'start':
         return this.start(task.id);
       case 'run':
-        return this.runService.run(task.id, options?.workflow);
+        return this.runService.run(task.id);
       case 'resume': {
         const updated = await this.setStatus(task.id, 'ready');
         if (!updated) return;
-        return this.runService.run(task.id, options?.workflow);
+        return this.runService.run(task.id);
       }
       case 'cancelRun':
         return this.runService.cancel();

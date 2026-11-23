@@ -1,6 +1,6 @@
 import type { NewSubTask, NewTask, TaskItem } from '../../feature/tasks/task.service';
 
-export type WorkflowSource = 'project' | 'global' | 'bundled';
+export type WorkflowScope = 'project' | 'global' | 'bundled';
 export type RunOutcome = 'needs_review' | 'failed';
 
 export interface RunStep {
@@ -16,7 +16,7 @@ export interface RunRecord {
   runId: string;
   taskId: string;
   workflow: string;
-  source: WorkflowSource;
+  source: WorkflowScope;
   scriptHash: string;
   startedAt: number;
   endedAt?: number;
@@ -26,12 +26,25 @@ export interface RunRecord {
   steps?: RunStep[];
 }
 
-export interface WorkflowInfo {
-  name: string;
-  source: WorkflowSource;
-  overrides: WorkflowSource[];
-  trusted: boolean;
-  entry: string;
+export interface WorkflowSourceStatus {
+  source: WorkflowScope;
+  folder: string;
+  status: 'empty' | 'ok' | 'no-entry' | 'reserved-name';
+  entry?: string;
+  message?: string;
+  warnings: string[];
+  trusted: boolean | null;
+}
+
+export interface WorkflowStatus {
+  active: WorkflowScope | null;
+  sources: WorkflowSourceStatus[];
+}
+
+export interface WorkflowTemplate {
+  id: string;
+  title: string;
+  description: string;
 }
 
 export interface WorkflowTrustStatus {
@@ -146,5 +159,6 @@ export type ApiErrorCode =
   | 'RunActive'
   | 'TrustRequired'
   | 'RuntimeUnavailable'
-  | 'WorkflowNotFound'
+  | 'ContextTooLarge'
+  | 'ModelUnavailable'
   | 'BadArgs';

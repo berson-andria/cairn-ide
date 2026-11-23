@@ -21,7 +21,9 @@ import type {
   ProposalPayload,
   RunRecord,
   SourceAction,
-  WorkflowInfo,
+  WorkflowScope,
+  WorkflowStatus,
+  WorkflowTemplate,
   WorkflowTrustStatus,
 } from '../../../shared/models/agent.model';
 
@@ -174,8 +176,17 @@ export class WorkApiService {
   noteToggleStatus(id: string, expectedRev: number) {
     return this.call<NoteItem>('note_toggle_status', { id, expectedRev });
   }
-  workflowList() {
-    return this.call<WorkflowInfo[]>('workflow_list');
+  workflowStatus() {
+    return this.call<WorkflowStatus>('workflow_status');
+  }
+  workflowTemplates() {
+    return this.call<WorkflowTemplate[]>('workflow_templates');
+  }
+  workflowCreate(scope: Exclude<WorkflowScope, 'bundled'> | 'bundled', template: string) {
+    return this.call<{ source: WorkflowScope; entry: string; entryPath: string }>(
+      'workflow_create',
+      { scope, template },
+    );
   }
   workspaceTrustStatus() {
     return this.call<WorkflowTrustStatus>('workspace_trust_status');
@@ -186,8 +197,8 @@ export class WorkApiService {
   workspaceTrustRevoke() {
     return this.call<void>('workspace_trust_revoke');
   }
-  runStart(taskId: string, expectedRev: number, workflow?: string) {
-    return this.call<RunRecord>('run_start', { taskId, expectedRev, workflow });
+  runStart(taskId: string, expectedRev: number) {
+    return this.call<RunRecord>('run_start', { taskId, expectedRev });
   }
   runCancel() {
     return this.call<void>('run_cancel');

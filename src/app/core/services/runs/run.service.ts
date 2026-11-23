@@ -1,7 +1,7 @@
 import { Injectable, computed, inject } from '@angular/core';
 import type { Signal } from '@angular/core';
 import { WorkflowService } from './workflow.service';
-import { RunRecord, WorkflowInfo } from '../../../shared/models/agent.model';
+import { RunRecord } from '../../../shared/models/agent.model';
 import { TaskItem } from '../../../feature/tasks/task.service';
 import { NodeStore } from '../../store/node.store';
 import { RunStore } from '../../store/run.store';
@@ -85,11 +85,11 @@ export class RunService {
     return records;
   }
 
-  canRun(task: TaskItem, workflow?: string): boolean {
-    return this.runDisabledReason(task, workflow) === null;
+  canRun(task: TaskItem): boolean {
+    return this.runDisabledReason(task) === null;
   }
 
-  runDisabledReason(task: TaskItem, workflow?: string): string | null {
+  runDisabledReason(task: TaskItem): string | null {
     if (!this.nodes.rootPath()) return 'Open a project before starting a workflow.';
     if (task.status !== 'ready') return 'Task is not ready.';
     if (this.isRunning()) return 'Another workflow is running.';
@@ -97,17 +97,10 @@ export class RunService {
     if (task.dependsOn && dependency?.status !== 'completed') {
       return 'Complete the dependency first.';
     }
-
-    const workflows = this.workflows.workflows();
-    if (workflows.length === 0) return 'No workflows are available.';
-
-    const selectedWorkflow = this.selectWorkflow(workflow, workflows);
-    if (selectedWorkflow === undefined) return 'Choose a workflow.';
-    const selected = workflows.find((item) => item.name === selectedWorkflow);
-    if (!selected) {
-      return 'Workflow not found.';
-    }
-    if (selected.source === 'project') {
+    const active = this.workflows.active();
+    if (!active) return 'No workflows are available.';
+    if (active.status !== 'ok') return active.message ?? 'The active workflow source is not available.';
+    if (active.source === 'project') {
       const trustState = this.workflows.trustState?.() ??
         (this.workflows.needsTrustReview() ? 'unreviewed' : null);
       if (trustState === 'unreviewed') {
@@ -120,16 +113,7 @@ export class RunService {
     return null;
   }
 
-  private selectWorkflow(
-    workflow: string | undefined,
-    workflows: WorkflowInfo[],
-  ): string | undefined {
-    if (workflow !== undefined) return workflow;
-    if (workflows.some((item) => item.name === 'default')) return 'default';
-    return workflows.length === 1 ? workflows[0].name : undefined;
-  }
-
-  async run(taskId: string, workflow?: string): Promise<RunResult | undefined> {
+  async run(taskId: string): Promise<RunResult | undefined> {
     const task = this.tasks.records()[taskId];
     if (!task) {
       await handleApiError(
@@ -138,11 +122,9 @@ export class RunService {
       );
       return undefined;
     }
-    const workflowName = this.selectWorkflow(workflow, this.workflows.workflows());
-    if (workflowName === undefined || this.runDisabledReason(task, workflow) !== null)
-      return undefined;
+    if (this.runDisabledReason(task) !== null) return undefined;
     try {
-      const run = await this.api.runStart(taskId, task.rev, workflowName);
+      const run = await this.api.runStart(taskId, task.rev);
       return { kind: 'started', run };
     } catch (error) {
       if ((error as { code?: string })?.code === 'TrustRequired') {

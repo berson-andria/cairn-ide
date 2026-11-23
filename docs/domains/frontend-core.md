@@ -101,9 +101,39 @@ open, it refreshes workflow trust and emits the trust-review observable once
 when project workflows are untrusted. The full startup sequence is in
 [workspace](./workspace.md#5-flows).
 
+**Workflow status:** `WorkflowService.status` and `templates` are refreshed
+after project open. `active` is the active source status or `null`,
+`activeIssue` is its issue message when status is not `ok`, and `warnings`
+contains the active source warnings. An `.cairn/workflows/` filesystem batch
+shares the 500 ms debounce with trust refresh: status and trust refresh once
+per window.
+
+**Settings workflow card:** show status, entry, warnings, and issues; create
+from templates or duplicate the bundled workflow. Duplicate means copy the
+bundled workflow directory for `project` or `global` scope. On project create,
+the folder is auto-approved only if it was trusted immediately before creation
+and `agents.trustIdeEdits` exists and is on.
+
+**Run button:** reasons use no-project, task-not-ready, active-run,
+dependency, no-active-workflow, active-source-issue, and project-trust
+wording in that order. `RunService.run(taskId)` never accepts or sends a
+workflow name.
+
 **Mutation errors:** a domain facade calls the API, handles the rejection with
 `handleApiError`, and refreshes on stale data when appropriate. The cache
 changes from the resulting event or list refresh, not from component mutation.
+
+### Workflow import rules
+
+Workflow scripts use absolute imports for local helpers. Top-level helper
+files and directories are on the entry file's Python path; relative package
+imports and names that shadow the Cairn SDK or common standard-library modules
+are not supported.
+
+The Angular 7d boundary imports workflow types from
+`src/app/shared/models/agent.model.ts` and invokes Rust only through
+`WorkApiService`; UI code does not read workflow files or interpret trust
+files.
 
 ## 6. Gaps
 

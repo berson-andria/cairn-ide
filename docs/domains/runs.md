@@ -118,6 +118,27 @@ message.
 
 ### Angular workflow trust state
 
+The Angular workflow service exposes `status`, `active`, `activeIssue`,
+`warnings`, and `templates`. `active` is the active source object or `null`;
+`activeIssue` is the active source message when its status is not `ok`; and
+`warnings` contains the active source warnings.
+
+After a project opens, the service refreshes workflow status and templates.
+The existing 500 ms filesystem debounce is shared by workflow and trust
+refreshes: a batch containing a path under `.cairn/workflows/` refreshes both
+once per window, while unrelated paths do nothing.
+
+**Settings workflow card:** show status and display folder, entry point,
+warnings, and the active issue. Offer the returned templates and create
+project/global workflows from them; use `bundled` as the template id to copy
+the bundled workflow. A `Validation` response whose message says "already
+exists" is a duplicate result, not a general API error.
+
+**Run button:** reasons are project closed, task not ready, another run
+active, dependency incomplete, no active workflow, active source issue, or
+project workflow unreviewed/changed. The active source is selected by Rust;
+Angular sends no workflow name to `runStart`.
+
 The Angular `WorkflowService` derives a trust state from the Rust status:
 
 | State | Fields |
