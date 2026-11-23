@@ -99,8 +99,12 @@ export class NewNode {
   }
 
   nodeNameEntry(value: string) {
+    const activeNodeId = this.nodeStore.activeNodeId();
+    if (!activeNodeId) return;
     this.danger.set(
-      Object.values(this.nodeStore.rootNodes()).filter((node) => node.name === value).length > 0,
+      Object.values(this.nodeStore.nodes()).filter(
+        (node) => node.name === value.trim() && node.parentId === activeNodeId,
+      ).length > 0,
     );
   }
 
