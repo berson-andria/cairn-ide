@@ -881,7 +881,24 @@ pub fn append_trace(
             }
         } else if method == Some("patch.propose") {
             if let Some(files) = result.get("files") {
-                entry["files"] = files.clone();
+                let metadata = files
+                    .as_array()
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(|file| {
+                                let path = file.get("path")?.as_str()?;
+                                let size = file
+                                    .get("after")
+                                    .and_then(Value::as_str)
+                                    .map(str::len)
+                                    .unwrap_or(0);
+                                Some(json!({"path": path, "bytes": size}))
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                entry["files"] = json!(metadata);
             }
         }
     }
@@ -1063,6 +1080,32 @@ mod tests {
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0].as_ref().unwrap_err()["error"]["code"], -32600);
         assert!(lines[1].is_ok());
+    }
+
+    #[test]
+    fn patch_proposal_trace_contains_paths_and_sizes_without_text() {
+        let directory = tempdir().unwrap();
+        let trace = directory.path().join("trace.jsonl");
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "files": [{
+                    "path": "src/main.rs",
+                    "op": "modify",
+                    "baseSha256": "abc",
+                    "before": "TOP_SECRET_BEFORE",
+                    "after": "TOP_SECRET_AFTER"
+                }]
+            }
+        });
+        append_trace(&trace, Some("patch.propose"), None, &response, 2);
+        let trace_text = fs::read_to_string(&trace).unwrap();
+        assert!(trace_text.contains("\"path\":\"src/main.rs\""));
+        assert!(trace_text.contains("\"bytes\":16"));
+        assert!(!trace_text.contains("TOP_SECRET"));
+        assert!(!trace_text.contains("baseSha256"));
+        assert!(!trace_text.contains("before"));
     }
 
     #[test]

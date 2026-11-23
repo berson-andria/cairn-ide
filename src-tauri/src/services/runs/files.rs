@@ -166,6 +166,26 @@ fn secret_name(name: &str) -> bool {
         || lower.ends_with(".pfx")
 }
 
+fn windows_component_invalid(name: &str) -> bool {
+    if name.contains(':') || name.ends_with('.') || name.ends_with(' ') {
+        return true;
+    }
+    let stem = name
+        .split_once('.')
+        .map(|(stem, _)| stem)
+        .unwrap_or(name)
+        .to_ascii_lowercase();
+    matches!(stem.as_str(), "con" | "prn" | "aux" | "nul")
+        || (stem.len() == 4
+            && (stem.starts_with("com") || stem.starts_with("lpt"))
+            && stem.as_bytes()[3].is_ascii_digit())
+}
+
+fn denied_component(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower == ".git" || lower == ".cairn" || secret_name(name) || windows_component_invalid(name)
+}
+
 pub fn is_denied_name(name: &str) -> bool {
     secret_name(name)
 }
@@ -178,7 +198,7 @@ pub fn resolve_in_project(root: &Path, rel: &str) -> Result<(PathBuf, String), S
     if slash.starts_with('/') || slash.starts_with("//") {
         return Err(validation_path(rel));
     }
-    if slash.as_bytes().get(1) == Some(&b':') {
+    if slash.as_bytes().get(1) == Some(&b':') || slash.contains(':') {
         return Err(validation_path(rel));
     }
     let parts = slash.split('/');
@@ -190,11 +210,7 @@ pub fn resolve_in_project(root: &Path, rel: &str) -> Result<(PathBuf, String), S
         if part == ".." {
             return Err(validation_path(rel));
         }
-        let lower = part.to_ascii_lowercase();
-        if lower == ".git" || lower == ".cairn" {
-            return Err(validation_path(rel));
-        }
-        if secret_name(part) {
+        if denied_component(part) {
             return Err(validation_path(rel));
         }
         relative.push(part);
@@ -242,6 +258,15 @@ pub fn resolve_in_project(root: &Path, rel: &str) -> Result<(PathBuf, String), S
     };
     if !target_normalized.starts_with(&root_normalized) {
         return Err(validation_path(rel));
+    }
+    if let Ok(canonical_relative) = target_normalized.strip_prefix(&root_normalized) {
+        for component in canonical_relative.components() {
+            if let Some(name) = component.as_os_str().to_str() {
+                if denied_component(name) {
+                    return Err(validation_path(rel));
+                }
+            }
+        }
     }
     let display = relative.to_string_lossy().replace('\\', "/");
     Ok((target_normalized, display))
@@ -315,7 +340,10 @@ pub fn list_files(
         let entry =
             entry.map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
         let name = entry.file_name().to_string_lossy().into_owned();
-        if name == ".git" || name.eq_ignore_ascii_case(".cairn") || secret_name(&name) {
+        if denied_component(&name) {
+            continue;
+        }
+        if resolve_in_project(root, &name).is_err() {
             continue;
         }
         let metadata = entry.metadata().ok();
@@ -825,6 +853,30 @@ mod tests {
     }
 
     #[test]
+    fn list_caps_entries_and_omits_denied_names() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in [
+            ".git",
+            ".cairn",
+            ".env",
+            ".ENV.local",
+            "server.PEM",
+            "id_rsa.pub",
+        ] {
+            fs::create_dir_all(dir.path().join(name)).ok();
+        }
+        for index in 0..4 {
+            fs::write(dir.path().join(format!("file-{index}.txt")), b"x").unwrap();
+        }
+        let entries = list_files(dir.path(), "", Some(2)).unwrap();
+        assert_eq!(entries.len(), 2);
+        assert!(entries.iter().all(|entry| !is_denied_name(&entry.name)));
+        assert!(entries
+            .iter()
+            .all(|entry| entry.name != ".git" && entry.name != ".cairn"));
+    }
+
+    #[test]
     fn propose_two_edits_and_apply_create_modify() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("one.txt"), "alpha beta").unwrap();
@@ -920,5 +972,380 @@ mod tests {
             fs::read_to_string(dir.path().join("new.txt")).unwrap(),
             "created"
         );
+    }
+
+    fn test_project(root: &Path) -> (ProjectState, std::sync::Arc<ProjectServices>, String) {
+        let state = ProjectState::default();
+        state.open(root, NoopSink).unwrap();
+        let project = state.services().unwrap();
+        let mut task = crate::types::task::TaskItem::new("patch task");
+        task.id = "patch-task".into();
+        let task = project.tasks.create(task).unwrap();
+        (state, project, task.id)
+    }
+
+    #[test]
+    fn propose_validates_match_counts_limits_and_preserves_workspace() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("one.txt"), "one one").unwrap();
+        let (_state, project, task_id) = test_project(dir.path());
+        let sink = RecordingSink::default();
+
+        let zero = propose(
+            project.as_ref(),
+            "run-1",
+            &task_id,
+            &project.root,
+            vec![PatchEdit::Replace {
+                path: "one.txt".into(),
+                search: "missing".into(),
+                replace: "x".into(),
+            }],
+            "zero",
+            None,
+            &sink,
+        )
+        .unwrap_err();
+        assert_eq!(zero.code, ServiceErrorCode::Validation);
+        assert!(zero.message.contains("0 times"));
+
+        let two = propose(
+            project.as_ref(),
+            "run-1",
+            &task_id,
+            &project.root,
+            vec![PatchEdit::Replace {
+                path: "one.txt".into(),
+                search: "one".into(),
+                replace: "x".into(),
+            }],
+            "two",
+            None,
+            &sink,
+        )
+        .unwrap_err();
+        assert_eq!(two.code, ServiceErrorCode::Validation);
+        assert!(two.message.contains("2 times"));
+
+        let too_many = vec![
+            PatchEdit::Write {
+                path: "many.txt".into(),
+                content: "x".into(),
+            };
+            51
+        ];
+        assert_eq!(
+            propose(
+                project.as_ref(),
+                "run-1",
+                &task_id,
+                &project.root,
+                too_many,
+                "many",
+                None,
+                &sink,
+            )
+            .unwrap_err()
+            .code,
+            ServiceErrorCode::Validation
+        );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("one.txt")).unwrap(),
+            "one one"
+        );
+        assert!(!dir.path().join("many.txt").exists());
+    }
+
+    #[test]
+    fn propose_enforces_distinct_file_and_after_size_limits() {
+        let dir = tempfile::tempdir().unwrap();
+        let (_state, project, task_id) = test_project(dir.path());
+        let sink = RecordingSink::default();
+        let edits = (0..21)
+            .map(|index| PatchEdit::Write {
+                path: format!("file-{index}.txt"),
+                content: "x".into(),
+            })
+            .collect();
+        assert_eq!(
+            propose(
+                project.as_ref(),
+                "run-limit",
+                &task_id,
+                &project.root,
+                edits,
+                "distinct",
+                None,
+                &sink,
+            )
+            .unwrap_err()
+            .code,
+            ServiceErrorCode::Validation
+        );
+
+        let result = propose(
+            project.as_ref(),
+            "run-limit",
+            &task_id,
+            &project.root,
+            vec![PatchEdit::Write {
+                path: "large.txt".into(),
+                content: "x".repeat(MAX_PATCH_AFTER_BYTES + 1),
+            }],
+            "large",
+            None,
+            &sink,
+        )
+        .unwrap_err();
+        assert_eq!(result.code, ServiceErrorCode::Validation);
+        assert!(!dir.path().join("large.txt").exists());
+    }
+
+    #[test]
+    fn propose_enforces_twenty_patch_limit_per_run() {
+        let dir = tempfile::tempdir().unwrap();
+        let (_state, project, task_id) = test_project(dir.path());
+        let sink = RecordingSink::default();
+        for index in 0..20 {
+            propose(
+                project.as_ref(),
+                "run-20",
+                &task_id,
+                &project.root,
+                vec![PatchEdit::Write {
+                    path: format!("patch-{index}.txt"),
+                    content: "x".into(),
+                }],
+                "limited",
+                None,
+                &sink,
+            )
+            .unwrap();
+        }
+        let error = propose(
+            project.as_ref(),
+            "run-20",
+            &task_id,
+            &project.root,
+            vec![PatchEdit::Write {
+                path: "patch-21.txt".into(),
+                content: "x".into(),
+            }],
+            "limited",
+            None,
+            &sink,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::Validation);
+        assert!(!dir.path().join("patch-21.txt").exists());
+    }
+
+    #[test]
+    fn patch_apply_conflicts_when_create_file_appears_after_proposal() {
+        let dir = tempfile::tempdir().unwrap();
+        let (_state, project, task_id) = test_project(dir.path());
+        let sink = RecordingSink::default();
+        let patch = propose(
+            project.as_ref(),
+            "run-create-conflict",
+            &task_id,
+            &project.root,
+            vec![PatchEdit::Write {
+                path: "meanwhile.txt".into(),
+                content: "proposed".into(),
+            }],
+            "create",
+            None,
+            &sink,
+        )
+        .unwrap();
+        fs::write(dir.path().join("meanwhile.txt"), "created meanwhile").unwrap();
+        let error =
+            patch_apply(project.as_ref(), "run-create-conflict", &patch.id, &sink).unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::PatchConflict);
+        assert_eq!(
+            fs::read_to_string(dir.path().join("meanwhile.txt")).unwrap(),
+            "created meanwhile"
+        );
+    }
+
+    #[test]
+    fn patch_apply_write_failure_rolls_back_already_written_files() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("first.txt"), "before").unwrap();
+        fs::write(dir.path().join("blocking-file"), "block").unwrap();
+        let (_state, project, task_id) = test_project(dir.path());
+        let sink = RecordingSink::default();
+        let patch = propose(
+            project.as_ref(),
+            "run-rollback",
+            &task_id,
+            &project.root,
+            vec![
+                PatchEdit::Write {
+                    path: "first.txt".into(),
+                    content: "after".into(),
+                },
+                PatchEdit::Write {
+                    path: "blocking-file/child.txt".into(),
+                    content: "child".into(),
+                },
+            ],
+            "rollback",
+            None,
+            &sink,
+        )
+        .unwrap();
+        let error = patch_apply(project.as_ref(), "run-rollback", &patch.id, &sink).unwrap_err();
+        assert_eq!(error.code, ServiceErrorCode::Io);
+        assert_eq!(
+            fs::read_to_string(dir.path().join("first.txt")).unwrap(),
+            "before"
+        );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("blocking-file")).unwrap(),
+            "block"
+        );
+        assert!(!dir.path().join("blocking-file/child.txt").exists());
+    }
+
+    #[test]
+    fn patch_apply_conflict_second_apply_discard_and_malformed_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("changed.txt"), "before").unwrap();
+        let (_state, project, task_id) = test_project(dir.path());
+        let sink = RecordingSink::default();
+        let patch = propose(
+            project.as_ref(),
+            "run-1",
+            &task_id,
+            &project.root,
+            vec![
+                PatchEdit::Write {
+                    path: "changed.txt".into(),
+                    content: "after".into(),
+                },
+                PatchEdit::Write {
+                    path: "new.txt".into(),
+                    content: "new".into(),
+                },
+            ],
+            "conflict",
+            None,
+            &sink,
+        )
+        .unwrap();
+        assert_eq!(patch.files[0].op, PatchOp::Modify,);
+        assert_eq!(
+            patch.files[0].base_sha256.as_deref(),
+            Some(sha256(b"before").as_str())
+        );
+
+        fs::write(dir.path().join("changed.txt"), "different").unwrap();
+        let conflict = patch_apply(project.as_ref(), "run-1", &patch.id, &sink).unwrap_err();
+        assert_eq!(conflict.code, ServiceErrorCode::PatchConflict);
+        assert_eq!(
+            fs::read_to_string(dir.path().join("changed.txt")).unwrap(),
+            "different"
+        );
+        assert!(!dir.path().join("new.txt").exists());
+
+        fs::write(dir.path().join("changed.txt"), "before").unwrap();
+        patch_apply(project.as_ref(), "run-1", &patch.id, &sink).unwrap();
+        let second = patch_apply(project.as_ref(), "run-1", &patch.id, &sink).unwrap_err();
+        assert_eq!(second.code, ServiceErrorCode::InvalidTransition);
+
+        let discarded = propose(
+            project.as_ref(),
+            "run-2",
+            &task_id,
+            &project.root,
+            vec![PatchEdit::Write {
+                path: "discard.txt".into(),
+                content: "discard".into(),
+            }],
+            "discard",
+            None,
+            &sink,
+        )
+        .unwrap();
+        patch_discard(project.as_ref(), "run-2", &discarded.id, &sink).unwrap();
+        assert_eq!(
+            patch_discard(project.as_ref(), "run-2", &discarded.id, &sink)
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::InvalidTransition
+        );
+        assert!(patch_discard(project.as_ref(), "../bad", &discarded.id, &sink).is_err());
+        assert!(patch_get(project.as_ref(), "bad/id", "patch").is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_rejects_device_ads_and_trailing_characters_for_patch_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let (_state, project, task_id) = test_project(dir.path());
+        let sink = RecordingSink::default();
+        for path in [
+            ".env.",
+            ".env ",
+            ".env::$DATA",
+            ".env:x",
+            "NUL",
+            "con.txt",
+            "a/NUL/b",
+        ] {
+            assert!(resolve_in_project(dir.path(), path).is_err(), "{path}");
+            assert!(read_file(dir.path(), path, None).is_err(), "{path}");
+            let names = list_files(dir.path(), "", None).unwrap();
+            assert!(!names.iter().any(|entry| entry.name == path));
+            let error = propose(
+                project.as_ref(),
+                "run-1",
+                &task_id,
+                &project.root,
+                vec![PatchEdit::Write {
+                    path: path.into(),
+                    content: "secret".into(),
+                }],
+                "windows",
+                None,
+                &sink,
+            )
+            .unwrap_err();
+            assert_eq!(error.code, ServiceErrorCode::Validation);
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_junction_confinement_rejects_outside_and_allows_inside() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("outside.txt"), "outside").unwrap();
+        let outside_link = dir.path().join("outside-link");
+        let status = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(&outside_link)
+            .arg(outside.path())
+            .status()
+            .unwrap();
+        assert!(status.success());
+        assert!(resolve_in_project(dir.path(), "outside-link/outside.txt").is_err());
+        assert!(read_file(dir.path(), "outside-link/outside.txt", None).is_err());
+
+        fs::create_dir_all(dir.path().join("src")).unwrap();
+        let inside_link = dir.path().join("inside-link");
+        let status = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(&inside_link)
+            .arg(dir.path().join("src"))
+            .status();
+        if let Ok(status) = status {
+            if status.success() {
+                fs::create_dir_all(dir.path().join("src")).unwrap();
+                assert!(resolve_in_project(dir.path(), "inside-link/new.txt").is_ok());
+            }
+        }
     }
 }
