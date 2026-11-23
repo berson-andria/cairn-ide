@@ -2,6 +2,9 @@ import { Component, inject } from '@angular/core';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
 import { NodeStore } from '../../../core/store/node.store';
 import { ProjectHistoryService } from '../../../core/services/project-history.service';
+import { getFileNameFromPath } from '../../../shared/utils/node.utils';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { lucideExternalLink, lucideX } from '@ng-icons/lucide';
 
 @Component({
   selector: 'no-folder',
@@ -26,21 +29,36 @@ import { ProjectHistoryService } from '../../../core/services/project-history.se
             </div>
             @for (project of history.history().projects; track project.path) {
               <div class="action-list">
-                <button type="button" [disabled]="project.missing" (click)="openRecent(project.path)">
-                  {{ project.name }} @if (project.missing) { <span class="s">(Missing)</span> }
-                </button>
-                <span class="s">{{ project.path }}</span>
                 <button
                   type="button"
                   [disabled]="project.missing"
-                  [attr.aria-label]="'Open ' + project.name + ' in new window'"
-                  (click)="commands.newWindow(project.path)"
-                >New window</button>
+                  (click)="openRecent(project.path)"
+                >
+                  {{ project.name }}
+                  @if (project.missing) {
+                    <span class="s">(Missing)</span>
+                  }
+                </button>
+                <span class="s">{{ path(project.path, project.name) }}</span>
                 <button
+                  class="icon-btn"
+                  type="button"
+                  [disabled]="project.missing"
+                  style="margin-left: auto;"
+                  [attr.aria-label]="'Open ' + project.name + ' in new window'"
+                  [title]="'Open ' + project.name + ' in new window'"
+                  (click)="commands.newWindow(project.path)"
+                >
+                  <ng-icon name="lucideExternalLink" />
+                </button>
+                <button
+                  class="icon-btn"
                   type="button"
                   [attr.aria-label]="'Remove ' + project.name + ' from history'"
                   (click)="history.remove(project.path)"
-                >Remove</button>
+                >
+                  <ng-icon name="lucideX" />
+                </button>
               </div>
             }
           }
@@ -57,12 +75,27 @@ import { ProjectHistoryService } from '../../../core/services/project-history.se
       color: #a39b8b;
       font-size: 12px;
     }
+    .action-list {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--space-6);
+    }
   `,
+  imports: [NgIcon],
+  providers: [provideIcons({ lucideX, lucideExternalLink })],
 })
 export class NoFolderOpen {
   readonly commands = inject(EditorCommands);
   readonly nodeStore = inject(NodeStore);
   readonly history = inject(ProjectHistoryService);
+  getFileNameFromPath = getFileNameFromPath;
+
+  protected path(path: string, fileName: string) {
+    const folder = path.substring(0, path.lastIndexOf(fileName) - 1);
+    console.log(folder);
+    return folder;
+  }
 
   openRecent(path: string): void {
     void this.commands.openProject(path);
