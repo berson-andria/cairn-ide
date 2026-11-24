@@ -595,6 +595,26 @@ pub fn workflow_templates(sdk_path: &Path) -> Result<Vec<WorkflowTemplate>, Serv
     Ok(templates)
 }
 
+pub fn workflow_template_get(sdk_path: &Path, id: &str) -> Result<String, ServiceError> {
+    if id.is_empty()
+        || !id
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+    {
+        return Err(ServiceError::validation("invalid workflow template id"));
+    }
+
+    if !workflow_templates(sdk_path)?.iter().any(|template| template.id == id) {
+        return Err(ServiceError::new(
+            ServiceErrorCode::NotFound,
+            format!("workflow template '{id}' was not found"),
+        ));
+    }
+
+    fs::read_to_string(sdk_path.join("templates").join(format!("{id}.py")))
+        .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))
+}
+
 fn parse_template_metadata(contents: &str) -> Option<(String, String)> {
     let mut title = None;
     let mut description = None;
@@ -2231,6 +2251,32 @@ mod tests {
                 created_text
             );
         }
+    }
+
+    #[test]
+    fn workflow_template_get_rejects_unknown_and_path_like_ids_and_reads_known_content() {
+        let sdk_path = tempdir().unwrap();
+        let templates = sdk_path.path().join("templates");
+        fs::create_dir_all(&templates).unwrap();
+        let contents = "# title: Known\n# description: A known template\nprint('hello')\n";
+        fs::write(templates.join("known.py"), contents).unwrap();
+
+        assert_eq!(
+            workflow_template_get(sdk_path.path(), "known").unwrap(),
+            contents
+        );
+        assert_eq!(
+            workflow_template_get(sdk_path.path(), "missing")
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::NotFound
+        );
+        assert_eq!(
+            workflow_template_get(sdk_path.path(), "../known")
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::Validation
+        );
     }
 
     #[test]

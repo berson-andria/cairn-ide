@@ -24,6 +24,7 @@ The Tauri commands are:
 | `workflow_choose` | `scope` (`bundled` or `global`) | `null` |
 | `workflow_choice_clear` | — | `null` |
 | `workflow_templates` | — | `[{ id, title, description }]` |
+| `workflow_template_get` | `id` | template source text |
 | `workflow_create` | `scope`, `template` | `{ source, entry, entryPath }` |
 | `workspace_trust_status` | — | current folder hash, file inventory, approval and changes |
 | `workspace_trust` | `hash` | `null` |
@@ -88,6 +89,11 @@ atomically. Missing or corrupt choice data is logged and treated as no choice.
 `workflow_choice_clear` clears only the current project's entry. `run_start`
 clears a saved choice when project status has become `ok`; successful project
 workflow creation also clears it.
+
+`workflow_template_get` accepts only an id returned by `workflow_templates`.
+Ids containing path separators or other non-template characters are rejected;
+unknown ids return `NotFound`. Template text is read from the same SDK template
+directory used by the listing in both development and release builds.
 
 The dialog flow is limited to project `no-entry`: present the options indicated
 by `choiceOptions`, let the user choose bundled or usable global, and remember
@@ -476,6 +482,7 @@ and run methods use the current Rust command contract listed here.
 |---|---|---|
 | `workflowStatus()` | `WorkflowStatus` | `NoProject`, `Io`, `Corrupt`, `RuntimeUnavailable` |
 | `workflowTemplates()` | `{ id, title, description }[]` | `RuntimeUnavailable`, `Io`, `Corrupt` |
+| `workflowTemplateGet(id: string)` | template source text | `Validation`, `NotFound`, `RuntimeUnavailable`, `Io`, `Corrupt` |
 | `workflowCreate(scope, template)` | `{ source, entry, entryPath }` | `NoProject`, `Validation`, `RuntimeUnavailable`, `Io`, `Corrupt` |
 | `workspaceTrustStatus()` | `WorkflowTrustStatus` | `NoProject`, `Io`, `Corrupt`, `RuntimeUnavailable` |
 | `workspaceTrust(hash: string)` | `void` | `NoProject`, `Validation`, `Io`, `Corrupt`, `RuntimeUnavailable` |
@@ -628,6 +635,18 @@ Project open refreshes trust state but does not emit a trust-review observable.
 The app shell opens the shared no-entry dialog when Rust reports
 `needsChoice`. The dialog's global and bundled actions are not connected to
 `WorkflowService.choose`/`RunService.chooseAndRun` yet.
+
+#### Settings Agents workflow management
+
+The Agents settings section shows the project workflow status, entry, warnings,
+and trust state. It can create a project workflow from a listed template or
+copy the bundled workflow, then opens the returned entry path in the editor.
+When the project is `no-entry`, the bundled source can be selected only if
+`choiceOptions.bundled` permits it; a remembered choice can be cleared. A
+project workflow takes precedence once its status is `ok`. Global workflow
+management is disabled and labeled “Coming soon”. Template source is fetched
+only when expanded, cached by template id in a signal, and rendered as text;
+copy errors are shown beside the template.
 
 #### Settings review and approval
 

@@ -325,17 +325,6 @@ export const SETTINGS: SettingDef[] = [
     planned,
     'Commands for test, lint, and typecheck tasks.',
   ),
-
-  setting('agents', 'pythonPath', 'path', '', 'both', planned, 'Python executable used by agents.'),
-  setting(
-    'agents',
-    'lazyStart',
-    'boolean',
-    true,
-    'both',
-    planned,
-    'Start agent processes only when needed.',
-  ),
   setting(
     'agents',
     'defaultWorkflowEnabled',

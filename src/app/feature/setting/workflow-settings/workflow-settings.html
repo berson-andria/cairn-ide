@@ -1,0 +1,223 @@
+<div class="workflow-settings">
+  <section class="subsection">
+    <h4 class="subsection__title">Workflows</h4>
+
+    @if (projectSource(); as project) {
+      <div class="row">
+        <div class="row__text">
+          <span class="row__label">Local</span>
+          <span class="workflow-status" [class.is-ok]="project.status === 'ok'">
+            Status: {{ project.status }}
+          </span>
+          @if (project.message) {
+            <p class="row__desc">{{ project.message }}</p>
+          }
+          <code class="row__key">Entry: {{ project.entry ?? project.folder }}</code>
+          @if (project.warnings.length) {
+            <ul class="warnings">
+              @for (warning of project.warnings; track warning) {
+                <li>{{ warning }}</li>
+              }
+            </ul>
+          }
+          @if (project.status !== 'empty') {
+            <p class="row__desc">
+              Trust:
+              @if (project.trusted === true) {
+                Trusted
+              } @else if (project.trusted === false) {
+                Not trusted
+              } @else {
+                Not applicable
+              }
+            </p>
+          }
+        </div>
+        <div class="row__control">
+          @if (workflow.status()?.active === 'project') {
+            <span class="active-badge">Active</span>
+          }
+          @if (project.status === 'ok' && project.trusted === false) {
+            <button type="button" class="row__button" (click)="openTrustReview()">
+              Review trust
+            </button>
+          }
+          @if (project.status === 'ok') {
+            <button type="button" class="row__button" (click)="openProjectEntry()">
+              Open main.py
+            </button>
+          } @else if (project.status === 'empty' || project.status === 'no-entry') {
+            <select
+              aria-label="Workflow template"
+              class="field field--select"
+              [value]="selectedTemplate()"
+              [disabled]="creating()"
+              (change)="selectTemplate($event)"
+            >
+              <option value="">Choose a template</option>
+              @for (template of workflow.templates(); track template.id) {
+                <option [value]="template.id">{{ template.title }}</option>
+              }
+              <option value="bundled">Bundled copy</option>
+            </select>
+            <button
+              type="button"
+              class="row__button"
+              [disabled]="!selectedTemplate() || creating()"
+              (click)="createWorkflow()"
+            >
+              {{ creating() ? 'Creating…' : 'Create' }}
+            </button>
+          }
+          @if (project.status === 'no-entry' && workflow.status()?.choice) {
+            <button type="button" class="row__button" (click)="clearChoice()">Clear choice</button>
+          }
+        </div>
+      </div>
+    } @else {
+      <div class="row">
+        <div class="row__text">
+          <span class="row__label">Local</span>
+          <span class="workflow-status is-not-ok">Status: unavailable</span>
+          <p class="row__desc">Workflow status is unavailable until a project is open.</p>
+        </div>
+      </div>
+    }
+
+    @if (message()) {
+      <div class="row">
+        <p class="row__message" role="status">{{ message() }}</p>
+      </div>
+    }
+
+    <div class="row">
+      <div class="row__text">
+        <span class="row__label">Global</span>
+        @if (workflow.status()?.sources; as sources) {
+          @for (global of sources; track global.source) {
+            @if (global.source === 'global') {
+              <span class="workflow-status" [class.is-ok]="global.status === 'ok'">
+                Status: {{ global.status }}
+              </span>
+              @if (global.message) {
+                <p class="row__desc">{{ global.message }}</p>
+              }
+              <code class="row__key">{{ global.folder }}</code>
+              @if (global.warnings.length) {
+                <ul class="warnings">
+                  @for (warning of global.warnings; track warning) {
+                    <li>{{ warning }}</li>
+                  }
+                </ul>
+              }
+            }
+          }
+        } @else {
+          <span class="workflow-status is-not-ok">Status: unavailable</span>
+          <p class="row__desc">Global workflow information is unavailable.</p>
+        }
+      </div>
+      <div class="row__control">
+        @if (workflow.status()?.active === 'global') {
+          <span class="active-badge">Active</span>
+        } @else if (canUseWorkflow('global')) {
+          <button type="button" class="row__button" (click)="useWorkflow('global')">Use</button>
+        }
+        <button type="button" class="row__button" disabled>Create</button>
+        <span class="coming-soon">Coming soon</span>
+      </div>
+    </div>
+
+    @if (bundledSource(); as bundled) {
+      <div class="row">
+        <div class="row__text">
+          <span class="row__label">Bundled</span>
+          <span class="workflow-status" [class.is-ok]="bundled.status === 'ok'">
+            Status: {{ bundled.status }}
+          </span>
+          @if (bundled.message) {
+            <p class="row__desc">{{ bundled.message }}</p>
+          }
+          <code class="row__key">{{ bundled.entry ?? bundled.folder }}</code>
+          @if (bundled.warnings.length) {
+            <ul class="warnings">
+              @for (warning of bundled.warnings; track warning) {
+                <li>{{ warning }}</li>
+              }
+            </ul>
+          }
+          @if (projectSource()?.status === 'ok') {
+            <p class="row__desc">A project workflow takes precedence.</p>
+          }
+        </div>
+        <div class="row__control">
+          @if (workflow.status()?.active === 'bundled') {
+            <span class="active-badge">Active</span>
+          } @else if (canUseWorkflow('bundled')) {
+            <button type="button" class="row__button" (click)="useWorkflow('bundled')">Use</button>
+          }
+        </div>
+      </div>
+    }
+  </section>
+
+  <section class="subsection">
+    <h4 class="subsection__title">Templates</h4>
+    @for (template of workflow.templates(); track template.id) {
+      <article class="template">
+        <div class="row">
+          <div class="row__text">
+            <span class="row__label">{{ template.title }}</span>
+            <p class="row__desc">{{ template.description }}</p>
+          </div>
+          <div class="row__control">
+            <button
+              type="button"
+              class="row__button"
+              [attr.aria-expanded]="expandedTemplates()[template.id] === true"
+              (click)="toggleTemplate(template.id)"
+            >
+              {{ expandedTemplates()[template.id] ? 'Hide code' : 'Show code' }}
+            </button>
+          </div>
+        </div>
+        @if (expandedTemplates()[template.id]) {
+          @if (templateLoading()[template.id]) {
+            <div class="row">
+              <p class="row__desc">Loading template…</p>
+            </div>
+          } @else if (templateErrors()[template.id]) {
+            <div class="row">
+              <p class="row__message" role="alert">{{ templateErrors()[template.id] }}</p>
+            </div>
+          } @else if (templateContents()[template.id] !== undefined) {
+            <div class="row row--stacked">
+              <div class="row__text">
+                <div class="template-code">
+                  <pre><code>{{ templateContents()[template.id] }}</code></pre>
+                </div>
+              </div>
+              <div class="row__control">
+                <button type="button" class="row__button" (click)="copyTemplate(template.id)">
+                  Copy
+                </button>
+                @if (copiedTemplate() === template.id) {
+                  <span class="row__hint" role="status">Copied</span>
+                }
+                @if (copyErrors()[template.id]) {
+                  <span class="row__message" role="alert">{{ copyErrors()[template.id] }}</span>
+                }
+              </div>
+            </div>
+          }
+        }
+      </article>
+    } @empty {
+      <div class="row">
+        <div class="row__text">
+          <p class="row__desc">No workflow templates are available.</p>
+        </div>
+      </div>
+    }
+  </section>
+</div>

@@ -101,6 +101,7 @@ pub fn run() {
             commands::runs::workflow_choose,
             commands::runs::workflow_choice_clear,
             commands::runs::workflow_templates,
+            commands::runs::workflow_template_get,
             commands::runs::workflow_create,
             commands::runs::workspace_trust_status,
             commands::runs::workspace_trust,

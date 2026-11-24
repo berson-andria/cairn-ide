@@ -117,6 +117,16 @@ No store implementation is used: `setting.store.ts` is empty and no
 - `ModelsSettings` methods save/remove/test models and handle command/fetch
   failures into UI signals [models-settings.ts:124](../../src/app/feature/setting/model-setting/models-settings.ts#L124).
 
+### Agents workflow settings
+
+The existing Agents section includes project and bundled workflow status,
+warnings, trust state, create/open actions, and remembered-choice controls.
+Global workflow management is disabled as “Coming soon”. The UI uses
+`WorkflowService` for status, creation, choices and trust; template source is
+loaded on expansion through `WorkApiService.workflowTemplateGet()` and cached
+by id in a signal. Template source is interpolated as plain text. The user can
+copy a template with the clipboard API; failure is displayed inline.
+
 ## Diagnostics
 
 The diagnostics/log-level setting belongs to the diagnostics domain, even though

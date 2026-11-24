@@ -161,7 +161,8 @@ export class NoEntry {
         break;
 
       case 'bundled':
-        // this.workflow.create('project', this.workflow)
+        await this.workflow.choose('bundled');
+        this.ref.close();
         break;
     }
   }

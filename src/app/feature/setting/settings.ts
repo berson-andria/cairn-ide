@@ -11,6 +11,7 @@ import {
 import { SECTIONS, Section, SettingDef } from './settings.registry';
 import { SettingsService } from './settings.service';
 import { ModelsSettings } from './model-setting/models-settings';
+import { WorkflowSettings } from './workflow-settings/workflow-settings';
 
 interface Group {
   id: string;
@@ -23,7 +24,7 @@ interface Group {
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './settings.html',
   styleUrl: './settings.scss',
-  imports: [ModelsSettings],
+  imports: [ModelsSettings, WorkflowSettings],
 })
 export class Settings {
   readonly settings = inject(SettingsService);

@@ -190,6 +190,9 @@ export class WorkApiService {
   workflowTemplates() {
     return this.call<WorkflowTemplate[]>('workflow_templates');
   }
+  workflowTemplateGet(id: string) {
+    return this.call<string>('workflow_template_get', { id });
+  }
   workflowCreate(scope: Exclude<WorkflowScope, 'bundled'> | 'bundled', template: string) {
     return this.call<{ source: WorkflowScope; entry: string; entryPath: string }>(
       'workflow_create',

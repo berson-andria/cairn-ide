@@ -101,6 +101,14 @@ pub async fn workflow_templates(
 }
 
 #[tauri::command]
+pub async fn workflow_template_get(
+    id: String,
+    runs: State<'_, RunManager>,
+) -> Result<String, ServiceError> {
+    runs.workflow_template_get(&id)
+}
+
+#[tauri::command]
 pub async fn workflow_create(
     scope: String,
     template: String,

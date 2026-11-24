@@ -1203,6 +1203,21 @@ impl RunManager {
         workflows::workflow_templates(&sdk_dir)
     }
 
+    pub fn workflow_template_get(&self, id: &str) -> Result<String, ServiceError> {
+        let sdk_dir = sdk_dir(
+            cfg!(debug_assertions),
+            &self.inner.manifest_dir,
+            self.inner.resource_dir.as_deref(),
+        )
+        .ok_or_else(|| {
+            ServiceError::new(
+                ServiceErrorCode::RuntimeUnavailable,
+                "Python SDK resource is unavailable",
+            )
+        })?;
+        workflows::workflow_template_get(&sdk_dir, id)
+    }
+
     pub fn workflow_create(
         &self,
         projects: &ProjectState,
