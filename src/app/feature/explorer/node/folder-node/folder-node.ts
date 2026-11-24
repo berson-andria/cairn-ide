@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, InputSignal, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, InputSignal, signal } from '@angular/core';
 import { NgClass, NgStyle } from '@angular/common';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { bootstrapChevronDown, bootstrapChevronRight } from '@ng-icons/bootstrap-icons';
@@ -60,9 +60,14 @@ export class FolderNode {
 
   folderBadge = computed(() => this.git.folderBadge(this.nodeStore.nodes()[this.nodeId()].path));
 
+  constructor() {
+    effect(async () => {
+      if (this.uiState().isExpanded) await this.nodeStore.fetchFolderContents(this.nodeId());
+    });
+  }
+
   onClick(event: MouseEvent) {
     if (this.isRenaming()) return;
-    // Ctrl/Shift only change the selection; a plain click selects AND expands/collapses.
     if (event.ctrlKey || event.metaKey) return this.nodeStore.selectNode(this.nodeId(), 'toggle');
     if (event.shiftKey) return this.nodeStore.selectNode(this.nodeId(), 'range');
     this.nodeStore.selectNode(this.nodeId(), 'single');
@@ -73,7 +78,6 @@ export class FolderNode {
     const id = this.nodeId();
     this.nodeStore.toggleFolderExpansion(id); // instant feedback
     // Safe to call on every open: the store skips folders that are already loaded and shares in-flight scans.
-    if (this.uiState().isExpanded) await this.nodeStore.fetchFolderContents(id);
   }
 
   newNodeNameChange(nodeName: string) {
