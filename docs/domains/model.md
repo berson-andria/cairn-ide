@@ -10,6 +10,7 @@ Angular also owns in-memory editor/build diagnostics in `DiagnosticsService`.
 See [settings registry](../../src/app/feature/setting/settings.registry.ts:262),
 [ModelsSettings](../../src/app/feature/setting/model-setting/models-settings.ts:12),
 [secrets.rs](../../src-tauri/src/commands/secrets.rs:13), and
+[settings](./settings.md).
 
 ## 2. Data shapes
 
@@ -86,7 +87,7 @@ values [settings.service.ts](../../src/app/feature/setting/settings.service.ts:2
 ## 5. Main flows
 
 **Save API model**
-UI `saveModel` validates the draft, calls `secret_set` or migrates the secret,
+UI `saveModel` validates the draft, stores or migrates the keychain secret,
 builds `ModelEntry`, writes `models.registry`, and may set `models.defaultModel`
 [models-settings.ts](../../src/app/feature/setting/model-setting/models-settings.ts:124).
 The SettingsService updates a signal immediately and debounces an app-data write
@@ -95,20 +96,20 @@ Rust `secret_*` commands read/write the `cairn-ide:model:<id>` keyring entry;
 no Tauri event is emitted.
 
 **Remove model**
-UI calls `secret_delete` when `apiKeyRef` exists, filters the registry, updates
+UI removes the keychain secret when `apiKeyRef` exists, filters the registry, updates
 the registry/default setting, and adjusts open state
 [models-settings.ts](../../src/app/feature/setting/model-setting/models-settings.ts:205).
 `SettingsService` persists the updated registry; no Rust event is emitted.
 
 **Test local model**
-UI calls `invoke('model_test_local')` with camelCase args
+UI invokes the local-model diagnostic with camelCase args
 [models-settings.ts](../../src/app/feature/setting/model-setting/models-settings.ts:228).
 Rust validates the GGUF file and executes `llama-cli` for up to 90 seconds
 [models.rs](../../src-tauri/src/commands/models.rs:18).
 It returns text or a plain `String` error; UI stores it in `testMessages`.
 
 **Test API model**
-UI reads the secret with `secret_get`, validates/composes an OpenAI-compatible
+UI reads the keychain secret, validates/composes an OpenAI-compatible
 `/chat/completions` URL, performs `fetch`, and stores success/error
 [models-settings.ts](../../src/app/feature/setting/model-setting/models-settings.ts:237).
 Rust only supplies the key; Angular performs the HTTP request.
@@ -131,7 +132,7 @@ No Rust event or Rust diagnostics command participates.
 - `traceModelCalls` and `modelPerSkill` are defined but planned
   [settings.registry.ts](../../src/app/feature/setting/settings.registry.ts:272).
 - Angular diagnostics have no Rust producer contract or event bridge.
-- `model_test_local` has no test in this scope; unverified.
+- The local-model diagnostic has no test in this scope; unverified.
 - Keyring behavior across unavailable systems/platforms is unverified.
 - Rust command errors are plain `String`, not structured `{code,message}`.
 
@@ -147,7 +148,9 @@ No Rust event or Rust diagnostics command participates.
 
 ## 8. Run model broker (API v1)
 
-The run RPC allowlist includes:
+Each run snapshots the model registry and default once at startup; later
+settings edits do not change that run. Registry entries are read from user
+app-data settings only. The run RPC allowlist includes:
 
 | Method | Input | Result |
 |---|---|---|
@@ -167,7 +170,8 @@ non-200 responses return `ModelError` with the status and the first 300
 redacted body characters.
 
 Run traces record method, model id, elapsed time, success, token usage, and
-sanitized errors. Successful model calls are stored under
-`.cairn/runs/<runId>/calls/<n>.json`; each file is limited to 1 MB and a run to
-20 MB. Messages and response text are sanitized before writing. No headers or
-API keys are stored.
+sanitized errors. Model prompts and responses, authorization headers, and API
+keys are never written to `run.log` or `trace.jsonl`. Successful model calls
+are stored separately under `.cairn/runs/<runId>/calls/<n>.json`; messages and
+response text are sanitized before writing. Each call file is limited to 1 MB
+and a run to 20 MB. No headers or API keys are stored in call files.

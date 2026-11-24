@@ -31,16 +31,29 @@ by `model:<id>`; they are not JSON settings
 
 `models.registry` is a string setting whose JSON payload is an array of
 `ModelEntry`; `models.defaultModel` is a string setting
-[settings.registry.ts:174](../../src/app/feature/setting/settings.registry.ts#L174),
-[settings.registry.ts:175](../../src/app/feature/setting/settings.registry.ts#L175).
+[settings.registry.ts:262](../../src/app/feature/setting/settings.registry.ts#L262),
+[settings.registry.ts:271](../../src/app/feature/setting/settings.registry.ts#L271).
 The Rust model command accepts scalar camelCase arguments and is not passed a
 `ModelEntry` [models.rs:9](../../src-tauri/src/commands/models.rs#L9).
+
+Relevant registry status:
+
+| Key | Status in `settings.registry.ts` |
+|---|---|
+| `models.registry`, `models.defaultModel` | Active, user scope |
+| `models.modelPerSkill` | Planned, user scope |
+| `agents.pythonPath`, `agents.lazyStart`, `agents.defaultWorkflowEnabled` | Planned |
+| `diagnostics.logLevel` | Active, user scope |
+| `diagnostics.traceModelCalls` | Planned, user scope |
+
+No trust setting is defined in the current registry. The planned settings above
+are not runtime controls yet.
 
 ## 3. Rust
 
 ### Service functions
 
-`services/models` reads the user settings registry at `run_start` and serves
+`services/models` reads the user settings registry when a run starts and serves
 read-only model listing/completion to that run's RPC context. It does not write
 settings. `test_local_model` validates a GGUF path and spawns `llama-cli`;
 `wait_for_model` polls for exit or timeout

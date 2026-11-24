@@ -102,8 +102,8 @@ the UI decides how to present and dismiss each group. See
 
 **Project events:** register listeners first; then the workspace coordinator
 opens or closes the Rust project and refreshes the relevant stores. After an
-open, it refreshes workflow trust and emits the trust-review observable once
-when project workflows are untrusted. The full startup sequence is in
+open, it refreshes workflow trust; the shell shows a banner when project
+workflows need review. No trust-review observable is implemented. The full startup sequence is in
 [workspace](./workspace.md#5-flows).
 
 **Workflow status:** `WorkflowService.status` and `templates` are refreshed
@@ -124,16 +124,16 @@ apply conflict is a `{ kind: 'conflict', message }` result; a successful apply
 refreshes summaries while filesystem watcher events update the explorer.
 Patch review never mutates node or tab stores.
 
-**Settings workflow card:** show status, entry, warnings, and issues; create
-from templates or duplicate the bundled workflow. Duplicate means copy the
-bundled workflow directory for `project` or `global` scope. On project create,
-the folder is auto-approved only if it was trusted immediately before creation
-and `agents.trustIdeEdits` exists and is on.
+**Workflow settings screen:** not implemented. `WorkflowService` exposes
+status, templates, and creation operations, but there is no corresponding
+feature screen. The shared `TrustSetting` dialog is opened from the shell's
+untrusted-workflow banner. The shared no-entry dialog handles the workflow
+choice state, but its source-selection actions are still in progress.
 
 **Run button:** reasons use no-project, task-not-ready, active-run,
 dependency, no-active-workflow, active-source-issue, and project-trust
-wording in that order. `RunService.run(taskId)` never accepts or sends a
-workflow name.
+wording in that order. `RunService.run(taskId)` sends only the task id; Rust
+resolves the workflow scope.
 
 **Mutation errors:** a domain facade calls the API, handles the rejection with
 `handleApiError`, and refreshes on stale data when appropriate. The cache

@@ -7,7 +7,7 @@
 > [!NOTE]
 > **Project Status: Active Development**
 >
-> The editor, integrated terminal, file explorer, Git tools, LSP bridge, settings, task and note services, Rust code map, run lifecycle, proposals, and stdlib-only Python SDK are implemented. Runs and proposals are covered by automated tests; end-to-end verification inside the app is in progress. The README and runtime are still converging; a real workflow through the full app and several recovery/platform paths are not yet fully verified.
+> The editor, integrated terminal, file explorer, Git tools, LSP bridge, settings, Rust code map, task/note/run/proposal services, and stdlib-only Python SDK are implemented. Run timeline, patch review, and proposal inbox screens are still in progress. Unverified: a real model-backed workflow, app recovery, packaged resources, and Unix process handling.
 
 ---
 
@@ -19,7 +19,7 @@ Most AI coding tools retrieve context as a probabilistic black box and wrap it i
 
 Cairn separates discovery from extraction. A code map gives the model structured symbol and reference information instead of dumping whole project files into every prompt. Tasks and contextual notes retain the work to be done and the decisions around it.
 
-The IDE is an open host rather than a closed agent. The default workflow is one workflow, not an irreversible core feature. Project and global Python workflows communicate with Rust over JSON-RPC and use the first-class SDK to read tasks and notes, inspect run context, report progress, and propose work.
+The IDE is an open host rather than a closed agent. Project, global, and bundled Python workflows communicate with Rust over JSON-RPC and use the first-class SDK to read tasks and notes, inspect run context, report progress, read selected project files, and propose work.
 
 Cairn is a native desktop application: Rust owns project data and process lifecycle; Angular provides the workspace UI and caches; Python workflows run as separate processes.
 
@@ -42,40 +42,42 @@ Cairn is a native desktop application: Rust owns project data and process lifecy
 - Scripts may propose tasks or subtasks; scripts cannot create tasks directly or mark tasks complete.
 - Proposal records and the proposal stores are implemented for task, batch, and subtask kinds.
 
-### 3. The Python Agent SDK
-The stdlib-only SDK in `sdk/python/cairn` talks to the host over JSON-RPC 2.0. Stdout is reserved for RPC; Python `print()` output is redirected to stderr and becomes run log output.
+### 3. Python Workflows and SDK
 
-> **Workflows run through uv, which installs the packages a workflow lists in its header into an isolated environment. Install uv first; Cairn shows a clear message if it's missing.**
+Each workflow scope has a single `main.py` entry: project
+`.cairn/workflows/main.py`, the global workflow under the platform config
+directory, or Cairn's bundled default at `sdk/python/workflows/main.py`. A
+valid project workflow takes precedence; when a project workflow folder has
+files but no `main.py`, Rust requires a source choice and remembers it for that
+project; the full Angular choice flow is in progress. Project workflow trust is
+reviewed in Settings, covers the whole folder, and is stored in app data rather
+than the repository. Approved scripts run with the user's permissions.
 
-The SDK exposes:
+The bundled default workflow reads task context and proposes edits through
+patches, or proposes splitting a task. Scripts cannot write workspace files:
+the patch review UI is in progress, and only the user-side apply/discard
+operations can change workspace files. Task and subtask proposals remain
+pending until a user accepts or rejects them; the proposal inbox UI is in
+progress.
 
-| Namespace | Real methods |
-|---|---|
-| `cairn.tasks` | `get(task_id)`, `list()`, `propose(...)`, `propose_batch(...)`, `propose_subtasks(...)` |
-| `cairn.notes` | `get(note_id)`, `for_task(task_id)` |
-| `cairn.proposals` | `list()` |
-| `cairn.run` | `context()`, `pending_steps()`, `step_start(...)`, `step_finish(...)`, `step(...)`, `finish(...)` |
-| `cairn.call(...)` | Raw JSON-RPC call with API v1 handshake behavior |
+The stdlib-only SDK in `sdk/python/cairn` communicates with Rust using
+JSON-RPC 2.0. Stdout is reserved for RPC; Python `print()` output goes to
+stderr and becomes run-log output. Its API v1 methods are:
 
-The SDK raises `CairnError(code, message)` for RPC errors and exits when the host closes stdin. The first SDK call performs the `hello` handshake.
+`hello`, `run.context`, `run.finish`, `tasks.get`, `tasks.list`, `notes.get`,
+`notes.for_task`, `models.list`, `models.complete`, `files.read`, `files.list`,
+`patch.propose`, `step.start`, `step.finish`, `tasks.propose`,
+`tasks.propose_batch`, `tasks.propose_subtasks`, and `proposals.list`.
 
-```python
-from cairn import tasks, run
-
-task = tasks.get("task-123")
-context = run.context()
-
-proposal_id = tasks.propose(
-    "Add focused regression coverage",
-    description="Cover the failing edge case",
-    presentation="notify",
-)
-run.finish("needs_review", summary="Proposed verification work")
-```
+The SDK raises `CairnError(code, message)` for RPC errors and exits when the
+host closes stdin. A workflow that calls a model sends the task text, linked
+notes and the project files it reads to the model provider you configured; a
+local endpoint keeps data on your machine. Files such as `.env` and key files
+are never readable by workflows.
 
 ### 4. Model and Provider Integration
 
-Settings and model entries are managed in the Angular app. Rust owns API-key storage through the OS keyring and exposes local-model testing. Cloud-provider and local-endpoint behavior is implemented through the model settings and services rather than being embedded in Python workflows.
+Settings and model entries are managed in the Angular app. Rust owns API-key storage through the OS keyring and provides an OpenAI-compatible model broker to workflows. Model calls can use a provider you configure or a local endpoint.
 
 ---
 
@@ -115,14 +117,18 @@ Recent projects are stored in the application data directory as a device-local h
 - [x] **Monaco Editor Core:** multi-tab editing, model lifecycle, syntax highlighting.
 - [x] **Custom LSP Client:** process bridge, JSON-RPC, diagnostics, semantic tokens.
 - [x] **IDE Shell:** explorer, terminal, output, search, Git tools, and workspace panels.
-- [x] **Rust Code Map:** Tree-sitter extraction for Rust (other languages planned, TypeScript next); cached summaries planned
+- [x] **Rust Code Map:** Tree-sitter extraction for Rust; additional grammars planned.
 - [ ] **Code Map Panel:** planned.
 - [x] **Reference Graph Engine:** lexical caller/callee graph (LSP call hierarchy resolution planned)
-- [x] **Python runner and SDK (runs, steps, proposals):** done
-- [ ] **Default agent workflow with model calls:** planned
-- [x] **Task and Note Management:** Rust services, stores, Angular facades, and persisted project records.
+- [x] **Python runner and SDK (runs, steps, proposals):** services implemented.
+- [x] **Bundled default workflow:** code implemented; real model/app trial unverified.
+- [x] **Task and Note Management:** Rust services, stores, Angular facades, and task/note screens.
+- [ ] **Run and step timeline:** services done, UI in progress (run view is an empty shell).
+- [ ] **Patch review:** services done, UI in progress (services only; no feature screen).
+- [ ] **Proposal inbox and planning view:** services done, UI in progress (services only; no feature screen).
+- [ ] **Workflow choice and trust flows:** services done, UI in progress.
 - [ ] **TypeScript Code Map Grammar:** planned.
-- [ ] **Default End-to-End Workflow:** planned until a real app workflow is verified.
+- [ ] **Model-call usage display:** planned.
 
 ---
 
@@ -130,10 +136,12 @@ Recent projects are stored in the application data directory as a device-local h
 
 ### Prerequisites
 
-- Node.js v26.1.0 (unverified; `package.json` has no `engines` field)
+- Node.js (tested with Node 26.x; `node -v` returned `v26.1.0`)
 - Stable Rust toolchain
 - Tauri v2 platform prerequisites
-- `uv` for launching Python workflows
+- uv: Workflows run through uv, which installs the packages a workflow lists in
+  its header into an isolated environment. Install uv first; Cairn shows a
+  clear message if it's missing.
 
 ### Development
 
@@ -154,6 +162,7 @@ cargo test
 ## Documentation
 - [Module Map](docs/MAP.md)
 - [Architecture](docs/architecture.md)
+- [Context](docs/CONTEXT.md)
 - [Frontend Core](docs/domains/frontend-core.md)
 - [Codemap](docs/domains/codemap.md)
 - [Editor](docs/domains/editor.md)
@@ -161,10 +170,12 @@ cargo test
 - [Git](docs/domains/git.md)
 - [LSP](docs/domains/lsp.md)
 - [Models and Settings](docs/domains/settings.md)
+- [Model Broker](docs/domains/model.md)
 - [Notes and Tasks](docs/domains/tasks-notes.md)
+- [Patches](docs/domains/patches.md)
 - [Proposals](docs/domains/proposals.md)
 - [Runs](docs/domains/runs.md)
 - [Terminal](docs/domains/terminal.md)
 - [Workspace](docs/domains/workspace.md)
 
-Domain documentation is being completed; see docs/MAP.md for the module index.
+The module map links each domain to its code and documentation.

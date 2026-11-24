@@ -4,7 +4,7 @@
 
 “Shown on read” means what `get_directory_content` can return from a directory
 listing. “Live `fs:changed`” means the Rust notify batch reaches Angular.
-“Codemap” means `codemap_update_files` receives the path and the Rust codemap
+“Codemap” means the Rust codemap update receives the path and the Rust codemap
 can index it. “Git refresh” means the Angular Git service receives the shared
 filesystem-event signal and starts its 500 ms debounced refresh.
 
@@ -87,7 +87,7 @@ One notify event passes these drop points, in order:
 | Any dot component | `is_ignored` | Codemap strict drop for hidden files/folders |
 | Root `.gitignore`; `.git/info/exclude` | `watcher_ignore` | Read fresh into watcher/codemap ignore rules; nested `.gitignore` files are not read for watcher paths |
 | Git metadata allowlist: `HEAD`, `index`, `packed-refs`, `refs/**` | `git_path_needed` | These Git metadata paths pass the live explorer filter even though `.git` is hidden |
-| Heavy entry in workspace search: `node_modules`, `.git`, `target` | `workspace_search` skip at directory scan | Search/listing optimization, not the shared live event filter |
+| Heavy entry in workspace search: `node_modules`, `.git`, `target` | Directory-search skip at scan | Search/listing optimization, not the shared live event filter |
 | Valid task/note external reload: exactly `.cairn/tasks|notes/<name>.json` | `is_cairn_data_path` | Reload only names not starting `.`, not ending `.tmp`, and with `.json` extension |
 
 ## Filesystem events

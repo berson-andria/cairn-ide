@@ -73,8 +73,8 @@ Resolution is intentionally different for the two non-runnable project states:
 2. Project `reserved-name` is a hard `Validation` error; no choice is offered.
 3. Project `no-entry` uses a remembered `bundled` choice, or a remembered
    `global` choice only while global status is `ok`. Otherwise `needsChoice` is
-   true and `run_start` returns `WorkflowChoiceRequired` with
-   `This project's workflows folder has no main.py. Choose which workflow to use.`
+   true and `run_start` returns `WorkflowChoiceRequired` and asks the user to
+   select a workflow source.
    A selected global or bundled workflow does not require project trust.
 4. Project `empty` falls back to nonempty global, then bundled, without asking.
    A global `no-entry` or `reserved-name` is a hard `Validation` error rather
@@ -159,14 +159,13 @@ prompt, and replace edits are disallowed on truncated files. A
 invalid model JSON and patch-validation errors may each be repaired up to two
 times.
 
-To customize it for a project, use Settings > Workflows to copy the `bundled`
-workflow into the project, then edit its `main.py` or helper files. The copy
-contains the whole bundled workflow folder; keep helpers beside the entry
-point and use absolute sibling imports. Project workflows take precedence over
-the bundled copy and are subject to the project-workflow trust review described
-above.
+`WorkflowService.create('project', 'bundled')` copies the bundled workflow
+folder into the project; the workflow settings screen is not implemented.
+Afterward, edit `main.py` or helper files in the workspace editor. Keep helpers
+beside the entry point and use absolute sibling imports. Project workflows take
+precedence over the bundled copy and require project trust.
 
-At run start, Rust reads the user's app-data `settings.json` once and snapshots
+When a run starts, Rust reads the user's app-data `settings.json` once and snapshots
 the model registry/default into that run. Missing or malformed settings are
 logged and give the run an empty registry; later settings edits do not affect
 an active run.
@@ -211,16 +210,15 @@ The existing 500 ms filesystem debounce is shared by workflow and trust
 refreshes: a batch containing a path under `.cairn/workflows/` refreshes both
 once per window, while unrelated paths do nothing.
 
-**Settings workflow card:** show status and display folder, entry point,
-warnings, and the active issue. Offer the returned templates and create
-project/global workflows from them; use `bundled` as the template id to copy
-the bundled workflow. A `Validation` response whose message says "already
-exists" is a duplicate result, not a general API error.
+**Workflow settings UI:** not implemented. `WorkflowService` exposes scope
+status, templates, and creation; there is no workflow-management feature screen.
+The shared no-entry dialog is incomplete: only the project-creation path is
+connected; global and bundled choices do not yet persist and start a run.
 
 **Run button:** reasons are project closed, task not ready, another run
 active, dependency incomplete, no active workflow, active source issue, or
-project workflow unreviewed/changed. The active source is selected by Rust;
-Angular sends no workflow name to `runStart`.
+project workflow unreviewed/changed. Rust selects the active source;
+`runStart` receives only the task id and expected revision.
 
 The Angular `WorkflowService` derives a trust state from the Rust status:
 
@@ -365,8 +363,9 @@ data:
 {"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"Stale revision","data":{"code":"StaleRev","message":"Stale revision"}}}
 ```
 
-Service codes include `NotFound`, `StaleRev`, `InvalidTransition`, `Forbidden`,
-`Validation`, `RunActive`, `TrustRequired`, `RuntimeUnavailable`,
+The complete Rust service-code set is `NotFound`, `StaleRev`,
+`InvalidTransition`, `Forbidden`, `Validation`, `Io`, `Corrupt`, `NoProject`,
+`RunActive`, `TrustRequired`, `WorkflowChoiceRequired`, `RuntimeUnavailable`,
 `ModelUnavailable`, `ModelError`, `ContextTooLarge`, and `PatchConflict`.
 Patch conflicts list the conflicting workspace-relative paths.
 Network refusal, DNS, and timeout errors name only the endpoint host and port.
@@ -470,10 +469,8 @@ from opening. Run finalization retries a task status update once after
 
 #### `WorkApiService`
 
-Typed command boundary; it has no signals and consumes no events. The Rust
-workflow command contract for this slice is listed here; the existing Angular
-workflow/run wrappers are still on the previous named-workflow contract and
-must be migrated before the workflow UI can use these commands.
+Typed command boundary; it has no signals and consumes no events. Its workflow
+and run methods use the current Rust command contract listed here.
 
 | Method | Resolves to | Command errors |
 |---|---|---|
@@ -525,12 +522,14 @@ Scope status, templates, and project-level trust status.
 |---|---|
 | `status` | `Signal<WorkflowStatus \| null>` with active scope and all scope statuses |
 | `templates` | `Signal<WorkflowTemplate[]>` parsed from template comments |
+| `needsChoice` | Boolean derived from `status.needsChoice` |
 | `trust` | `Signal<WorkflowTrustStatus \| null>` with current files and approval changes |
+| `trustState` / `trustSummary` / `review` | Derived trust state, change counts, and review inventory |
 | `needsTrustReview` | True when the active project scope is not trusted |
 | `refresh()` / `refreshTrust()` | Refresh scope status or project trust status |
+| `choose(scope)` / `clearChoice()` | Persist or clear the current project's remembered source and refresh status |
 | `create(scope, template)` | Create a template or recursively copy the bundled scope; never overwrite |
-| `projectOpened()` | Refresh trust status and emit `trustReview$` once when review is needed |
-| `trustReview$` | Emits the untrusted status once for each project open |
+| `projectOpened()` | Refresh project trust status |
 | `approve()` / `revoke()` | Approve the latest displayed folder hash or remove the project approval |
 | `filesChanged(paths)` | Debounce trust refreshes by 500 ms for paths in `.cairn/workflows` |
 | `clear()` | Reset workspace-scoped state and pending refresh timers |
@@ -548,7 +547,8 @@ Start/cancel workflows and expose live run state.
 | `isRunning` | `Signal<boolean>`; run is unfinished and its cached task is running when present |
 | `logLines(runId)` | `Signal<string[]>` from the bounded run buffer |
 | `runDisabledReason(task)` / `canRun(task)` | Explain or check project, task, run, dependency, and active-scope eligibility |
-| `run(taskId)` | Call `run_start`; return `started` or `{ kind: 'trust-required' }` without toasting |
+| `run(taskId)` | Call `run_start`; return `started`, `{ kind: 'trust-required' }`, or `{ kind: 'choice-required' }` without toasting |
+| `chooseAndRun(taskId, scope)` | Persist a selected source, then run only if the choice succeeds |
 | `cancel()` | Call `run_cancel()` |
 | `refresh()` | Refresh `run_get()` and the active run's log |
 | `loadHistory(limit)` / `loadLog(runId, maxLines)` | Call `run_list` / `run_log` and cache results |
@@ -567,9 +567,9 @@ app initializer.
 
 | Lifecycle | Behavior |
 |---|---|
-| Subscribe | Listen once to task, note, project, run, and proposal events |
+| Subscribe | Listen once to task, note, project, run, proposal, and patch events |
 | Workspace change | Clear caches, then close or open the project |
-| Project open | Refresh tasks, notes, proposals, run, workflows, and trust status |
+| Project open | Refresh tasks, notes, proposals, patches, run, workflows, and trust status |
 | `project:reloaded` | Refresh tasks, notes, and proposals |
 | `fs:changed` | Refresh trust status after a debounced workflow-path batch |
 
@@ -585,7 +585,12 @@ app initializer.
 | `NoProject` | No project is open | `handleApiError` suppresses the toast. |
 | `RunActive` | Another workflow is active | Reported; `isRunning` allows the UI to disable run actions. |
 | `TrustRequired` | Project workflow hash is not approved | `RunService.run` returns `{ kind: 'trust-required' }` and points the UI to Settings; it does not inspect or approve automatically. |
+| `WorkflowChoiceRequired` | A project workflow folder has files but no entry point and has no usable remembered choice | `RunService.run` returns `{ kind: 'choice-required' }`; the no-entry choice flow selects a source before retrying. |
 | `RuntimeUnavailable` | Workflow launcher/SDK is unavailable | Reported with Rust's message. |
+| `ModelUnavailable` | The configured endpoint cannot be reached, or the run was cancelled during a call | Reported with the host and port or cancellation message. |
+| `ModelError` | The model endpoint returned an HTTP or response error | Reported with a redacted, bounded message. |
+| `ContextTooLarge` | Estimated input and output exceed the selected model context limit | Reported with the estimated size and limit. |
+| `PatchConflict` | A patch base file changed before apply | Returned to the patch-review caller; the workspace is not changed. |
 | `Io`, `Corrupt` | Disk or record problem | Reported with Rust's message; list-level storage errors remain in store `errors`. |
 | `BadArgs` | Tauri rejected a plain-string/bad-shape argument | Normalized by `WorkApiService`; reported as an error. |
 
@@ -595,10 +600,8 @@ No service retries a rejected mutation silently.
 
 ### UI integration
 
-The Angular command wrappers and selectors are intentionally unchanged in this
-slice. They still need a follow-up migration from named workflows to
-`workflow_status`, `workflow_templates`, and the argument-free `run_start`.
-The intended UI behavior is:
+The Angular command wrappers and selectors consume the current scope-based
+workflow contract. The following interaction recipes describe the integration:
 
 #### Run button and its states
 
@@ -607,7 +610,7 @@ The intended UI behavior is:
 2. Derive a run-in-progress state from `runService.isRunning()`; disabled
    actions include a `reason`.
 3. On the run action call `await taskService.perform(task, 'run')`. Rust
-   chooses the active scope; the UI does not choose a workflow by name.
+   resolves the active scope from project state.
 4. On `{ kind: 'started', run }`, show the active state from
    `runService.current()` / `runService.isRunning()`. The event-fed task status
    also changes to `running`.
@@ -617,13 +620,14 @@ The intended UI behavior is:
    fetches the full run record. `isRunning()` becomes false and the task event
    carries the task's resulting status.
 
-#### Notice when opening a project
+#### Trust and choice UI currently
 
-1. Subscribe to `workflowService.trustReview$` for the project-open lifecycle.
-2. When it emits, show a notice directing the user to Settings to review project
-   workflows. The observable emits at most once for that project open and only
-   when `.cairn/workflows` contains Python workflows that are not trusted.
-3. This notice does not approve scripts or start a run.
+The app shell shows an untrusted-workflow banner when the project workflow
+state is `unreviewed` or `changed`; its Manage action opens `TrustSetting`.
+Project open refreshes trust state but does not emit a trust-review observable.
+The app shell opens the shared no-entry dialog when Rust reports
+`needsChoice`. The dialog's global and bundled actions are not connected to
+`WorkflowService.choose`/`RunService.chooseAndRun` yet.
 
 #### Settings review and approval
 

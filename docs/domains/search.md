@@ -30,9 +30,9 @@ There is no search Rust service. The command module contains the implementation 
 | Name | What it does | Errors |
 |---|---|---|
 | `split_globs` | Splits comma-separated globs while preserving commas inside braces. | None; returns strings. |
-| `build_overrides` | Builds include and exclude overrides, normalizing folder patterns. | `String` for invalid include/exclude globs. |
+| Filter normalization | Normalizes include and exclude folder patterns. | `String` for invalid include/exclude globs. |
 | `is_binary_file` | Returns true when a file cannot be opened or contains a NUL byte in the first 1024 bytes. | I/O failure is treated as binary/skip. |
-| `run_search` | Builds the regex and overrides, walks or limits files, scans in parallel, and groups line matches. | Workspace missing, invalid regex, invalid overrides, result returned as `String`. |
+| `run_search` | Builds the regex and filters, walks or limits files, scans in parallel, and groups line matches. | Workspace missing, invalid regex or filters, result returned as `String`. |
 | `search_files_blocking` | Walks files and returns paths whose relative names contain the query. | `Root path does not exist` or an internal `String` error shape. |
 | `is_excluded_folder` | Applies excluded-folder rules to relative paths. | No explicit error. |
 

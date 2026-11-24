@@ -185,7 +185,7 @@ refresh the affected task. Errors are handled through `handleApiError`.
 |---|---|
 | `records`, `errors`, `loaded`, `tasks`, task-status projections | Task cache and filtered signals |
 | `availableActions(task)` | Status actions, including workflow eligibility |
-| `perform(task, action, options?)` | Route start/run/cancel/complete/review/retry/reopen; run accepts `{ workflow? }` |
+| `perform(task, action, options?)` | Route start/run/cancel/complete/review/retry/reopen; Rust resolves the workflow scope for run |
 | `refresh()`, `get(id)`, `select(id)`, `canStart(id)`, `getDependentTasks(id)` | Read and refresh tasks |
 | `add`, `edit`, `delete`, `start`, `complete`, `setStatus`, task mutators | Existing task command facade |
 

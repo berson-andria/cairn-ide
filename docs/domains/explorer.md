@@ -30,9 +30,9 @@ The Rust and TS shapes are in
 - `get_directory_content(path)`: reads a directory, hides tree-private entries,
   creates UUID-backed file/folder nodes, and sorts folders first. Errors are
   `String` ([fs.rs](../../src-tauri/src/services/fs.rs:8)).
-- `create_fs_node(path, name, nodeType, parentId)`: rejects an existing target,
-  creates a folder or empty file, and returns `Node`; unknown types and I/O errors
-  are `String` ([fs.rs](../../src-tauri/src/services/fs.rs:169)).
+- Node creation rejects an existing target, creates a folder or empty file, and
+  returns a node; unknown types and I/O errors are `String`
+  ([fs.rs](../../src-tauri/src/services/fs.rs:169)).
 - `WorkspaceWatcher::subscribe/start/stop`: subscribes or starts/stops the native
   watcher ([watcher.rs](../../src-tauri/src/services/watcher.rs:84)).
 - `run_watch/emit_batch/emit_error`: filters, batches, and emits filesystem events;
@@ -56,8 +56,8 @@ Tauri command arguments, results, and errors: see
 
 ### API wrapper
 
-`FileSystemService` wraps `watch_start`, `watch_stop`, `read_directory_content`,
-`get_files`, `read_text_file`, and `create_fs_node` through `TauriBridgeService`
+`FileSystemService` wraps the watcher, directory, file-read, and node-creation
+commands through `TauriBridgeService`
 ([file-system.service.ts](../../src/app/core/services/file-system/file-system.service.ts:19),
 [file-system.service.ts](../../src/app/core/services/file-system/file-system.service.ts:147)).
 It also directly calls plugin-fs methods for rename, remove, copy, mkdir, file
@@ -92,27 +92,26 @@ results; there is no shared structured error type.
 ## 5. Flows
 
 - **Open folder:** app action -> `NodeStore.loadFolder(path)` -> `getRootFolder`
-  -> `read_directory_content` -> Rust `get_directory_content` -> patch NodeStore.
-  Watcher start -> `watch_start(path)` -> native watcher -> `fs:changed` ->
+  -> Rust directory read -> patch NodeStore. Watcher start -> native watcher -> `fs:changed` ->
   `WorkspaceWatcherService` -> `applyCreated/Removed/Renamed/Modified`.
 - **Expand folder:** folder click -> `toggleFolder()` -> `toggleFolderExpansion`
-  -> `_loadFolder` -> `readDirectoryContents` -> `read_directory_content` ->
+  -> `_loadFolder` -> `readDirectoryContents` -> Rust directory read ->
   Rust scan -> patch `nodes`/folder `children`.
-- **Open file:** file click -> `fetchFileContent(id)` -> `read_text_file` ->
+- **Open file:** file click -> `fetchFileContent(id)` -> Rust file read ->
   patch file `content` -> `EditorCommands.openFile`.
 - **Create/rename/delete/move/copy:** component/store action -> `NodeStore`
-  mutation method -> plugin-fs or `create_fs_node` -> immediate `patchState`
+  mutation method -> plugin-fs or the Rust node-creation command -> immediate `patchState`
   (`create`) / `applyRenamed/Removed/Created` -> watcher may repeat but state is
   reconciled. No Rust mutation event is emitted for plugin-fs operations.
 - **External change:** native notify -> `fs:changed` -> Angular listener ->
   queue -> `applyCreated/Removed/Renamed/onModify` -> `patchState`; external
-  file content is read with `read_text_file` and conflict/reload logic runs.
+  file content is read through the Rust file-read command and conflict/reload logic runs.
 
 ## 6. Gaps
 
 - Explorer mutation ownership is incomplete: save/rename/delete/copy/mkdir use
   Angular plugin-fs directly, not Rust services or Tauri commands.
-- `workspace_search` walks and searches files inside the Tauri command boundary;
+- Workspace search walks and searches files inside the Tauri command boundary;
   it does not call an explicit Rust service function ([fs.rs](../../src-tauri/src/commands/fs.rs:120)).
 - Rust `FolderNode.isExpanded` has no TS field; Angular's separate UI state is the
   only expansion source. This is intentionally a UI-state split, not established as
@@ -128,5 +127,5 @@ results; there is no shared structured error type.
 
 | File:line | What it does | Where it belongs |
 |---|---|---|
-| `src-tauri/src/commands/fs.rs:103-169` | `workspace_search` performs walking, exclusion, cancellation, file opens, line scanning, and result channel output in the command boundary. | Rust filesystem/search service; command only validates args and delegates. |
+| `src-tauri/src/commands/fs.rs:103-169` | Workspace search performs walking, exclusion, cancellation, file opens, line scanning, and result channel output in the command boundary. | Rust filesystem/search service; command only validates args and delegates. |
 | `src/app/feature/explorer/node/node-dnd.directive.ts:126-143` | Drag/drop descendants prevent and duplicate move-target validation in the directive. | `NodeStore` move/copy policy; directive should only collect UI events. |

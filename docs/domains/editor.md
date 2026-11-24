@@ -76,7 +76,7 @@ tab, editor, or Monaco state (MAP row:
 
 - `get_directory_content(path: &Path)`: scans one directory, filters hidden
   entries, builds/sorts nodes, and writes no file content ([fs.rs](../../src-tauri/src/services/fs.rs):8). Errors are `Result<Vec<Node>, String>`.
-- `create_fs_node(path, name, node_type, parent_id)`: creates a file/folder node
+- Rust node creation: creates a file/folder node
   and returns `Node`; rejects existing paths ([fs.rs](../../src-tauri/src/services/fs.rs):169). Errors are `String`.
 
 **Commands**
@@ -116,7 +116,7 @@ changes are watcher events owned by the watcher domain.
 
 - **Open file:** UI -> `EditorCommands.openFile` -> `NodeStore.fetchFileContent`
   if needed -> `FileSystemService.getFileTextContent` -> Rust
-  `read_text_file` -> NodeStore patches `content` -> `TabStore.openFile` -> code
+  Rust file read -> NodeStore patches `content` -> `TabStore.openFile` -> code
   component effects -> `ModelSourceService.acquireFile` -> `EditorService.acquireModel`
   ([editor.commands.ts](../../src/app/feature/editor/editor.commands.ts):143,
   [file-system.service.ts](../../src/app/core/services/file-system/file-system.service.ts):153).
@@ -140,7 +140,7 @@ changes are watcher events owned by the watcher domain.
 ## 6. Gaps
 
 - Rust tab/editor state does not exist; persistence is unverified.
-- File saves bypass Tauri `read_text_file`/filesystem commands via plugin
+- File saves bypass the Rust file-read/filesystem commands via plugin
   `writeTextFile`, so save errors are plugin/Tauri behavior, unverified here.
 - External-edit reload for editor models is unverified in this scope.
 - The `Open file` diff button is a disabled/commented placeholder
