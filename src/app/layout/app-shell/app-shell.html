@@ -255,14 +255,16 @@
 <footer class="status-bar" id="app-shell-footer">
   <div class="status-bar__group">
     @if (nodeStore.rootPath()) {
-      <button class="workflow">
-        <ng-icon name="lucideWorkflow" />
-        <span>{{
-          workflowService.status()?.active === 'project'
-            ? 'Local'
-            : (workflowService.status()?.active | titlecase)
-        }}</span>
-      </button>
+      @if (workflowService.status()?.active) {
+        <button class="workflow">
+          <ng-icon name="lucideWorkflow" />
+          <span>{{
+            workflowService.status()?.active === 'project'
+              ? 'Local'
+              : (workflowService.status()?.active | titlecase)
+          }}</span>
+        </button>
+      }
       @if (git.isRepo()) {
         <div class="git-btn-group">
           <button

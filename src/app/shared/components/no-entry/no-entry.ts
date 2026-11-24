@@ -1,9 +1,11 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideBoneFracture } from '@ng-icons/lucide';
 import { WorkflowService } from '../../../core/services/runs/workflow.service';
 import { TitleCasePipe } from '@angular/common';
 import { DialogRef } from '@angular/cdk/dialog';
+
+export type NoEntryResult = { kind: 'local'; entryPath: string };
 
 @Component({
   template: `
@@ -48,7 +50,7 @@ import { DialogRef } from '@angular/cdk/dialog';
       </div>
       <div class="btn-group">
         <button class="btn-primary" (click)="cancel()">Cancel</button>
-        <button class="btn-action" [disabled]="!choice()">Confirm</button>
+        <button class="btn-action" [disabled]="!choice()" (click)="confirm()">Confirm</button>
       </div>
     </div>
   `,
@@ -121,9 +123,17 @@ import { DialogRef } from '@angular/cdk/dialog';
 })
 export class NoEntry {
   readonly workflow = inject(WorkflowService);
-  private readonly ref = inject<DialogRef>(DialogRef);
+  private readonly ref = inject<DialogRef<NoEntryResult | undefined>>(DialogRef);
 
   choice = signal<string | null>(null);
+  private creating = signal(false);
+  constructor() {
+    effect(() => {
+      if (!this.workflow.needsChoice() && !this.creating()) {
+        this.ref.close();
+      }
+    });
+  }
   cancel() {
     this.ref.close();
   }
@@ -131,5 +141,28 @@ export class NoEntry {
     this.choice.set(option);
   }
 
-  confirm() {}
+  async confirm() {
+    switch (this.choice()) {
+      case 'project':
+        this.creating.set(true);
+        const created = await this.workflow.create('project', 'blank');
+        if (created?.kind !== 'created') {
+          this.creating.set(false);
+          return;
+        }
+        const trust = this.workflow.trust();
+        if (trust) {
+          await this.workflow.approve(trust.folderHash);
+        }
+        this.ref.close({ kind: 'local', entryPath: created.entryPath });
+        break;
+
+      case 'global':
+        break;
+
+      case 'bundled':
+        // this.workflow.create('project', this.workflow)
+        break;
+    }
+  }
 }

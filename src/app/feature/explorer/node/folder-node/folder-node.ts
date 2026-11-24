@@ -12,6 +12,7 @@ import { FileIcon } from '../../../../shared/components/file-icon';
 import { GitService } from '../../../git/services/git.service';
 import { statusStyle } from '../../../git/ui/git-ui';
 import { LayoutService } from '../../../../core/services/layout.service';
+import { EditorCommands } from '../../../editor/editor.commands';
 
 @Component({
   selector: 'folder-node',
@@ -21,7 +22,8 @@ import { LayoutService } from '../../../../core/services/layout.service';
   providers: [provideIcons({ bootstrapChevronDown, bootstrapChevronRight })],
 })
 export class FolderNode {
-  nodeStore = inject(NodeStore);
+  protected readonly nodeStore = inject(NodeStore);
+  protected readonly command = inject(EditorCommands);
   protected readonly git = inject(GitService);
   readonly layout = inject(LayoutService);
   nodeId: InputSignal<string> = input.required();
@@ -77,7 +79,6 @@ export class FolderNode {
   async toggleFolder() {
     const id = this.nodeId();
     this.nodeStore.toggleFolderExpansion(id); // instant feedback
-    // Safe to call on every open: the store skips folders that are already loaded and shares in-flight scans.
   }
 
   newNodeNameChange(nodeName: string) {
@@ -86,8 +87,10 @@ export class FolderNode {
     );
   }
 
-  saveNewNode(nodeName: string, mode: InlineCreationMode) {
-    this.nodeStore.submitInlineCreation(nodeName, mode, this.nodeStore.nodes()[this.nodeId()].id);
+  async saveNewNode(nodeName: string, mode: InlineCreationMode) {
+    const nodeId = await this.nodeStore.submitInlineCreation(nodeName, mode, this.nodeId());
+    if (!nodeId) return;
+    if (mode === 'file') this.command.openFile(nodeId);
   }
 
   statusColor() {

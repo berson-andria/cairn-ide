@@ -29,7 +29,9 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "../sdk/python/": "sdk/python/"
+      "../sdk/python/cairn/*.py": "sdk/python/cairn/",
+      "../sdk/python/workflows/*.py": "sdk/python/workflows/",
+      "../sdk/python/templates/*.py": "sdk/python/templates/"
     },
     "icon": [
       "icons/32x32.png",

@@ -56,7 +56,8 @@ import { NoticeList } from '../../core/services/notification/notification-list';
 import { ProjectHistoryService } from '../../core/services/project-history.service';
 import { DialogService } from '../../core/services/dialog/dialog.service';
 import { TrustSetting } from '../../shared/components/trust-setting/trust';
-import { NoEntry } from '../../shared/components/no-entry/no-entry';
+import { NoEntry, NoEntryResult } from '../../shared/components/no-entry/no-entry';
+import { findNodeByPath } from '../../core/services/file-system/external-watcher.utils';
 
 @Component({
   selector: 'app-shell',
@@ -115,6 +116,9 @@ export class AppShell {
 
   currentWindow: Window;
   hasActiveProject = false;
+  private needChoice = signal<boolean | null>(null);
+  private pendingWorkflowEntry = signal<string | null>(null);
+  private openingWorkflowEntry = false;
 
   isMonacoLoading = signal(true);
   isMaximized = signal(false);
@@ -146,12 +150,50 @@ export class AppShell {
       if (root) untracked(() => void this.watcher.start(root));
       else untracked(() => void this.watcher.stop());
     });
-    effect(() => {
-      console.log(this.workflowService.status());
+    effect(async () => {
+      if (!this.workflowService.needsChoice()) return;
+      this.needChoice.set(true);
+      const ref = await this.dialogService.open<NoEntryResult | undefined>(NoEntry, {
+        width: '500px',
+      });
+      ref.closed.subscribe((val) => {
+        if (val?.kind === 'local') {
+          this.needChoice.set(false);
+          this.pendingWorkflowEntry.set(val.entryPath);
+        }
+      });
+    });
+    effect(async () => {
+      const nodes = this.nodeStore.nodes();
+      const entryPath = this.pendingWorkflowEntry();
+      const rootPath = this.nodeStore.rootPath();
+      if (!entryPath || !rootPath || this.openingWorkflowEntry) return;
 
-      const activeWorkflow = this.workflowService.active();
-      if (activeWorkflow && activeWorkflow.status) {
-        this.dialogService.open(NoEntry, { width: '500px' });
+      const cairnFolder = Object.values(this.nodeStore.rootNodes()).find(
+        (v) => v.name === '.cairn',
+      );
+      let cairnFolderId = cairnFolder?.id ?? null;
+      if (!cairnFolderId) {
+        cairnFolderId = await this.nodeStore.submitInlineCreation('.cairn', 'folder', null);
+        if (!cairnFolderId) return;
+      }
+      await this.nodeStore.expandFolder(cairnFolderId);
+
+      const workflowDirectory = `${rootPath.replace(/[\\/]+$/, '')}/.cairn/workflows`;
+      const workflowFolder = findNodeByPath(nodes, workflowDirectory);
+      if (!workflowFolder || !('children' in workflowFolder)) return;
+
+      this.openingWorkflowEntry = true;
+      try {
+        await this.nodeStore.expandFolder(workflowFolder.id);
+
+        const node = findNodeByPath(this.nodeStore.nodes(), entryPath);
+        if (!node || !('content' in node)) return;
+
+        this.pendingWorkflowEntry.set(null);
+        await this.commands.openFile(node.id);
+      } finally {
+        this.openingWorkflowEntry = false;
       }
     });
   }

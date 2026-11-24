@@ -6,7 +6,6 @@ import {
   effect,
   ElementRef,
   inject,
-  signal,
 } from '@angular/core';
 
 import { CommonModule } from '@angular/common';
@@ -27,6 +26,7 @@ import { InlineCreationMode } from '../../core/store/node.state';
 import { NodeStore } from '../../core/store/node.store';
 import { EditorCommands } from '../editor/editor.commands';
 import { LayoutService } from '../../core/services/layout.service';
+import { TabStore } from '../../core/store/tab.store';
 
 @Component({
   selector: 'file-tree',
@@ -48,8 +48,9 @@ import { LayoutService } from '../../core/services/layout.service';
   standalone: true,
 })
 export class FileTree {
-  nodeStore = inject(NodeStore);
-  commands = inject(EditorCommands);
+  readonly nodeStore = inject(NodeStore);
+  readonly tabStore = inject(TabStore);
+  readonly commands = inject(EditorCommands);
   keys = inject(KeybindingService);
 
   layoutService = inject(LayoutService);
@@ -67,11 +68,25 @@ export class FileTree {
   });
   constructor() {
     inject(DestroyRef).onDestroy(() => this.keys.setContext('explorerFocus', false));
-    effect(() => {
-      if (this.nodeStore.activeNodeId()) {
-        setTimeout(() => this.scrollActiveNodeIntoView(), 0);
+    effect(async () => {
+      if (this.tabStore.activeTabId() && this.tabStore.activeTabType() === 'CodeEditor') {
+        // await this.autoExpand();
+        setTimeout(() => {
+          this.scrollActiveNodeIntoView();
+        }, 0);
       }
     });
+  }
+
+  async autoExpand() {
+    let parentId =
+      this.tabStore.activeTabType() === 'CodeEditor' && this.nodeStore.activeNodeId()
+        ? this.nodeStore.nodes()[<string>this.nodeStore.activeNodeId()].parentId
+        : null;
+    while (parentId) {
+      await this.nodeStore.expandFolder(parentId);
+      parentId = this.nodeStore.nodes()[parentId].id;
+    }
   }
 
   async addStandaloneFile() {

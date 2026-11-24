@@ -1298,7 +1298,7 @@ pub fn sdk_dir(
     manifest_dir: &Path,
     resource_dir: Option<&Path>,
 ) -> Option<PathBuf> {
-    if debug_build {
+    if debug_build && !(cfg!(test) && resource_dir.is_some()) {
         Some(manifest_dir.join("..").join("sdk").join("python"))
     } else {
         resource_dir.map(|directory| directory.join("sdk").join("python"))
@@ -2842,6 +2842,26 @@ mod tests {
     fn ignored_no_entry_project_runs_the_remembered_bundled_workflow_with_uv() {
         let root = tempdir().unwrap();
         let data = tempdir().unwrap();
+        let resources = tempdir().unwrap();
+        let resource_sdk = resources.path().join("sdk").join("python");
+        let resource_cairn = resource_sdk.join("cairn");
+        let resource_workflows = resource_sdk.join("workflows");
+        fs::create_dir_all(&resource_cairn).unwrap();
+        fs::create_dir_all(&resource_workflows).unwrap();
+        let source_sdk = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("sdk")
+            .join("python");
+        fs::copy(
+            source_sdk.join("cairn").join("__init__.py"),
+            resource_cairn.join("__init__.py"),
+        )
+        .unwrap();
+        fs::write(
+            resource_workflows.join(workflows::ENTRY_FILE),
+            "from cairn import run\n\nrun.context()\nrun.finish(\"needs_review\")\n",
+        )
+        .unwrap();
         let project = root.path().join(".cairn/workflows");
         fs::create_dir_all(&project).unwrap();
         fs::write(project.join("helper.py"), "pass").unwrap();
@@ -2858,7 +2878,7 @@ mod tests {
             Duration::from_secs(120),
             Some(data.path().to_path_buf()),
             PathBuf::from(env!("CARGO_MANIFEST_DIR")),
-            None,
+            Some(resources.path().to_path_buf()),
         );
         manager.workflow_choose(&projects, "bundled").unwrap();
         let record = manager
@@ -3264,13 +3284,53 @@ mod tests {
     fn real_main_workflow_runs_through_uv_and_the_sdk() {
         let root = tempdir().unwrap();
         let data = tempdir().unwrap();
-        let workflow_dir = root.path().join(".cairn/workflows");
-        fs::create_dir_all(&workflow_dir).unwrap();
-        fs::write(
-            workflow_dir.join(workflows::ENTRY_FILE),
-            include_str!("../../../../sdk/python/workflows/main.py"),
-        )
-        .unwrap();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let replies = [
+                r#"{"files":[]}"#,
+                r#"{"action":"edit","summary":"Update integration","edits":[{"op":"write","path":"result.txt","content":"prepared"}]}"#,
+            ];
+            let mut requests = Vec::new();
+            for reply in replies {
+                let (mut stream, _) = listener.accept().unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut request = Vec::new();
+                let mut byte = [0; 1];
+                while !request.ends_with(b"\r\n\r\n") {
+                    stream.read_exact(&mut byte).unwrap();
+                    request.push(byte[0]);
+                }
+                let headers = String::from_utf8_lossy(&request).to_ascii_lowercase();
+                let content_length = headers
+                    .lines()
+                    .find_map(|line| line.strip_prefix("content-length:"))
+                    .and_then(|value| value.trim().parse::<usize>().ok())
+                    .unwrap();
+                let mut body = vec![0; content_length];
+                stream.read_exact(&mut body).unwrap();
+                request.extend(body);
+                let response_body = serde_json::json!({
+                    "choices": [{
+                        "message": { "content": reply },
+                        "finish_reason": "stop"
+                    }],
+                    "usage": { "prompt_tokens": 32, "completion_tokens": 16 }
+                })
+                .to_string();
+                write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    response_body.len(),
+                    response_body
+                )
+                .unwrap();
+                requests.push(String::from_utf8_lossy(&request).into_owned());
+            }
+            requests
+        });
         let project_sink = RecordingSink::default();
         let projects = ProjectState::default();
         projects.open(root.path(), project_sink.clone()).unwrap();
@@ -3280,10 +3340,6 @@ mod tests {
             .tasks
             .create(crate::types::task::TaskItem::new("integration"))
             .unwrap();
-        let workflow =
-            workflows::resolve_active_with_dirs(root.path(), Some(data.path()), None, None)
-                .unwrap();
-        workflows::trust(root.path(), &workflow.script_hash, Some(data.path())).unwrap();
         let manager = RunManager::with_options(
             Arc::new(SystemLauncher),
             Duration::from_secs(90),
@@ -3292,7 +3348,24 @@ mod tests {
             None,
         );
         manager
-            .run_start(&projects, task.id.clone(), task.rev, Arc::new(project_sink))
+            .run_start_with_registry(
+                &projects,
+                task.id.clone(),
+                task.rev,
+                Arc::new(Registry {
+                    models: vec![crate::services::models::ModelEntry {
+                        id: "fake".into(),
+                        model_type: "api".into(),
+                        context_limit: Some(4096),
+                        provider: Some("custom".into()),
+                        base_url: Some(format!("http://{address}")),
+                        model_name: Some("fake-model".into()),
+                        api_key_ref: None,
+                    }],
+                    default_model: Some("fake".into()),
+                }),
+                Arc::new(project_sink),
+            )
             .unwrap();
         let deadline = Instant::now() + Duration::from_secs(120);
         let record = loop {
@@ -3305,7 +3378,15 @@ mod tests {
             thread::sleep(Duration::from_millis(100));
         };
         assert_eq!(record.outcome, Some(RunOutcome::NeedsReview));
-        assert!(record.summary.unwrap().contains("integration"));
+        assert_eq!(
+            record.summary.as_deref(),
+            Some("1 patches proposed for 0 steps")
+        );
+        let requests = server.join().unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(requests
+            .iter()
+            .all(|request| request.starts_with("POST /chat/completions")));
     }
 
     #[test]
@@ -3384,6 +3465,10 @@ mod tests {
         assert_eq!(
             sdk_dir(false, manifest, Some(Path::new("resources"))).unwrap(),
             Path::new("resources/sdk/python")
+        );
+        assert_eq!(
+            sdk_dir(true, manifest, Some(Path::new("test-resources"))).unwrap(),
+            Path::new("test-resources/sdk/python")
         );
         assert!(sdk_dir(false, manifest, None).is_none());
     }

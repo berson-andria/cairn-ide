@@ -1,4 +1,7 @@
-use crate::services::service_error::{now_ms, ServiceError, ServiceErrorCode};
+use crate::services::{
+    project::strip_windows_verbatim_prefix,
+    service_error::{now_ms, ServiceError, ServiceErrorCode},
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -729,6 +732,7 @@ pub fn create_workflow(
         .join(ENTRY_FILE)
         .canonicalize()
         .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
+    let entry_path = PathBuf::from(strip_windows_verbatim_prefix(&entry_path.to_string_lossy()));
     Ok(WorkflowCreated {
         source,
         entry: format!("{display_folder}/{ENTRY_FILE}"),
@@ -2196,6 +2200,16 @@ mod tests {
             .unwrap();
             assert_eq!(created.source, WorkflowSource::Project);
             assert_eq!(created.entry, ".cairn/workflows/main.py");
+            let expected_path = PathBuf::from(strip_windows_verbatim_prefix(
+                &root
+                    .path()
+                    .join(PROJECT_FOLDER)
+                    .join(ENTRY_FILE)
+                    .canonicalize()
+                    .unwrap()
+                    .to_string_lossy(),
+            ));
+            assert_eq!(created.entry_path, expected_path);
             let created_text = fs::read_to_string(&created.entry_path).unwrap();
             assert!(created_text.contains(&format!("# title: {}", template.title)));
             let error = create_workflow(

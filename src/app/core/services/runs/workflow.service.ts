@@ -8,7 +8,6 @@ import type {
   WorkflowTrustReview,
   WorkflowTrustStatus,
 } from '../../../shared/models/agent.model';
-import { Subject } from 'rxjs';
 import { NodeStore } from '../../store/node.store';
 import { NoticeManager } from '../notification/notification.service';
 import { handleApiError } from '../tauri/api-error';
@@ -35,9 +34,7 @@ export function summarizeChanges(status: WorkflowTrustStatus | null): TrustSumma
   };
 }
 
-export type ApproveTrustResult =
-  | { kind: 'approved' }
-  | { kind: 'changed-while-reviewing' };
+export type ApproveTrustResult = { kind: 'approved' } | { kind: 'changed-while-reviewing' };
 
 export function containsWorkflowPath(rootPath: string | null, paths: readonly string[]): boolean {
   if (!rootPath) return false;
@@ -59,6 +56,7 @@ export class WorkflowService {
   private readonly nodes = inject(NodeStore);
   private readonly notices = inject(NoticeManager);
   private readonly settings = inject(SettingsService, { optional: true });
+
   private readonly _status = signal<WorkflowStatus | null>(null);
   private readonly _templates = signal<WorkflowTemplate[]>([]);
   private readonly _trust = signal<WorkflowTrustStatus | null>(null);
@@ -67,17 +65,11 @@ export class WorkflowService {
   private generation = 0;
   private trustRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly announcedHashes = new Set<string>();
-  private readonly _trustReview = new Subject<{ state: TrustState; summary: TrustSummary }>();
 
   readonly status = this._status.asReadonly();
   readonly templates = this._templates.asReadonly();
   readonly needsChoice = computed(() => this._status()?.needsChoice ?? false);
-  readonly choice = computed(() => this._status()?.choice ?? null);
-  readonly choiceOptions = computed(() => this._status()?.choiceOptions ?? {
-    bundled: false,
-    global: false,
-  });
-  readonly activeVia = computed(() => this._status()?.activeVia ?? null);
+
   readonly active = computed(() => {
     const status = this._status();
     if (!status?.active) return null;
@@ -85,9 +77,9 @@ export class WorkflowService {
   });
   readonly activeIssue = computed(() => {
     const active = this.active();
-    return active && active.status !== 'ok' ? active.message ?? null : null;
+    return active && active.status !== 'ok' ? (active.message ?? null) : null;
   });
-  readonly warnings = computed(() => this.active()?.warnings ?? []);
+
   readonly trust = this._trust.asReadonly();
   readonly trustState = computed(() => deriveTrustState(this._trust()));
   readonly trustSummary = computed(() => summarizeChanges(this._trust()));
@@ -101,16 +93,12 @@ export class WorkflowService {
     const changes = [...(status?.changes ?? [])];
     return { state: this.trustState(), files, changes };
   });
-  readonly trustReview$ = this._trustReview.asObservable();
 
   refresh(): Promise<void> {
     if (this.refreshPromise) return this.refreshPromise;
     const generation = this.generation;
     let request: Promise<void>;
-    request = Promise.all([
-      this.api.workflowStatus(),
-      this.api.workflowTemplates(),
-    ])
+    request = Promise.all([this.api.workflowStatus(), this.api.workflowTemplates()])
       .then(([status, templates]) => {
         if (generation !== this.generation) return;
         this._status.set(status);
@@ -178,7 +166,6 @@ export class WorkflowService {
     if (state !== 'unreviewed' && state !== 'changed') return;
     if (this.announcedHashes.has(status.folderHash)) return;
     this.announcedHashes.add(status.folderHash);
-    this._trustReview.next({ state, summary: summarizeChanges(status) });
   }
 
   filesChanged(paths: readonly string[]): void {
@@ -193,7 +180,8 @@ export class WorkflowService {
   private refreshStatus(): Promise<void> {
     const generation = this.generation;
     if (typeof this.api.workflowStatus !== 'function') return Promise.resolve();
-    return this.api.workflowStatus()
+    return this.api
+      .workflowStatus()
       .then((status) => {
         if (generation === this.generation) this._status.set(status);
       })
@@ -203,11 +191,7 @@ export class WorkflowService {
   async create(
     scope: Exclude<WorkflowScope, 'bundled'>,
     template: string,
-  ): Promise<
-    | { kind: 'created'; entryPath: string }
-    | { kind: 'exists' }
-    | undefined
-  > {
+  ): Promise<{ kind: 'created'; entryPath: string } | { kind: 'exists' } | undefined> {
     const trustedBefore = scope === 'project' && this.trustState() === 'trusted';
     try {
       const created = await this.api.workflowCreate(scope, template);
@@ -219,8 +203,8 @@ export class WorkflowService {
       return { kind: 'created', entryPath: created.entryPath };
     } catch (error) {
       if (
-        (error as { code?: string })?.code === 'Validation'
-        && /already exists/i.test((error as { message?: string })?.message ?? '')
+        (error as { code?: string })?.code === 'Validation' &&
+        /already exists/i.test((error as { message?: string })?.message ?? '')
       ) {
         return { kind: 'exists' };
       }
@@ -231,8 +215,8 @@ export class WorkflowService {
 
   private trustIdeEditsEnabled(): boolean {
     if (!this.settings) return false;
-    const exists = this.settings.definitions.some((definition) =>
-      definition.key === 'agents.trustIdeEdits'
+    const exists = this.settings.definitions.some(
+      (definition) => definition.key === 'agents.trustIdeEdits',
     );
     if (!exists) return false;
     try {
