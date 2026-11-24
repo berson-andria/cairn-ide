@@ -1,0 +1,169 @@
+// Theme-neutral: text color is inherited, borders and fills are derived from it.
+// Swap in token.scss variables where the app has them.
+.md {
+  --md-line: color-mix(in srgb, currentColor 18%, transparent);
+  --md-fill: color-mix(in srgb, currentColor 7%, transparent);
+  --md-mono: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+
+  .md-block {
+    display: contents;
+  }
+
+  > .md-block:first-child > :first-child {
+    margin-top: 0;
+  }
+  > .md-block:last-child > :last-child {
+    margin-bottom: 0;
+  }
+
+  p,
+  ul,
+  ol,
+  blockquote,
+  .md-code,
+  .md-table {
+    margin: 0.6em 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: 1.1em 0 0.4em;
+    line-height: 1.25;
+  }
+  h1 { font-size: 1.35em; }
+  h2 { font-size: 1.2em; }
+  h3 { font-size: 1.08em; }
+  h4, h5, h6 { font-size: 1em; }
+
+  ul,
+  ol {
+    padding-left: 1.4em;
+  }
+  li > ul,
+  li > ol {
+    margin: 0.2em 0;
+  }
+  li + li {
+    margin-top: 0.2em;
+  }
+  .md-task-item {
+    list-style: none;
+    margin-left: -1.2em;
+  }
+  .md-task {
+    margin: 0 0.4em 0 0;
+    vertical-align: middle;
+  }
+
+  blockquote {
+    padding-left: 0.9em;
+    border-left: 3px solid var(--md-line);
+    opacity: 0.85;
+  }
+  hr {
+    border: 0;
+    border-top: 1px solid var(--md-line);
+    margin: 1em 0;
+  }
+
+  a {
+    color: var(--link-color, #4c9aff);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  :not(pre) > code {
+    font-family: var(--md-mono);
+    font-size: 0.9em;
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    background: var(--md-fill);
+  }
+
+  .md-code {
+    border: 1px solid var(--md-line);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .md-code-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.2em 0.5em 0.2em 0.75em;
+    background: var(--md-fill);
+    font-size: 0.8em;
+    opacity: 0.9;
+  }
+  .md-copy {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 0.1em 0.5em;
+    cursor: pointer;
+    &:hover {
+      border-color: var(--md-line);
+    }
+    &:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 1px;
+    }
+  }
+  pre {
+    margin: 0;
+    padding: 0.7em 0.75em;
+    overflow-x: auto;
+    code {
+      font-family: var(--md-mono);
+      font-size: 0.88em;
+      line-height: 1.5;
+      white-space: pre;
+    }
+  }
+
+  .md-table {
+    overflow-x: auto;
+  }
+  table {
+    border-collapse: collapse;
+    min-width: 50%;
+  }
+  th,
+  td {
+    border: 1px solid var(--md-line);
+    padding: 0.3em 0.7em;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: var(--md-fill);
+    font-weight: 600;
+  }
+
+  .md-image {
+    font-style: italic;
+    opacity: 0.7;
+  }
+}
+
+.md.md-compact {
+  line-height: 1.45;
+  font-size: 0.95em;
+  p,
+  ul,
+  ol,
+  blockquote,
+  .md-code,
+  .md-table {
+    margin: 0.4em 0;
+  }
+}

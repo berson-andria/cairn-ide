@@ -191,22 +191,12 @@
               <p class="row__message" role="alert">{{ templateErrors()[template.id] }}</p>
             </div>
           } @else if (templateContents()[template.id] !== undefined) {
-            <div class="row row--stacked">
+            <div class="row--stacked">
               <div class="row__text">
-                <div class="template-code">
-                  <pre><code>{{ templateContents()[template.id] }}</code></pre>
-                </div>
-              </div>
-              <div class="row__control">
-                <button type="button" class="row__button" (click)="copyTemplate(template.id)">
-                  Copy
-                </button>
-                @if (copiedTemplate() === template.id) {
-                  <span class="row__hint" role="status">Copied</span>
-                }
-                @if (copyErrors()[template.id]) {
-                  <span class="row__message" role="alert">{{ copyErrors()[template.id] }}</span>
-                }
+                <markdown-viewer
+                  [source]="templateContents()[template.id]"
+                  [codeLanguage]="'python'"
+                ></markdown-viewer>
               </div>
             </div>
           }

@@ -6,12 +6,14 @@ import { WorkApiService } from '../../../core/services/tauri/work-api.service';
 import { NodeStore } from '../../../core/store/node.store';
 import { DialogService } from '../../../core/services/dialog/dialog.service';
 import { TrustSetting } from '../../../shared/components/trust-setting/trust';
+import { MarkdownView } from '../../../shared/components/markdown-view/markdown-view';
 
 @Component({
   selector: 'app-workflow-settings',
   standalone: true,
   templateUrl: './workflow-settings.html',
   styleUrl: './workflow-settings.scss',
+  imports: [MarkdownView],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkflowSettings {
