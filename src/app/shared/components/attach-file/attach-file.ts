@@ -55,8 +55,13 @@ export class AttachFile implements OnInit {
             return { query, files: [] as SelectedFile[] };
           }
           this.warning.set('');
-          const files = await this.searchService.searchWorkspaceFile(root, query);
-          return { query, files };
+          try {
+            const files = await this.searchService.searchWorkspaceFile(root, query);
+            return { query, files };
+          } catch (err) {
+            this.warning.set(typeof err === 'string' ? err : 'File search failed.');
+            return { query, files: [] as SelectedFile[] };
+          }
         }),
         takeUntilDestroyed(this.destroyRef),
       )

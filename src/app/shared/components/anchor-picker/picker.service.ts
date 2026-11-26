@@ -39,13 +39,13 @@ export class PickerService {
   // ───────────── Openers: each one fixes what can be picked ─────────────
 
   /** Opened from a note: a file or a task. */
-  forNote(noteId: string) {
-    return this.pick({ sources: ['file', 'task'], exclude: { noteIds: [noteId] } });
+  forNote(noteId?: string) {
+    return this.pick({ sources: ['file', 'task'], exclude: { noteIds: [noteId ?? ''] } });
   }
 
   /** Opened from a task: a file or a note. */
-  forTask(taskId: string) {
-    return this.pick({ sources: ['file', 'note'], exclude: { taskIds: [taskId] } });
+  forTask(taskId?: string) {
+    return this.pick({ sources: ['file', 'note'], exclude: { taskIds: [taskId ?? ''] } });
   }
 
   /** Opened from a file: a task or a note. The file itself is never offered. */

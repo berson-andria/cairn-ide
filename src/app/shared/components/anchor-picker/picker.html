@@ -57,6 +57,7 @@
         @switch (item.kind) {
           @case ('file') {
             <div class="line">
+              <file-icon [name]="item.name" [type]="'file'" />
               <span class="name">{{ item.name }}</span>
               <span class="dir">{{ item.dir }}</span>
             </div>

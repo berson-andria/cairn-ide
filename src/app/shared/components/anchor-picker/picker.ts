@@ -21,7 +21,15 @@ import {
   lucideSearch,
   lucideStickyNote,
 } from '@ng-icons/lucide';
-import { Subject, Subscription, debounceTime, distinctUntilChanged, map, switchMap, tap } from 'rxjs';
+import {
+  Subject,
+  Subscription,
+  debounceTime,
+  distinctUntilChanged,
+  map,
+  switchMap,
+  tap,
+} from 'rxjs';
 import { samePath } from '../../../core/services/file-system/external-watcher.utils';
 import { SearchService } from '../../../feature/search/search.service';
 import { FileNameSearchResult, FileSearchResult } from '../../../feature/search/search.model';
@@ -34,6 +42,7 @@ import {
   SOURCE_LABEL,
   SOURCE_PLACEHOLDER,
 } from './picker.model';
+import { FileIcon } from '../file-icon';
 
 type Row =
   | { kind: 'file'; key: string; path: string; name: string; dir: string }
@@ -65,7 +74,7 @@ function splitPath(root: string | null | undefined, path: string) {
   selector: 'picker',
   templateUrl: './picker.html',
   styleUrl: './picker.scss',
-  imports: [FormsModule, NgIcon],
+  imports: [FormsModule, NgIcon, FileIcon],
   providers: [
     provideIcons({
       lucideFileText,
@@ -180,7 +189,9 @@ export class Picker implements OnInit, OnDestroy {
   readonly emptyMessage = computed(() => {
     if (this.warningMessage() || this.rows().length || this.isSearching()) return '';
     if (isRemote(this.source())) return this.searched() ? 'No results found.' : '';
-    return this.keyword().trim() ? 'No results found.' : `No ${this.labels[this.source()].toLowerCase()} yet.`;
+    return this.keyword().trim()
+      ? 'No results found.'
+      : `No ${this.labels[this.source()].toLowerCase()} yet.`;
   });
 
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
@@ -294,7 +305,9 @@ export class Picker implements OnInit, OnDestroy {
     switch (row.kind) {
       case 'file':
       case 'text': {
-        const node = this.config.items?.files.find((candidate) => samePath(candidate.path, row.path));
+        const node = this.config.items?.files.find((candidate) =>
+          samePath(candidate.path, row.path),
+        );
         if (!node) {
           this.warningMessage.set('The selected file is no longer in the workspace.');
           return;
@@ -334,7 +347,10 @@ export class Picker implements OnInit, OnDestroy {
     try {
       this.warningMessage.set('');
       if (c.source === 'file') {
-        return { source: 'file', data: await this.searchService.searchWorkspaceFile(root, c.query) };
+        return {
+          source: 'file',
+          data: await this.searchService.searchWorkspaceFile(root, c.query),
+        };
       }
       return {
         source: 'text',

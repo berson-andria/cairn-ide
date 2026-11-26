@@ -24,8 +24,11 @@
 - App redesign **DONE**
 - Setting **DONE**
 - store setting values
-
+- add persistance
 - *FIXED*: ctrl+s don't set dirty state to false on diff tab, while the content have been saved in file monaco model and file disk.
+- let the user add python code to set their own agentic ai workflow.
+- define which script is running
+- Integrate agentic ai
 
 ### PROCESSED:
 - save state after app close.*PROCESSED*
@@ -37,19 +40,19 @@
 
 ### TODO:
 - v2 priority: text editor theme
-- Integrate agentic ai *STAND BY, require model download.*
+
 - add sandbox cmd *AFTER THE AGENT AI*
 - add right click option, ...right click action attach to task *NO NEED CLAUD FOR THIS*
 - highlight unsaved file.*LOW PRIORITY*
-- add persistance
+
 - add lsp installation process
 - delete from opened folder history deleted folder.
 
 - save file as
 - workspace reset after selecting
 - documentation model, for every change made, the model will update the documentation(it is not app documetion, it's functions documention). this documention will then serve as base for coding agent. It should be coupled with git.
-- let the user add python code to set their own agentic ai workflow.
-- define which script is running
+
+
 - *BUG*: Monaco diff editor, text selection not highlighted on line that differentiate the two text.
 
 ### ADDITIONAL TASKS

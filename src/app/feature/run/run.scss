@@ -1,0 +1,122 @@
+:host {
+  display: block;
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.run {
+  --run-color: var(--color-status-todo);
+  padding: var(--space-12);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface-panel);
+}
+.run--running {
+  --run-color: var(--color-status-running);
+}
+.run--needs_review {
+  --run-color: var(--color-status-review);
+}
+.run--completed {
+  --run-color: var(--color-status-done);
+}
+.run--failed {
+  --run-color: var(--color-error-fg);
+}
+
+.run__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+.run__id {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-code-sm);
+  color: var(--color-text-prose);
+}
+.run__pill {
+  padding: var(--space-2) var(--space-10);
+  border: 1px solid var(--run-color);
+  border-radius: var(--radius-pill);
+  color: var(--run-color);
+  font-size: var(--font-size-small);
+}
+.run--running .run__pill {
+  border-style: dashed;
+}
+.run__meta {
+  margin-left: auto;
+}
+
+.run__text {
+  margin: var(--space-8) 0 0;
+  color: var(--color-text-prose);
+  font-size: var(--font-size-ui);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.run__reason,
+.step__reason {
+  margin: var(--space-8) 0 0;
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-control);
+  background: var(--color-error-bg);
+  color: var(--color-error-fg);
+  font-size: var(--font-size-small);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.step__reason {
+  margin-top: var(--space-4);
+}
+
+.run__steps {
+  margin: var(--space-12) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.step {
+  display: flex;
+  gap: var(--space-10);
+  padding: var(--space-4) 0;
+}
+.step__mark {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  border: 1.5px solid var(--color-status-todo);
+  border-radius: var(--radius-round);
+}
+.step--running .step__mark {
+  border-color: var(--color-status-running);
+  border-style: dashed;
+}
+.step--needs_review .step__mark {
+  border-color: var(--color-status-review);
+  background: var(--color-status-review);
+}
+.step--completed .step__mark {
+  border-color: var(--color-status-done);
+  background: var(--color-status-done);
+}
+.step--failed .step__mark {
+  border-color: var(--color-error-fg);
+  background: var(--color-error-fg);
+}
+.step__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.step__title {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-ui);
+}
+.run__patches {
+  margin: var(--space-8) 0 0;
+}

@@ -184,7 +184,7 @@ export class GitChanges {
   }
 
   async stageAll() {
-    await this.git.stageAll();
+    await this.gitClient.stageAll();
   }
 
   async unstageAll() {

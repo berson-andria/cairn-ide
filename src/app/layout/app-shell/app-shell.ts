@@ -21,7 +21,6 @@ import { LayoutService, Toolkit } from '../../core/services/layout.service';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideAlertTriangle,
-  lucideBoneFracture,
   lucideBraces,
   lucideChevronDown,
   lucideChevronRight,

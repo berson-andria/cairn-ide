@@ -8,7 +8,7 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { TaskService, type TaskItem } from '../task.service';
+import { TaskAction, TaskService, type TaskItem } from '../task.service';
 import { NoteService } from '../../notes/note.service';
 import { LayoutService } from '../../../core/services/layout.service';
 import { AutoExpandDirective } from '../../../shared/directives/auto-expand';
@@ -24,12 +24,15 @@ import { ResizeHandle } from '../../../shared/components/resize-handle/resize-ha
 import { RunService } from '../../../core/services/runs/run.service';
 import { RunRecord } from '../../../shared/models/agent.model';
 import { WorkflowService } from '../../../core/services/runs/workflow.service';
+import { FileIcon } from '../../../shared/components/file-icon';
+import { NodeStore } from '../../../core/store/node.store';
+import { RunItem } from '../../run/run';
 
 @Component({
   selector: 'app-task-view',
   templateUrl: './task-view.html',
   styleUrl: './task-view.scss',
-  imports: [AutoExpandDirective, NgIcon, ResizeHandle],
+  imports: [AutoExpandDirective, NgIcon, ResizeHandle, FileIcon, RunItem],
   providers: [
     provideIcons({ lucideNotebook, lucidePanelLeft, lucidePanelRight, lucidePlus, lucideX }),
   ],
@@ -45,6 +48,7 @@ export class TaskView {
   private readonly layoutService = inject(LayoutService);
   private readonly runService = inject(RunService);
   readonly workflow = inject(WorkflowService);
+  readonly nodeStore = inject(NodeStore);
 
   protected readonly mainWidth = signal<number | null>(null);
   protected readonly mainCollapsed = signal(false);
@@ -151,6 +155,10 @@ export class TaskView {
     if (task) await this.taskService.setStatus(task.id, status);
   }
 
+  async perform(action: TaskAction) {
+    await this.taskService.perform(<TaskItem>this.task(), action);
+  }
+
   async completeTask(): Promise<void> {
     const task = this.task();
     if (task) await this.taskService.complete(task.id);
@@ -238,5 +246,9 @@ export class TaskView {
     if (task.status === 'failed') {
     }
     return 'Ready to work';
+  }
+
+  getFileNameFromPath(path: string) {
+    return path.split('\\').pop() ?? path;
   }
 }

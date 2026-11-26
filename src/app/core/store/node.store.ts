@@ -275,6 +275,25 @@ export const NodeStore = signalStore(
       const allNodes = Object.values(store.nodes());
       return allNodes.filter((node) => node.parentId === parentId);
     },
+    getRelativePath(path: string): string | null {
+      const root = store.rootPath();
+      if (!root || !path) return null;
+
+      const normalizedRoot = normalizePath(root).replace(/\\+$/, '');
+      const normalizedPath = normalizePath(path).replace(/\\+$/, '');
+      if (normalizedPath.toLowerCase() === normalizedRoot.toLowerCase()) return '';
+
+      const prefix = `${normalizedRoot}\\`;
+      if (!normalizedPath.toLowerCase().startsWith(prefix.toLowerCase())) return null;
+
+      let relativePath = normalizedPath.slice(prefix.length);
+      const node = findNodeByPath(store.nodes(), normalizedPath);
+      if (node && 'content' in node) {
+        const lastSeparator = relativePath.lastIndexOf('\\');
+        relativePath = lastSeparator < 0 ? '' : relativePath.slice(0, lastSeparator);
+      }
+      return relativePath;
+    },
     fetchFolderContents(folderId: string): Promise<void> {
       const running = folderLoads.get(folderId);
       if (running) return running;

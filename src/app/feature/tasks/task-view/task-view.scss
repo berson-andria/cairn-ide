@@ -210,12 +210,17 @@
   border-color: var(--color-status-done);
   background: var(--color-status-done);
 }
-.file-chip {
-  display: inline-flex;
-  max-width: 100%;
-  margin: 0 var(--space-4) var(--space-6) 0;
-  overflow-wrap: anywhere;
+
+.file {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-10);
+  .path {
+    color: var(--color-text-muted);
+  }
 }
+
 .linked-note {
   display: flex;
   flex-direction: row;
@@ -325,4 +330,9 @@
     width: 100%;
     margin-left: 0;
   }
+}
+.run-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
 }

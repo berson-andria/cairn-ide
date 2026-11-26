@@ -1,0 +1,45 @@
+<article class="run" [class]="'run run--' + state()">
+  <header class="run__head">
+    <code class="run__id">{{ shortId() }}</code>
+    <span class="run__pill">{{ label() }}</span>
+    <span class="run__meta muted">
+      @if (started(); as date) {
+        {{ date.toLocaleString() }}
+      }
+      @if (duration(); as d) {
+        · {{ d }}
+      }
+    </span>
+  </header>
+
+  @if (run().summary; as summary) {
+    <p class="run__text">{{ summary }}</p>
+  }
+  @if (run().reason; as reason) {
+    <p class="run__reason">{{ reason }}</p>
+  }
+  @for (patch of patches(); track $index) {
+    <span> {{ patch.summary }} </span>
+  }
+  @for (file of files(); track $index) {
+    <span> {{ file }} </span>
+  }
+  @if (steps().length) {
+    <ol class="run__steps">
+      @for (step of steps(); track step.subtaskId) {
+        <li class="step" [class]="'step step--' + step.outcome">
+          <span class="step__mark"></span>
+          <div class="step__body">
+            <span class="step__title">{{ step.title }}</span>
+            @if (step.summary) {
+              <span class="muted">{{ step.summary }}</span>
+            }
+            @if (step.reason) {
+              <span class="step__reason">{{ step.reason }}</span>
+            }
+          </div>
+        </li>
+      }
+    </ol>
+  }
+</article>

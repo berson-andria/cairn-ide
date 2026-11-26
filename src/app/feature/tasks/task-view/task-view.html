@@ -97,13 +97,13 @@
                 </button>
               }
               @if (item.status === 'needs_review') {
-                <button class="btn-action" (click)="setStatus('ready')">Send back</button>
+                <button class="btn-action" (click)="perform('sendBack')">Send back</button>
               }
               @if (item.status === 'failed') {
-                <button class="btn-action" (click)="setStatus('ready')">Retry</button>
+                <button class="btn-action" (click)="perform('retry')">Retry</button>
               }
               @if (item.status === 'completed') {
-                <button class="btn-action" (click)="setStatus('ready')">Reopen</button>
+                <button class="btn-action" (click)="perform('reopen')">Reopen</button>
               }
             </span>
           }
@@ -155,8 +155,10 @@
           </div>
           @if (item.anchor || linkedNotes().length) {
             @if (item.anchor; as anchor) {
-              <div class="anchor-items">
-                <span class="chip file-chip">{{ anchor.path }}</span>
+              <div class="file">
+                <file-icon [name]="getFileNameFromPath(anchor.path)" type="file" />
+                <span class="file-name">{{ getFileNameFromPath(anchor.path) }}</span>
+                <span class="path">{{ nodeStore.getRelativePath(anchor.path) }}</span>
               </div>
             }
             @if (linkedNotes().length) {
@@ -244,24 +246,6 @@
             </div>
           }
         </section>
-        <!-- <section class="detail-section">
-        <div class="section-heading">Branch</div>
-        @if (item.branch) {
-          <span class="chip file-chip">{{ item.branch }}</span>
-        } @else {
-          <span class="muted">No branch assigned</span>
-        }
-      </section>
-      <section class="detail-section">
-        <div class="section-heading"><span>Acceptance</span></div>
-        @if (item.acceptanceCriteria) {
-          <div class="criteria">
-            <span class="criteria-mark"></span><code>{{ item.acceptanceCriteria }}</code>
-          </div>
-        } @else {
-          <p class="muted">No acceptance criteria added.</p>
-        }
-      </section> -->
         <section class="detail-section">
           <div class="section-heading">
             <span>Subtasks · {{ item.subTasks?.length ?? 0 }}</span>
@@ -317,23 +301,16 @@
     >
       <span>Task runs</span>
       <div class="task-details">
-        @for (run of runs(); track $index) {
-          <div class="run">
-            <span>{{ run.runId }}</span>
-            <span> {{ run.outcome }} </span>
-            <span>{{ run.reason }}</span>
-          </div>
-          @if (run.steps; as steps) {
-            @for (step of steps; track $index) {
-              <div class="subprocess" style="margin-left: 1em">
-                <span>{{ step.subtaskId }}</span>
-                <span>{{ step.outcome }}</span>
-                <span>{{ step.reason }}</span>
-                <span>{{ step.summary }}</span>
-              </div>
-            }
+        <div class="section-heading">
+          <span>Task runs · {{ runs().length }}</span>
+        </div>
+        <div class="run-list">
+          @for (run of runs(); track run.runId) {
+            <run-item [run]="run" [subtasks]="item.subTasks ?? []" />
+          } @empty {
+            <p class="muted">No runs yet.</p>
           }
-        }
+        </div>
       </div>
     </aside>
   </div>

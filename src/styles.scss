@@ -14,8 +14,6 @@
   outline-offset: 0 !important;
 }
 
-/* Desktop window, not a web page: the page itself never scrolls.
-   Every element that needs scrolling owns its own overflow. */
 html,
 body {
   width: 100vw;

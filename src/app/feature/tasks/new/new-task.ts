@@ -44,7 +44,7 @@ export class NewTask {
   }
 
   async attachAnchor(): Promise<void> {
-    const selected = await this.layout.openAnchor({ kind: 'file' });
+    const selected = await this.layout.openAnchor({ kind: 'task' });
     if (selected?.kind === 'file') this.anchorPath.set(selected.path);
   }
 
