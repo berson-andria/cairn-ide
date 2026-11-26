@@ -135,8 +135,8 @@ export class TaskService {
   subtaskProgress(task: TaskItem): SubtaskProgress {
     const subtasks = task.subTasks ?? [];
     const total = subtasks.length;
-    const done = subtasks.filter((subtask) =>
-      subtask.status === 'needs_review' || subtask.status === 'completed'
+    const done = subtasks.filter(
+      (subtask) => subtask.status === 'needs_review' || subtask.status === 'completed',
     ).length;
     const running = subtasks.filter((subtask) => subtask.status === 'running').length;
     const failed = subtasks.filter((subtask) => subtask.status === 'failed').length;
@@ -147,16 +147,15 @@ export class TaskService {
       running,
       failed,
       pending,
-      percent: total === 0 ? 0 : Math.round(done * 100 / total),
+      percent: total === 0 ? 0 : Math.round((done * 100) / total),
     };
   }
   availableActions(task: TaskItem): AvailableTaskAction[] {
     const dependency = task.dependsOn ? this.get(task.dependsOn) : undefined;
     const dependencyReady = !task.dependsOn || dependency?.status === 'completed';
     const progress = this.subtaskProgress(task);
-    const progressHint = progress.total > 0
-      ? `${progress.done} of ${progress.total} steps done`
-      : undefined;
+    const progressHint =
+      progress.total > 0 ? `${progress.done} of ${progress.total} steps done` : undefined;
     switch (task.status) {
       case 'ready':
         return [
@@ -191,29 +190,26 @@ export class TaskService {
           { action: 'complete', enabled: true },
           { action: 'sendBack', enabled: true },
         ];
-      case 'failed':
-        {
-          const resumeTask = { ...task, status: 'ready' as const };
-          const canResume = progress.done > 0 &&
-            progress.pending > 0 &&
-            this.runService.runDisabledReason(resumeTask) === null;
-          return canResume
-            ? [
-                { action: 'retry', enabled: true },
-                { action: 'resume', enabled: true, ...(progressHint ? { hint: progressHint } : {}) },
-              ]
-            : [{ action: 'retry', enabled: true }];
-        }
+      case 'failed': {
+        const resumeTask = { ...task, status: 'ready' as const };
+        const canResume =
+          progress.done > 0 &&
+          progress.pending > 0 &&
+          this.runService.runDisabledReason(resumeTask) === null;
+        return canResume
+          ? [
+              { action: 'retry', enabled: true },
+              { action: 'resume', enabled: true, ...(progressHint ? { hint: progressHint } : {}) },
+            ]
+          : [{ action: 'retry', enabled: true }];
+      }
       case 'completed':
         return [{ action: 'reopen', enabled: true }];
       case 'blocked':
         return [];
     }
   }
-  async perform(
-    task: TaskItem,
-    action: TaskAction,
-  ): Promise<TaskItem | RunResult | void> {
+  async perform(task: TaskItem, action: TaskAction): Promise<TaskItem | RunResult | void> {
     if (action === 'run') {
       if (!this.runService.canRun(task)) return;
     } else if (

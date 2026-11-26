@@ -9,7 +9,6 @@ import {
   lucideTrash,
 } from '@ng-icons/lucide';
 import { TaskService, type TaskItem, type TaskStatus } from '../task.service';
-import { RunService } from '../../../core/services/runs/run.service';
 import { WorkflowService } from '../../../core/services/runs/workflow.service';
 
 @Component({

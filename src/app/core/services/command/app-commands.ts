@@ -6,7 +6,7 @@ import { LayoutService } from '../layout.service';
 import { message } from '@tauri-apps/plugin-dialog';
 import { EditorCommands } from '../../../feature/editor/editor.commands';
 import { GitBlameService } from '../../../feature/git/services/git-blame.service';
-import { Tab, TabStore } from '../../store/tab.store';
+import { TabStore } from '../../store/tab.store';
 
 /**
  * Connects command ids to what the app actually does.
