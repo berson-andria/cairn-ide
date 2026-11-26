@@ -225,7 +225,11 @@ export class TaskView {
     const selected = await this.layoutService.openAnchor({ kind: 'task', id: task.id });
     if (!selected) return;
     if (selected.kind === 'file') {
-      await this.taskService.setAnchor(task.id, { kind: 'file', path: selected.path });
+      // TODO(slice B): manage multiple task anchors instead of replacing with a single item
+      await this.taskService.setAnchors(task.id, [
+        ...task.anchors!,
+        { kind: 'file', path: selected.path },
+      ]);
     } else if (selected.kind === 'note') {
       await this.taskService.addLinkedNote(task.id, selected.id);
     }

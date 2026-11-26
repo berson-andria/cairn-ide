@@ -1373,6 +1373,33 @@ mod tests {
     }
 
     #[test]
+    fn tasks_get_and_list_return_anchors_never_anchor() {
+        let (_directory, ctx) = context();
+        let mut task = TaskItem::new("anchored");
+        task.id = "anchored-id".into();
+        task.anchors = Some(vec![crate::types::task::FileAnchor {
+            kind: crate::types::task::FileAnchorKind::File,
+            path: "src/main.rs".into(),
+            label: None,
+            line_number: None,
+        }]);
+        let task = ctx.project.tasks.create(task).unwrap();
+
+        let got = dispatch(&ctx, request(1, "tasks.get", json!({"id": task.id})));
+        let got_obj = got["result"].as_object().unwrap();
+        assert!(got_obj.get("anchor").is_none());
+        assert_eq!(got_obj["anchors"].as_array().unwrap().len(), 1);
+        assert_eq!(got_obj["anchors"][0]["path"], "src/main.rs");
+
+        let listed = dispatch(&ctx, request(2, "tasks.list", json!({})));
+        let listed_arr = listed["result"].as_array().unwrap();
+        assert_eq!(listed_arr.len(), 1);
+        let first = listed_arr[0].as_object().unwrap();
+        assert!(first.get("anchor").is_none());
+        assert_eq!(first["anchors"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
     fn run_context_reports_first_and_retry_attempts() {
         let (_directory, mut ctx) = context();
         let mut task = TaskItem::new("task");

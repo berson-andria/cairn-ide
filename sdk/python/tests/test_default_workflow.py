@@ -461,7 +461,7 @@ class DefaultWorkflowTests(unittest.TestCase):
                 "id": "task-1",
                 "title": "Read missing.py, rejected.txt and .env.local, then update feature.py",
                 "description": "missing.py rejected.txt .env.local feature.py",
-                "anchor": {"path": ".env.local"},
+                "anchors": [{"path": ".env.local"}],
                 "subTasks": [],
                 "notes": [
                     {

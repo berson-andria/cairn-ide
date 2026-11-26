@@ -119,7 +119,7 @@ pub fn run() {
             commands::tasks::task_start,
             commands::tasks::task_complete,
             commands::tasks::task_set_dependency,
-            commands::tasks::task_set_anchor,
+            commands::tasks::task_set_anchors,
             commands::tasks::task_link_note,
             commands::tasks::task_unlink_note,
             commands::tasks::task_get_dependent_tasks,

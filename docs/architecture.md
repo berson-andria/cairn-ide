@@ -76,3 +76,5 @@ contracts and status live in [CONTEXT.md](./CONTEXT.md) and
   metadata does not change the patch target.
 - Full-record create inputs -> dedicated input types: clients must not choose
   identity, status, timestamps, schema version, or revision.
+- Single task anchor -> `anchors` list: tasks can reference multiple files
+  (capped at 20), with legacy single `anchor` files migrated on load.

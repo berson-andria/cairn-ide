@@ -150,22 +150,22 @@ pub fn task_set_dependency(
 ) -> Result<TaskItem, ServiceError> {
     task_set_dependency_impl(&state, id, depends_on, expected_rev)
 }
-pub fn task_set_anchor_impl(
+pub fn task_set_anchors_impl(
     s: &ProjectState,
     id: String,
-    anchor: Option<FileAnchor>,
+    anchors: Option<Vec<FileAnchor>>,
     expected_rev: u64,
 ) -> Result<TaskItem, ServiceError> {
-    svc(s)?.tasks.set_anchor(&id, anchor, expected_rev)
+    svc(s)?.tasks.set_anchors(&id, anchors, expected_rev)
 }
 #[tauri::command]
-pub fn task_set_anchor(
+pub fn task_set_anchors(
     id: String,
-    anchor: Option<FileAnchor>,
+    anchors: Option<Vec<FileAnchor>>,
     expected_rev: u64,
     state: State<'_, ProjectState>,
 ) -> Result<TaskItem, ServiceError> {
-    task_set_anchor_impl(&state, id, anchor, expected_rev)
+    task_set_anchors_impl(&state, id, anchors, expected_rev)
 }
 pub fn task_link_note_impl(
     s: &ProjectState,
@@ -382,7 +382,7 @@ mod tests {
         NewTask {
             title: title.into(),
             description: None,
-            anchor: None,
+            anchors: None,
             linked_note_ids: None,
             sub_tasks: None,
             depends_on: None,
@@ -399,6 +399,7 @@ mod tests {
             ("schemaVersion", "1"),
             ("rev", "1"),
             ("runs", r#"["run-1"]"#),
+            ("anchor", r#"{"kind":"file","path":"src/main.rs"}"#),
             ("unknown", "true"),
         ] {
             let body = format!(r#"{{"title":"task","{field}":{value}}}"#);

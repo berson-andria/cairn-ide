@@ -524,7 +524,7 @@ mod tests {
             payload: ProposalPayload::Task(crate::services::task_service::NewTask {
                 title: "title".into(),
                 description: None,
-                anchor: None,
+                anchors: None,
                 linked_note_ids: None,
                 sub_tasks: None,
                 depends_on: None,
@@ -553,7 +553,7 @@ mod tests {
                     key: "one".into(),
                     title: "first".into(),
                     description: None,
-                    anchor: None,
+                    anchors: None,
                     linked_note_ids: None,
                     sub_tasks: None,
                     depends_on: None,
@@ -571,22 +571,22 @@ mod tests {
             schema_version: 1,
             rev: 7,
         };
-        let batch_event_json = r#"{"createdAt":5,"id":"batch-id","kind":"tasks","payload":{"items":[{"acceptanceCriteria":null,"anchor":null,"branch":null,"dependsOn":null,"dependsOnKey":null,"description":null,"key":"one","linkedNoteIds":null,"subTasks":null,"title":"first"}],"sourceTaskId":null},"presentation":"notify","rev":7,"runId":"run-id","schemaVersion":1,"status":"pending","taskId":"task-id","workflow":"default"}"#;
+        let batch_event_json = r#"{"createdAt":5,"id":"batch-id","kind":"tasks","payload":{"items":[{"acceptanceCriteria":null,"anchors":null,"branch":null,"dependsOn":null,"dependsOnKey":null,"description":null,"key":"one","linkedNoteIds":null,"subTasks":null,"title":"first"}],"sourceTaskId":null},"presentation":"notify","rev":7,"runId":"run-id","schemaVersion":1,"status":"pending","taskId":"task-id","workflow":"default"}"#;
         let cases = vec![
             (
                 ChangeEvent::TaskCreated(t.clone()),
                 "task:created",
-                r#"{"createdAt":1,"id":"task-id","rev":2,"schemaVersion":1,"status":"ready","title":"t"}"#,
+                r#"{"createdAt":1,"id":"task-id","rev":2,"schemaVersion":2,"status":"ready","title":"t"}"#,
             ),
             (
                 ChangeEvent::TaskUpdated(t.clone()),
                 "task:updated",
-                r#"{"createdAt":1,"id":"task-id","rev":2,"schemaVersion":1,"status":"ready","title":"t"}"#,
+                r#"{"createdAt":1,"id":"task-id","rev":2,"schemaVersion":2,"status":"ready","title":"t"}"#,
             ),
             (
                 ChangeEvent::TaskReloaded(t.clone()),
                 "task:reloaded",
-                r#"{"createdAt":1,"id":"task-id","rev":2,"schemaVersion":1,"status":"ready","title":"t"}"#,
+                r#"{"createdAt":1,"id":"task-id","rev":2,"schemaVersion":2,"status":"ready","title":"t"}"#,
             ),
             (
                 ChangeEvent::TaskDeleted("task-id".into()),
@@ -666,12 +666,12 @@ mod tests {
             (
                 ChangeEvent::ProposalCreated(proposal.clone()),
                 "proposal:created",
-                r#"{"createdAt":5,"id":"proposal-id","kind":"task","payload":{"acceptanceCriteria":null,"anchor":null,"branch":null,"dependsOn":null,"description":null,"linkedNoteIds":null,"subTasks":null,"title":"title"},"presentation":"notify","rev":7,"runId":"run-id","schemaVersion":1,"status":"pending","taskId":"task-id","workflow":"default"}"#,
+                r#"{"createdAt":5,"id":"proposal-id","kind":"task","payload":{"acceptanceCriteria":null,"anchors":null,"branch":null,"dependsOn":null,"description":null,"linkedNoteIds":null,"subTasks":null,"title":"title"},"presentation":"notify","rev":7,"runId":"run-id","schemaVersion":1,"status":"pending","taskId":"task-id","workflow":"default"}"#,
             ),
             (
                 ChangeEvent::ProposalUpdated(proposal.clone()),
                 "proposal:updated",
-                r#"{"createdAt":5,"id":"proposal-id","kind":"task","payload":{"acceptanceCriteria":null,"anchor":null,"branch":null,"dependsOn":null,"description":null,"linkedNoteIds":null,"subTasks":null,"title":"title"},"presentation":"notify","rev":7,"runId":"run-id","schemaVersion":1,"status":"pending","taskId":"task-id","workflow":"default"}"#,
+                r#"{"createdAt":5,"id":"proposal-id","kind":"task","payload":{"acceptanceCriteria":null,"anchors":null,"branch":null,"dependsOn":null,"description":null,"linkedNoteIds":null,"subTasks":null,"title":"title"},"presentation":"notify","rev":7,"runId":"run-id","schemaVersion":1,"status":"pending","taskId":"task-id","workflow":"default"}"#,
             ),
             (
                 ChangeEvent::ProposalCreated(batch_proposal.clone()),

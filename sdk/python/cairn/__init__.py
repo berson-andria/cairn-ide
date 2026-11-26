@@ -83,7 +83,7 @@ class _Tasks:
     def propose(
         title,
         description=None,
-        anchor=None,
+        anchors=None,
         linked_note_ids=None,
         sub_tasks=None,
         depends_on=None,
@@ -93,7 +93,7 @@ class _Tasks:
         params = {"title": title}
         optional = {
             "description": description,
-            "anchor": anchor,
+            "anchors": anchors,
             "linkedNoteIds": linked_note_ids,
             "subTasks": sub_tasks,
             "dependsOn": depends_on,

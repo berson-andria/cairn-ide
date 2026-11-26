@@ -288,8 +288,8 @@ The first SDK call automatically performs the `hello` handshake. API version
 | `models.list` | `{}` | `{ "id", "contextLimit"?, "default" }[]`; never includes endpoints or key references |
 | `models.complete` | `{ "model"?, "messages", "maxTokens"?, "temperature"?, "stop"?, "json"? }` | `{ "text", "finishReason"?, "usage": { "promptTokens"?, "completionTokens"? }, "model", "ms" }` |
 | `run.context` | `{}` | `{ "runId", "taskId", "workflow", "attempt", "resume", "previous"? }` |
-| `tasks.get` | `{ "id": string }` | one camelCase task record |
-| `tasks.list` | `{}` | array of camelCase task records |
+| `tasks.get` | `{ "id": string }` | one camelCase task record (`anchors?: FileAnchor[]`, never `anchor`) |
+| `tasks.list` | `{}` | array of camelCase task records (`anchors?: FileAnchor[]`, never `anchor`) |
 | `tasks.propose` | `NewTask` fields (camelCase), optional `presentation` | `{ "proposalId": string }` |
 | `tasks.propose_batch` | `{ "items", "sourceTaskId"?, "presentation"? }` | `{ "proposalId": string }` |
 | `tasks.propose_subtasks` | `{ "taskId", "items", "presentation"? }` | `{ "proposalId": string }` |

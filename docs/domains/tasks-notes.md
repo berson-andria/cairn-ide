@@ -24,7 +24,7 @@ Tasks and notes are ignored by default in `.cairn/.gitignore`, which Rust create
 | `task_start` | `id`, `expectedRev` | updated `TaskItem` |
 | `task_complete` | `id`, `expectedRev` | updated `TaskItem` |
 | `task_set_dependency` | `id`, `dependsOn`, `expectedRev` | updated `TaskItem` |
-| `task_set_anchor` | `id`, `anchor`, `expectedRev` | updated `TaskItem` |
+| `task_set_anchors` | `id`, `anchors`, `expectedRev` | updated `TaskItem` |
 | `task_link_note` | `id`, `noteId`, `expectedRev` | updated `TaskItem` |
 | `task_unlink_note` | `id`, `noteId`, `expectedRev` | updated `TaskItem` |
 | `task_get_dependent_tasks` | `id` | `TaskItem[]` |
@@ -78,7 +78,9 @@ For `task:reloaded` and `note:reloaded`, replace the cached record unconditional
 
 ### Null and absent values
 
-For `task_update.patch.description` and `note_update.patch.type`, an absent key means unchanged, JSON `null` clears the optional value, and a supplied value sets it. For optional task anchor, acceptance criteria and branch setters, JSON `null` clears the value. Other service arguments are required; collection arguments such as note anchors replace the full collection. For `task_set_dependency`, `dependsOn: null` clears the dependency.
+For `task_update.patch.description` and `note_update.patch.type`, an absent key means unchanged, JSON `null` clears the optional value, and a supplied value sets it. For optional task anchors (`null` or `[]` clears), acceptance criteria and branch setters, JSON `null` clears the value. Other service arguments are required; collection arguments such as note anchors replace the full collection. For `task_set_dependency`, `dependsOn: null` clears the dependency.
+
+Task `schemaVersion` is `2`. Tasks store `anchors?: FileAnchor[]` (empty lists are omitted on disk; max 20; exact `kind`+`path`+`lineNumber` duplicates are rejected with `Validation`). Legacy `schemaVersion: 1` files with a single `anchor` are converted in memory to a one-item `anchors` list on load (when both keys exist, `anchors` wins) and rewritten as `anchors` on the next save.
 ### Types
 
 All input structs reject unknown fields. Fields are camelCase. Optional means the JSON property may be omitted; null behavior is stated explicitly. Persisted record output types (`SubTask`, `FileAnchor`, `NoteAnchor`, `StorageError`) retain their service model schemas.
@@ -87,7 +89,7 @@ All input structs reject unknown fields. Fields are camelCase. Optional means th
 |---|---|---|---|---|
 | `NewTask` | `title` | string | yes | null rejected |
 | | `description` | string | no | absent/null become `None` |
-| | `anchor` | `FileAnchor` | no | absent/null become `None` |
+| | `anchors` | `FileAnchor[]` | no | absent/null/empty become `None`; max 20, no duplicates |
 | | `linkedNoteIds` | string[] | no | absent/null become `None` |
 | | `subTasks` | `NewSubTask[]` | no | absent/null become `None`; each item follows `NewSubTask` |
 | | `dependsOn` | string | no | absent/null become `None` |

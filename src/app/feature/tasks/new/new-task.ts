@@ -24,7 +24,7 @@ export class NewTask {
   readonly subtasks = signal<string[]>([]);
   readonly subtaskDraft = signal('');
   readonly dependsOn = signal('');
-  readonly anchorPath = signal('');
+  readonly anchorPath = signal<string[]>([]);
   readonly acceptanceCriteria = signal('');
   readonly branch = signal('');
   readonly showOptions = signal(false);
@@ -45,7 +45,7 @@ export class NewTask {
 
   async attachAnchor(): Promise<void> {
     const selected = await this.layout.openAnchor({ kind: 'task' });
-    if (selected?.kind === 'file') this.anchorPath.set(selected.path);
+    if (selected?.kind === 'file') this.anchorPath.update((v) => [...v, selected.path]);
   }
 
   async createTask(): Promise<void> {
@@ -55,7 +55,10 @@ export class NewTask {
       title,
       description: this.description().trim() || undefined,
       dependsOn: this.dependsOn() || undefined,
-      anchor: this.anchorPath() ? { kind: 'file', path: this.anchorPath() } : undefined,
+      // TODO(slice B): support multiple anchors in NewTask
+      anchors: this.anchorPath()
+        ? this.anchorPath().map((path) => ({ kind: 'file', path: path }))
+        : undefined,
       subTasks: this.subtasks().map((subtaskTitle) => ({ title: subtaskTitle })),
       acceptanceCriteria: this.acceptanceCriteria().trim() || undefined,
       branch: this.branch().trim() || undefined,

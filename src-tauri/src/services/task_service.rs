@@ -5,7 +5,7 @@ use crate::{
     },
     types::{
         note::NoteItem,
-        task::{SubTask, TaskItem, TaskStatus},
+        task::{FileAnchor, SubTask, TaskItem, TaskStatus, TASK_SCHEMA_VERSION},
     },
 };
 use serde::{Deserialize, Deserializer, Serialize};
@@ -40,7 +40,7 @@ pub struct NewSubTask {
 pub struct NewTask {
     pub title: String,
     pub description: Option<String>,
-    pub anchor: Option<crate::types::task::FileAnchor>,
+    pub anchors: Option<Vec<FileAnchor>>,
     #[serde(rename = "linkedNoteIds")]
     pub linked_note_ids: Option<Vec<String>>,
     #[serde(rename = "subTasks")]
@@ -366,11 +366,40 @@ impl TaskService {
         }
         Ok(())
     }
+    const MAX_ANCHORS: usize = 20;
+
+    fn normalize_and_validate_anchors(
+        anchors: Option<Vec<FileAnchor>>,
+    ) -> Result<Option<Vec<FileAnchor>>, ServiceError> {
+        let Some(list) = anchors else {
+            return Ok(None);
+        };
+        if list.is_empty() {
+            return Ok(None);
+        }
+        if list.len() > Self::MAX_ANCHORS {
+            return Err(ServiceError::validation(format!(
+                "anchors must contain at most {} items",
+                Self::MAX_ANCHORS
+            )));
+        }
+        let mut seen = HashSet::with_capacity(list.len());
+        for anchor in &list {
+            if !seen.insert((anchor.kind, anchor.path.as_str(), anchor.line_number)) {
+                return Err(ServiceError::validation(
+                    "anchors must not contain duplicates",
+                ));
+            }
+        }
+        Ok(Some(list))
+    }
+
     pub(crate) fn validate_input_with_id_locked(
         &self,
         id: &str,
         input: &NewTask,
     ) -> Result<(), ServiceError> {
+        Self::normalize_and_validate_anchors(input.anchors.clone())?;
         self.validate_dependency(id, input.depends_on.as_deref())
             .map_err(|mut error| {
                 if error.code == ServiceErrorCode::Validation {
@@ -384,7 +413,7 @@ impl TaskService {
         let mut task = TaskItem::new(input.title);
         task.id = id;
         task.description = input.description;
-        task.anchor = input.anchor;
+        task.anchors = input.anchors;
         task.linked_note_ids = input.linked_note_ids;
         task.sub_tasks = input.sub_tasks.map(|items| {
             items
@@ -402,6 +431,7 @@ impl TaskService {
         task
     }
     fn create_locked(&self, mut task: TaskItem) -> Result<(TaskItem, Vec<TaskItem>), ServiceError> {
+        task.anchors = Self::normalize_and_validate_anchors(task.anchors)?;
         self.validate_dependency(&task.id, task.depends_on.as_deref())?;
         self.validate_linked_notes(task.linked_note_ids.as_deref())?;
         if let Some(subs) = task.sub_tasks.as_mut() {
@@ -742,15 +772,17 @@ impl TaskService {
         }
         self.get(id)
     }
-    pub fn set_anchor(
+    pub fn set_anchors(
         &self,
         id: &str,
-        anchor: Option<crate::types::task::FileAnchor>,
+        anchors: Option<Vec<FileAnchor>>,
         expected_rev: u64,
     ) -> Result<TaskItem, ServiceError> {
-        let mut t = self.get(id)?;
-        t.anchor = anchor;
+        let anchors = Self::normalize_and_validate_anchors(anchors)?;
         let _g = self.lock()?;
+        let mut t = self.tasks.get(id)?;
+        t.anchors = anchors;
+        t.schema_version = t.schema_version.max(TASK_SCHEMA_VERSION);
         t.updated_at = Some(now_ms());
         let t = self.tasks.update(t, expected_rev)?;
         drop(_g);
@@ -1418,7 +1450,7 @@ mod tests {
                 "status": "ready",
                 "createdAt": 1,
                 "runs": ["run-1"],
-                "schemaVersion": 1,
+                "schemaVersion": 2,
                 "rev": 0
             })
         );
@@ -2005,5 +2037,135 @@ mod tests {
         s.load().unwrap();
         assert!(!crafted_run.exists());
         assert!(outside.join("keep.txt").exists());
+    }
+
+    fn file_anchor(path: &str) -> FileAnchor {
+        FileAnchor {
+            kind: crate::types::task::FileAnchorKind::File,
+            path: path.into(),
+            label: None,
+            line_number: None,
+        }
+    }
+
+    #[test]
+    fn legacy_task_with_single_anchor_loads_and_rewrites_on_save() {
+        let d = tempdir().unwrap();
+        let (s, _, _) = services(d.path());
+        let tasks_dir = d.path().join(".cairn/tasks");
+        std::fs::create_dir_all(&tasks_dir).unwrap();
+        let path = tasks_dir.join("legacy-task.json");
+        std::fs::write(
+            &path,
+            r#"{"id":"legacy-task","title":"Legacy","anchor":{"kind":"file","path":"src/main.rs"},"status":"ready","createdAt":1,"schemaVersion":1,"rev":1}"#,
+        )
+        .unwrap();
+
+        let loaded = s.get("legacy-task").unwrap();
+        assert_eq!(loaded.anchors, Some(vec![file_anchor("src/main.rs")]));
+
+        let updated = s
+            .set_anchors(
+                "legacy-task",
+                Some(vec![file_anchor("src/main.rs"), file_anchor("src/lib.rs")]),
+                loaded.rev,
+            )
+            .unwrap();
+        assert_eq!(updated.schema_version, TASK_SCHEMA_VERSION);
+        assert_eq!(updated.anchors.as_ref().map(Vec::len), Some(2));
+
+        let raw: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert!(raw.get("anchor").is_none());
+        assert_eq!(raw["anchors"].as_array().unwrap().len(), 2);
+        assert_eq!(raw["schemaVersion"], TASK_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn task_with_both_anchor_and_anchors_prefers_anchors() {
+        let d = tempdir().unwrap();
+        let (s, _, _) = services(d.path());
+        let tasks_dir = d.path().join(".cairn/tasks");
+        std::fs::create_dir_all(&tasks_dir).unwrap();
+        std::fs::write(
+            tasks_dir.join("both-keys.json"),
+            r#"{"id":"both-keys","title":"Both","anchor":{"kind":"file","path":"old.rs"},"anchors":[{"kind":"file","path":"new.rs"}],"status":"ready","createdAt":1,"schemaVersion":2,"rev":1}"#,
+        )
+        .unwrap();
+
+        let loaded = s.get("both-keys").unwrap();
+        assert_eq!(loaded.anchors, Some(vec![file_anchor("new.rs")]));
+    }
+
+    #[test]
+    fn set_anchors_replaces_clears_and_validates() {
+        let d = tempdir().unwrap();
+        let (s, _, sink) = services(d.path());
+        let created = s.create(TaskItem::new("Anchors")).unwrap();
+        assert_eq!(created.anchors, None);
+        sink.take();
+
+        let replaced = s
+            .set_anchors(&created.id, Some(vec![file_anchor("a.rs")]), created.rev)
+            .unwrap();
+        assert_eq!(replaced.anchors, Some(vec![file_anchor("a.rs")]));
+        assert!(matches!(
+            sink.take().as_slice(),
+            [ChangeEvent::TaskUpdated(t)] if t.anchors == Some(vec![file_anchor("a.rs")])
+        ));
+
+        // Stale expectedRev rejected
+        assert_eq!(
+            s.set_anchors(&created.id, None, created.rev)
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::StaleRev
+        );
+
+        // Clear with None
+        let cleared_null = s.set_anchors(&created.id, None, replaced.rev).unwrap();
+        assert_eq!(cleared_null.anchors, None);
+
+        // Set again then clear with []
+        let set_again = s
+            .set_anchors(&created.id, Some(vec![file_anchor("b.rs")]), cleared_null.rev)
+            .unwrap();
+        let cleared_empty = s
+            .set_anchors(&created.id, Some(vec![]), set_again.rev)
+            .unwrap();
+        assert_eq!(cleared_empty.anchors, None);
+
+        // 21 anchors rejected with Validation
+        let too_many: Vec<FileAnchor> = (0..21)
+            .map(|i| file_anchor(&format!("src/file_{i}.rs")))
+            .collect();
+        assert_eq!(
+            s.set_anchors(&created.id, Some(too_many), cleared_empty.rev)
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::Validation
+        );
+
+        // Duplicate anchor (same kind + path + lineNumber) rejected with Validation
+        let dup = vec![
+            FileAnchor {
+                kind: crate::types::task::FileAnchorKind::Function,
+                path: "src/lib.rs".into(),
+                label: Some("first".into()),
+                line_number: Some(10),
+            },
+            FileAnchor {
+                kind: crate::types::task::FileAnchorKind::Function,
+                path: "src/lib.rs".into(),
+                label: Some("second".into()),
+                line_number: Some(10),
+            },
+        ];
+        assert_eq!(
+            s.set_anchors(&created.id, Some(dup), cleared_empty.rev)
+                .unwrap_err()
+                .code,
+            ServiceErrorCode::Validation
+        );
     }
 }

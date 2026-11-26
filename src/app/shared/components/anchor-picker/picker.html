@@ -85,8 +85,10 @@
               <span class="name">{{ item.task.title }}</span>
               <span class="meta">{{ item.task.status }}</span>
             </div>
-            @if (item.task.anchor?.path) {
-              <div class="dir">{{ item.task.anchor!.path }}</div>
+            @if (item.task.anchors?.length) {
+              @for (anchor of item.task.anchors; track $index) {
+                <div class="dir">{{ anchor.path }}</div>
+              }
             }
           }
         }

@@ -150,29 +150,25 @@
         </button>
       </div>
       @if (anchorPath()) {
-        <div class="chips">
-          <span class="chip"
-            ><svg
-              width="11"
-              height="11"
-              viewBox="0 0 12 12"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.2"
-              aria-hidden="true"
-            >
-              <path d="M2.5 1.5h4.5l2.5 2.5v6.5h-7z" /></svg
-            >{{ anchorPath()
-            }}<button
-              class="remove"
-              type="button"
-              aria-label="Remove file"
-              (click)="anchorPath.set('')"
-            >
-              ×
-            </button></span
-          >
-        </div>
+        @for (anchor of anchorPath(); track $index) {
+          <div class="chips">
+            <span class="chip"
+              ><svg
+                width="11"
+                height="11"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.2"
+                aria-hidden="true"
+              >
+                <path d="M2.5 1.5h4.5l2.5 2.5v6.5h-7z" />
+              </svg>
+              {{ anchor }}
+              <button class="remove" type="button" aria-label="Remove file">×</button>
+            </span>
+          </div>
+        }
       } @else {
         <p class="section__hint">A file to give this task context.</p>
       }

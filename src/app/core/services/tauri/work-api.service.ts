@@ -121,8 +121,8 @@ export class WorkApiService {
   taskSetDependency(id: string, dependsOn: string | null, expectedRev: number) {
     return this.call<TaskItem>('task_set_dependency', { id, dependsOn, expectedRev });
   }
-  taskSetAnchor(id: string, anchor: TaskItem['anchor'] | null, expectedRev: number) {
-    return this.call<TaskItem>('task_set_anchor', { id, anchor, expectedRev });
+  taskSetAnchors(id: string, anchors: TaskItem['anchors'] | null, expectedRev: number) {
+    return this.call<TaskItem>('task_set_anchors', { id, anchors, expectedRev });
   }
   taskLinkNote(id: string, noteId: string, expectedRev: number) {
     return this.call<TaskItem>('task_link_note', { id, noteId, expectedRev });

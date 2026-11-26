@@ -36,7 +36,8 @@ pub struct BatchTaskItem {
     pub key: String,
     pub title: String,
     pub description: Option<String>,
-    pub anchor: Option<crate::types::task::FileAnchor>,
+    pub anchors: Option<Vec<crate::types::task::FileAnchor>>,
+    #[serde(rename = "linkedNoteIds")]
     pub linked_note_ids: Option<Vec<String>>,
     #[serde(rename = "subTasks")]
     pub sub_tasks: Option<Vec<NewSubTask>>,
@@ -51,7 +52,7 @@ impl BatchTaskItem {
         NewTask {
             title: self.title.clone(),
             description: self.description.clone(),
-            anchor: self.anchor.clone(),
+            anchors: self.anchors.clone(),
             linked_note_ids: self.linked_note_ids.clone(),
             sub_tasks: self.sub_tasks.clone(),
             depends_on,
@@ -140,7 +141,7 @@ struct ProposalFields {
     run_id: String,
     task_id: Option<String>,
     workflow: String,
-    payload: ProposalPayload,
+    payload: serde_json::Value,
     #[serde(default)]
     presentation: Presentation,
     seen_at: Option<u64>,
@@ -152,13 +153,52 @@ struct ProposalFields {
     rev: u64,
 }
 
+fn migrate_legacy_task_anchor(object: &mut serde_json::Map<String, serde_json::Value>) {
+    let Some(legacy_anchor) = object.remove("anchor") else {
+        return;
+    };
+    let has_anchors = object
+        .get("anchors")
+        .is_some_and(|value| !value.is_null());
+    if !has_anchors && !legacy_anchor.is_null() {
+        object.insert(
+            "anchors".to_string(),
+            serde_json::Value::Array(vec![legacy_anchor]),
+        );
+    }
+}
+
 impl<'de> Deserialize<'de> for Proposal {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let fields = ProposalFields::deserialize(deserializer)?;
-        if !fields.payload.matches_kind(fields.kind) {
+        let mut fields = ProposalFields::deserialize(deserializer)?;
+        match fields.kind {
+            ProposalKind::Task => {
+                if let Some(object) = fields.payload.as_object_mut() {
+                    migrate_legacy_task_anchor(object);
+                }
+            }
+            ProposalKind::Tasks => {
+                if let Some(items) = fields
+                    .payload
+                    .as_object_mut()
+                    .and_then(|object| object.get_mut("items"))
+                    .and_then(serde_json::Value::as_array_mut)
+                {
+                    for item in items {
+                        if let Some(object) = item.as_object_mut() {
+                            migrate_legacy_task_anchor(object);
+                        }
+                    }
+                }
+            }
+            ProposalKind::Subtasks => {}
+        }
+        let payload: ProposalPayload =
+            serde_json::from_value(fields.payload).map_err(D::Error::custom)?;
+        if !payload.matches_kind(fields.kind) {
             return Err(D::Error::custom("kind and payload do not agree"));
         }
         Ok(Self {
@@ -168,7 +208,7 @@ impl<'de> Deserialize<'de> for Proposal {
             run_id: fields.run_id,
             task_id: fields.task_id,
             workflow: fields.workflow,
-            payload: fields.payload,
+            payload,
             presentation: fields.presentation,
             seen_at: fields.seen_at,
             created_task_id: fields.created_task_id,
@@ -196,11 +236,11 @@ mod tests {
         let literals = [
             base(
                 "task",
-                r#"{"title":"one","description":null,"anchor":null,"linkedNoteIds":null,"subTasks":null,"dependsOn":null,"acceptanceCriteria":null,"branch":null}"#,
+                r#"{"title":"one","description":null,"anchors":null,"linkedNoteIds":null,"subTasks":null,"dependsOn":null,"acceptanceCriteria":null,"branch":null}"#,
             ),
             base(
                 "tasks",
-                r#"{"sourceTaskId":"source","items":[{"key":"one","title":"first","description":null,"anchor":null,"linkedNoteIds":null,"subTasks":null,"dependsOn":null,"dependsOnKey":null,"acceptanceCriteria":null,"branch":null}]}"#,
+                r#"{"sourceTaskId":"source","items":[{"key":"one","title":"first","description":null,"anchors":null,"linkedNoteIds":null,"subTasks":null,"dependsOn":null,"dependsOnKey":null,"acceptanceCriteria":null,"branch":null}]}"#,
             ),
             base(
                 "subtasks",
@@ -226,6 +266,31 @@ mod tests {
         assert_eq!(proposal.presentation, Presentation::Notify);
         assert_eq!(proposal.seen_at, None);
         assert_eq!(proposal.created_task_ids, None);
+    }
+
+    #[test]
+    fn legacy_proposal_with_single_anchor_loads_as_anchors_list() {
+        let task_proposal: Proposal = serde_json::from_str(&base(
+            "task",
+            r#"{"title":"old","anchor":{"kind":"file","path":"src/main.rs"}}"#,
+        ))
+        .unwrap();
+        let ProposalPayload::Task(task) = task_proposal.payload else {
+            panic!("expected task payload");
+        };
+        assert_eq!(task.anchors.as_ref().map(Vec::len), Some(1));
+        assert_eq!(task.anchors.unwrap()[0].path, "src/main.rs");
+
+        let batch_proposal: Proposal = serde_json::from_str(&base(
+            "tasks",
+            r#"{"items":[{"key":"one","title":"first","anchor":{"kind":"file","path":"src/lib.rs"}}]}"#,
+        ))
+        .unwrap();
+        let ProposalPayload::Tasks(batch) = batch_proposal.payload else {
+            panic!("expected tasks payload");
+        };
+        assert_eq!(batch.items[0].anchors.as_ref().map(Vec::len), Some(1));
+        assert_eq!(batch.items[0].anchors.as_ref().unwrap()[0].path, "src/lib.rs");
     }
 
     #[test]

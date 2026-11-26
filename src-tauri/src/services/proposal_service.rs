@@ -197,7 +197,7 @@ mod tests {
         NewTask {
             title: title.into(),
             description: None,
-            anchor: None,
+            anchors: None,
             linked_note_ids: None,
             sub_tasks: None,
             depends_on: None,
@@ -211,7 +211,7 @@ mod tests {
             key: key.into(),
             title: title.into(),
             description: None,
-            anchor: None,
+            anchors: None,
             linked_note_ids: None,
             sub_tasks: None,
             depends_on: None,

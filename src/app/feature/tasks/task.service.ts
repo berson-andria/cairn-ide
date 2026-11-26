@@ -32,7 +32,7 @@ export interface SubTaskPatch {
 export interface NewTask {
   title: string;
   description?: string | null;
-  anchor?: TaskAnchor | null;
+  anchors?: TaskAnchor[] | null;
   linkedNoteIds?: string[] | null;
   subTasks?: NewSubTask[] | null;
   dependsOn?: string | null;
@@ -47,7 +47,7 @@ export interface TaskItem {
   id: string;
   title: string;
   description?: string;
-  anchor?: TaskAnchor;
+  anchors?: TaskAnchor[];
   linkedNoteIds?: string[];
   subTasks?: SubTask[];
   dependsOn?: string;
@@ -290,8 +290,8 @@ export class TaskService {
   complete(id: string): Promise<TaskItem | undefined> {
     return this.mutate(id, (rev) => this.api.taskComplete(id, rev));
   }
-  setAnchor(id: string, anchor: TaskAnchor | null): Promise<TaskItem | undefined> {
-    return this.mutate(id, (rev) => this.api.taskSetAnchor(id, anchor, rev));
+  setAnchors(id: string, anchors: TaskAnchor[] | null): Promise<TaskItem | undefined> {
+    return this.mutate(id, (rev) => this.api.taskSetAnchors(id, anchors, rev));
   }
   addLinkedNote(id: string, noteId: string): Promise<TaskItem | undefined> {
     return this.mutate(id, (rev) => this.api.taskLinkNote(id, noteId, rev));

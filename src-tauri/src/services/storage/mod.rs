@@ -495,7 +495,7 @@ mod tests {
         t.status = TaskStatus::NeedsReview;
         assert_eq!(
             serde_json::to_string(&t).unwrap(),
-            r#"{"id":"abc","title":"Ship","status":"needs_review","createdAt":10,"schemaVersion":1,"rev":0}"#
+            r#"{"id":"abc","title":"Ship","status":"needs_review","createdAt":10,"schemaVersion":2,"rev":0}"#
         );
     }
 

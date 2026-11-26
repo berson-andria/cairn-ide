@@ -66,9 +66,9 @@ def _unit_text(task, unit):
 
 def _seed_paths(task, unit, task_notes):
     paths = []
-    anchor = task.get("anchor")
-    if isinstance(anchor, dict) and isinstance(anchor.get("path"), str):
-        paths.append(anchor["path"])
+    for anchor in task.get("anchors") or []:
+        if isinstance(anchor, dict) and isinstance(anchor.get("path"), str):
+            paths.append(anchor["path"])
     note_text = []
     for note in task_notes:
         if not isinstance(note, dict):

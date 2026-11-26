@@ -11,7 +11,7 @@ Records use camelCase. `kind` and `payload` must agree:
 
 | Kind | Payload |
 |---|---|
-| `task` | `NewTask`: title, description?, anchor?, linkedNoteIds?, subTasks?, dependsOn?, acceptanceCriteria?, branch? |
+| `task` | `NewTask`: title, description?, anchors?, linkedNoteIds?, subTasks?, dependsOn?, acceptanceCriteria?, branch? |
 | `tasks` | `{ sourceTaskId?: string, items: BatchTaskItem[] }` |
 | `subtasks` | `{ taskId: string, items: NewSubTask[] }` |
 
@@ -27,7 +27,9 @@ display hint (`display` or `notify`) and defaults to `notify` when absent in an
 older record. `seenAt?` records when a notification was dismissed.
 `createdTaskId?` is set for an accepted `task`; `createdTaskIds?` records the
 accepted task ids for `tasks`. New fields are optional or defaulted, so the
-schema version is unchanged.
+schema version is unchanged. Older proposal records on disk carrying a legacy
+single `anchor` in `task` or `tasks` items are tolerated on load and converted to
+a one-item `anchors` list in memory; live inputs reject `anchor`.
 
 `runId`, `taskId`, and `workflow` are populated by Rust from the active run;
 they are never accepted as workflow-supplied payload fields. `NewTask` rejects

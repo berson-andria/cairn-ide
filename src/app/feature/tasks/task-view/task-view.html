@@ -153,8 +153,8 @@
               <ng-icon name="lucidePlus" />
             </button>
           </div>
-          @if (item.anchor || linkedNotes().length) {
-            @if (item.anchor; as anchor) {
+          @if (item.anchors?.length || linkedNotes().length) {
+            @for (anchor of item.anchors ?? []; track $index) {
               <div class="file">
                 <file-icon [name]="getFileNameFromPath(anchor.path)" type="file" />
                 <span class="file-name">{{ getFileNameFromPath(anchor.path) }}</span>
