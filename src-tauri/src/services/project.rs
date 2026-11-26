@@ -135,6 +135,22 @@ impl ProjectState {
         path: impl AsRef<Path>,
         sink: impl EventSink + 'static,
     ) -> Result<PathBuf, ServiceError> {
+        self.open_internal(path, sink, None)
+    }
+    pub fn open_with_run_guard(
+        &self,
+        path: impl AsRef<Path>,
+        sink: impl EventSink + 'static,
+        run_guard: Arc<dyn super::task_service::RunGuard>,
+    ) -> Result<PathBuf, ServiceError> {
+        self.open_internal(path, sink, Some(run_guard))
+    }
+    fn open_internal(
+        &self,
+        path: impl AsRef<Path>,
+        sink: impl EventSink + 'static,
+        run_guard: Option<Arc<dyn super::task_service::RunGuard>>,
+    ) -> Result<PathBuf, ServiceError> {
         let path = path.as_ref();
         if !path.is_dir() {
             return Err(ServiceError::validation(
@@ -147,11 +163,11 @@ impl ProjectState {
         let root = PathBuf::from(strip_windows_verbatim_prefix(&canonical.to_string_lossy()));
         let lock = Arc::new(Mutex::new(()));
         let sink: Arc<dyn EventSink> = Arc::new(sink);
-        let tasks = Arc::new(TaskService::new(
-            &root,
-            lock.clone(),
-            SharedSink(sink.clone()),
-        ));
+        let mut task_service = TaskService::new(&root, lock.clone(), SharedSink(sink.clone()));
+        if let Some(guard) = run_guard {
+            task_service = task_service.with_run_guard(guard);
+        }
+        let tasks = Arc::new(task_service);
         let notes = NoteService::new(&root, lock.clone(), SharedSink(sink.clone()));
         let proposals = ProposalService::new(&root, tasks.clone(), lock, SharedSink(sink.clone()));
         let shared = Arc::new(ProjectServices {
@@ -319,6 +335,7 @@ pub fn event_parts(e: &ChangeEvent) -> Option<(&'static str, Value)> {
             }
             ("run:step", Ok(payload))
         }
+        ChangeEvent::RunDeleted(run_id) => ("run:deleted", Ok(json!({"runId": run_id}))),
         ChangeEvent::ProposalCreated(x) => ("proposal:created", serde_json::to_value(x)),
         ChangeEvent::ProposalUpdated(x) => ("proposal:updated", serde_json::to_value(x)),
         ChangeEvent::ProposalDeleted(id) => ("proposal:deleted", Ok(json!({"id":id}))),

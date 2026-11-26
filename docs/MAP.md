@@ -27,6 +27,7 @@ Last updated: 2026-11-24
 │   │   └── workspace.md
 │   ├── CONTEXT.md
 │   ├── MAP.md
+│   ├── UNWIRED.local.md
 │   └── architecture.md
 ├── scripts/
 │   ├── docs-check.mjs
@@ -350,10 +351,10 @@ Last updated: 2026-11-24
 │   │   │   │   │   ├── attach-file.html
 │   │   │   │   │   ├── attach-file.scss
 │   │   │   │   │   └── attach-file.ts
-│   │   │   │   ├── markdown-editor/
-│   │   │   │   │   ├── markdown-editor.html
-│   │   │   │   │   ├── markdown-editor.scss
-│   │   │   │   │   └── markdown-editor.ts
+│   │   │   │   ├── markdown-view/
+│   │   │   │   │   ├── markdown-render.ts
+│   │   │   │   │   ├── markdown-view.scss
+│   │   │   │   │   └── markdown-view.ts
 │   │   │   │   ├── no-entry/
 │   │   │   │   │   └── no-entry.ts
 │   │   │   │   ├── resize-handle/

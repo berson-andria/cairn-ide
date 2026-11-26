@@ -67,7 +67,9 @@ pub async fn project_open(
     runs: State<'_, RunManager>,
 ) -> Result<String, ServiceError> {
     runs.cancel_for_project_change("project closed")?;
-    let opened = project_open_impl(&state, path, TauriEventSink(app.clone()))?;
+    let opened = state
+        .open_with_run_guard(path, TauriEventSink(app.clone()), runs.guard())
+        .map(|p| p.to_string_lossy().into_owned())?;
     let data_dir = app.path().app_data_dir().map_err(|error| {
         ServiceError::new(
             crate::services::service_error::ServiceErrorCode::Io,

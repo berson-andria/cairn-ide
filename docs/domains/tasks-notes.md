@@ -74,7 +74,7 @@ For `task:reloaded` and `note:reloaded`, replace the cached record unconditional
 
 ### Error codes
 
-`NotFound`, `StaleRev`, `InvalidTransition`, `Forbidden`, `Validation`, `Io`, `Corrupt`, `NoProject`. `NoProject` means no workspace has been opened. `Forbidden` means the requested transition exists but the UI actor cannot make it; callers cannot supply an actor.
+`NotFound`, `StaleRev`, `InvalidTransition`, `Forbidden`, `Validation`, `Io`, `Corrupt`, `NoProject`, `RunActive`. `NoProject` means no workspace has been opened. `Forbidden` means the requested transition exists but the UI actor cannot make it; callers cannot supply an actor. `task_delete` returns `RunActive` when the task has an active run; otherwise it deletes the task file, cascades to `.cairn/runs/<id>/` folders whose `run.json` `taskId` matches (emitting `run:deleted` per removed folder, continuing on per-folder delete errors), and `load`/`reconcile` sweeps orphan run folders.
 
 ### Null and absent values
 

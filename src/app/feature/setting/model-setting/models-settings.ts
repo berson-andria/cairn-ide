@@ -25,14 +25,6 @@ export class ModelsSettings {
   readonly hasModels = computed(() => this.models().length > 0);
   readonly formOpen = signal(false);
 
-  constructor() {
-    const rawRegistry = this.registry();
-    if (rawRegistry && rawRegistry !== JSON.stringify(this.models())) {
-      this.settings.set('models.registry', JSON.stringify(this.models()));
-    }
-    if (!this.hasModels()) this.formOpen.set(true);
-  }
-
   startAdd(): void {
     this.formOpen.set(true);
     this.editingId.set(null);
@@ -44,23 +36,12 @@ export class ModelsSettings {
 
   edit(model: ModelEntry): void {
     this.formOpen.set(true);
-    const defaults = emptyModelDraft();
     this.editingId.set(model.id);
     this.draft.set({
-      ...defaults,
       id: model.id,
-      type: model.type,
-      contextLimit: model.contextLimit,
-      ggufPath: model.ggufPath ?? '',
-      gpuLayers: model.gpuLayers ?? defaults.gpuLayers,
-      contextSize: model.contextSize ?? model.contextLimit,
-      threads: model.threads ?? defaults.threads,
-      temperature: model.sampling?.temperature ?? defaults.temperature,
-      topP: model.sampling?.topP ?? defaults.topP,
-      topK: model.sampling?.topK ?? defaults.topK,
-      provider: model.provider ?? '',
       baseUrl: model.baseUrl ?? '',
       modelName: model.modelName ?? '',
+      contextLimit: model.contextLimit ?? null,
     });
     this.apiKey.set('');
     this.savedSecret.set(!!model.apiKeyRef);
@@ -73,30 +54,32 @@ export class ModelsSettings {
     let id = `${model.id}-copy`;
     let suffix = 2;
     while (ids.has(id)) id = `${model.id}-copy-${suffix++}`;
-    const duplicate = { ...model, id, apiKeyRef: undefined };
     this.editingId.set(null);
-    this.draft.set(this.draftFrom(duplicate));
+    this.draft.set({
+      id,
+      baseUrl: model.baseUrl ?? '',
+      modelName: model.modelName ?? '',
+      contextLimit: model.contextLimit ?? null,
+    });
     this.apiKey.set('');
     this.savedSecret.set(false);
     this.formError.set('');
   }
 
-  setType(event: Event): void {
-    const type = (event.target as HTMLSelectElement).value as ModelDraft['type'];
-    this.draft.update((draft) => ({ ...draft, type }));
-  }
-
-  setText(key: 'id' | 'ggufPath' | 'provider' | 'baseUrl' | 'modelName', event: Event): void {
+  setText(key: 'id' | 'baseUrl' | 'modelName', event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     this.draft.update((draft) => ({ ...draft, [key]: value }));
   }
 
-  setNumber(
-    key: 'contextLimit' | 'gpuLayers' | 'contextSize' | 'threads' | 'temperature' | 'topP' | 'topK',
-    event: Event,
-  ): void {
+  setNumber(key: 'contextLimit', event: Event): void {
     const value = (event.target as HTMLInputElement).valueAsNumber;
-    if (Number.isFinite(value)) this.draft.update((draft) => ({ ...draft, [key]: value }));
+    if (key === 'contextLimit') {
+      if (value === 0 || !Number.isFinite(value)) {
+        this.draft.update((draft) => ({ ...draft, contextLimit: null }));
+      } else {
+        this.draft.update((draft) => ({ ...draft, contextLimit: Math.max(1, Math.floor(value)) }));
+      }
+    }
   }
 
   setApiKey(event: Event): void {
@@ -121,69 +104,43 @@ export class ModelsSettings {
     if (this.models().some((model) => model.id === id && model.id !== this.editingId())) {
       return this.formError.set('A model with this name already exists.');
     }
-    if (draft.type === 'local' && !draft.ggufPath.trim())
-      return this.formError.set('Choose a GGUF model file.');
-    if (
-      draft.type === 'api' &&
-      (!draft.provider.trim() || !draft.baseUrl.trim() || !draft.modelName.trim())
-    ) {
-      return this.formError.set('Provider, base URL, and model name are required.');
+    if (!draft.baseUrl.trim() || !draft.modelName.trim()) {
+      return this.formError.set('Base URL and model name are required.');
     }
-    if (
-      draft.contextLimit < 1 ||
-      draft.contextSize < 1 ||
-      draft.threads < 1 ||
-      draft.gpuLayers < 0
-    ) {
-      return this.formError.set(
-        'Context sizes and thread count must be positive; GPU layers cannot be negative.',
-      );
+    if (draft.contextLimit !== null && draft.contextLimit < 1) {
+      return this.formError.set('Context limit must be a positive number.');
     }
 
     this.busy.set(true);
     this.formError.set('');
     try {
       const old = this.models().find((model) => model.id === this.editingId());
-      const nextRef = draft.type === 'api' ? `model:${id}` : undefined;
-      let apiKeyRef = nextRef;
+      const nextRef = `model:${id}`;
+      let apiKeyRef: string | undefined;
 
-      if (draft.type === 'api' && this.apiKey()) {
+      if (this.apiKey()) {
         await invoke('secret_set', { id: nextRef, value: this.apiKey() });
-        if (old?.apiKeyRef && old.apiKeyRef !== nextRef)
+        apiKeyRef = nextRef;
+        if (old?.apiKeyRef && old.apiKeyRef !== nextRef) {
           await invoke('secret_delete', { id: old.apiKeyRef });
-      } else if (old?.apiKeyRef && draft.type === 'api') {
-        apiKeyRef = old.apiKeyRef;
+        }
+      } else if (old?.apiKeyRef) {
         if (old.apiKeyRef !== nextRef) {
           const previousSecret = await invoke<string>('secret_get', { id: old.apiKeyRef });
           await invoke('secret_set', { id: nextRef, value: previousSecret });
           await invoke('secret_delete', { id: old.apiKeyRef });
-          apiKeyRef = nextRef;
         }
-      } else if (old?.apiKeyRef) {
-        await invoke('secret_delete', { id: old.apiKeyRef });
+        apiKeyRef = nextRef;
       }
 
-      const entry: ModelEntry =
-        draft.type === 'local'
-          ? {
-              id,
-              type: 'local',
-              contextLimit: draft.contextLimit,
-              ggufPath: draft.ggufPath.trim(),
-              gpuLayers: draft.gpuLayers,
-              contextSize: draft.contextSize,
-              threads: draft.threads,
-              sampling: { temperature: draft.temperature, topP: draft.topP, topK: draft.topK },
-            }
-          : {
-              id,
-              type: 'api',
-              contextLimit: draft.contextLimit,
-              provider: draft.provider.trim(),
-              baseUrl: draft.baseUrl.trim(),
-              modelName: draft.modelName.trim(),
-              ...(apiKeyRef ? { apiKeyRef } : {}),
-            };
+      const entry: ModelEntry = {
+        id,
+        type: 'api',
+        baseUrl: draft.baseUrl.trim(),
+        modelName: draft.modelName.trim(),
+        ...(draft.contextLimit !== null ? { contextLimit: draft.contextLimit } : {}),
+        ...(apiKeyRef ? { apiKeyRef } : {}),
+      };
       const all = this.models().filter((model) => model.id !== this.editingId());
       all.push(entry);
       this.writeModels(all);
@@ -211,7 +168,6 @@ export class ModelsSettings {
       if (this.defaultModel() === model.id) {
         this.settings.set('models.defaultModel', remaining[0]?.id ?? '');
       }
-      if (!remaining.length) this.formOpen.set(true);
     } catch (error) {
       this.formError.set(errorMessage(error));
     } finally {
@@ -223,34 +179,25 @@ export class ModelsSettings {
     this.testingId.set(model.id);
     this.setTestMessage(model.id, 'Testing connection…', true);
     try {
-      let message: string;
-      if (model.type === 'local') {
-        message = await invoke<string>('model_test_local', {
-          ggufPath: model.ggufPath ?? '',
-          gpuLayers: model.gpuLayers ?? 0,
-          contextSize: model.contextSize ?? model.contextLimit,
-          threads: model.threads ?? 1,
-        });
-      } else {
-        if (!model.apiKeyRef)
-          throw new Error('Save an API key in the OS keychain before testing this model.');
-        const key = await invoke<string>('secret_get', { id: model.apiKeyRef });
-        const endpoint = completionEndpoint(model.baseUrl ?? '');
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-          body: JSON.stringify({
-            model: model.modelName,
-            messages: [{ role: 'user', content: 'Reply with OK.' }],
-            max_tokens: 1,
-            temperature: 0,
-          }),
-        });
-        if (!response.ok)
-          throw new Error(`Request failed (${response.status} ${response.statusText}).`);
-        message = 'API connection succeeded.';
-      }
-      this.setTestMessage(model.id, message, true);
+      const key = model.apiKeyRef
+        ? await invoke<string>('secret_get', { id: model.apiKeyRef })
+        : null;
+      const endpoint = completionEndpoint(model.baseUrl ?? '');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (key) headers['Authorization'] = `Bearer ${key}`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: model.modelName,
+          messages: [{ role: 'user', content: 'Reply with OK.' }],
+          max_tokens: 1,
+          temperature: 0,
+        }),
+      });
+      if (!response.ok)
+        throw new Error(`Request failed (${response.status} ${response.statusText}).`);
+      this.setTestMessage(model.id, 'API connection succeeded.', true);
     } catch (error) {
       this.setTestMessage(model.id, errorMessage(error), false);
     } finally {
@@ -265,26 +212,6 @@ export class ModelsSettings {
   private setTestMessage(id: string, text: string, ok: boolean): void {
     this.testMessages.update((messages) => ({ ...messages, [id]: { text, ok } }));
   }
-
-  private draftFrom(model: ModelEntry): ModelDraft {
-    const base = emptyModelDraft();
-    return {
-      ...base,
-      id: model.id,
-      type: model.type,
-      contextLimit: model.contextLimit,
-      ggufPath: model.ggufPath ?? '',
-      gpuLayers: model.gpuLayers ?? 0,
-      contextSize: model.contextSize ?? model.contextLimit,
-      threads: model.threads ?? base.threads,
-      temperature: model.sampling?.temperature ?? base.temperature,
-      topP: model.sampling?.topP ?? base.topP,
-      topK: model.sampling?.topK ?? base.topK,
-      provider: model.provider ?? '',
-      baseUrl: model.baseUrl ?? '',
-      modelName: model.modelName ?? '',
-    };
-  }
 }
 
 function parseModels(raw: string): ModelEntry[] {
@@ -298,31 +225,16 @@ function parseModels(raw: string): ModelEntry[] {
       const model = item as RawModel;
       if (typeof model.id !== 'string' || !model.id || seen.has(model.id)) continue;
       seen.add(model.id);
-      const contextLimit = positive(model.contextLimit, 4096);
-      if (model.type === 'local') {
-        const sampling = model.sampling && typeof model.sampling === 'object' ? model.sampling : {};
-        models.push({
-          id: model.id,
-          type: 'local',
-          contextLimit,
-          ggufPath: typeof model.ggufPath === 'string' ? model.ggufPath : '',
-          gpuLayers: nonnegative(model.gpuLayers, 0),
-          contextSize: positive(model.contextSize, contextLimit),
-          threads: positive(model.threads, 4),
-          sampling: {
-            temperature: finite(sampling.temperature, 0.7),
-            topP: finite(sampling.topP, 0.95),
-            topK: positive(sampling.topK, 40),
-          },
-        });
-      } else if (model.type === 'api') {
+      if (model.type === 'api') {
         models.push({
           id: model.id,
           type: 'api',
-          contextLimit,
-          provider: typeof model.provider === 'string' ? model.provider : '',
-          baseUrl: typeof model.baseUrl === 'string' ? model.baseUrl : '',
-          modelName: typeof model.modelName === 'string' ? model.modelName : '',
+          ...(typeof model.contextLimit === 'number' && model.contextLimit > 0
+            ? { contextLimit: model.contextLimit }
+            : {}),
+          ...(typeof model.provider === 'string' ? { provider: model.provider } : {}),
+          ...(typeof model.baseUrl === 'string' ? { baseUrl: model.baseUrl } : {}),
+          ...(typeof model.modelName === 'string' ? { modelName: model.modelName } : {}),
           ...(typeof model.apiKeyRef === 'string' ? { apiKeyRef: model.apiKeyRef } : {}),
         });
       }
@@ -337,11 +249,6 @@ interface RawModel {
   id?: unknown;
   type?: unknown;
   contextLimit?: unknown;
-  ggufPath?: unknown;
-  gpuLayers?: unknown;
-  contextSize?: unknown;
-  threads?: unknown;
-  sampling?: { temperature?: unknown; topP?: unknown; topK?: unknown } | null;
   provider?: unknown;
   baseUrl?: unknown;
   modelName?: unknown;
@@ -352,18 +259,6 @@ function completionEndpoint(baseUrl: string): string {
   const base = baseUrl.trim().replace(/\/+$/, '');
   if (!/^https?:\/\//i.test(base)) throw new Error('Base URL must start with http:// or https://.');
   return base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
-}
-
-function positive(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function nonnegative(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
-}
-
-function finite(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
 function errorMessage(error: unknown): string {

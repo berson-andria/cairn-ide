@@ -11,9 +11,14 @@ use crate::{
 use serde::{Deserialize, Deserializer, Serialize};
 use std::{
     collections::HashSet,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
+
+pub trait RunGuard: Send + Sync {
+    fn is_task_run_active(&self, task_id: &str) -> bool;
+    fn is_run_active(&self, run_id: &str) -> bool;
+}
 
 fn deserialize_some<'de, D, T>(d: D) -> Result<Option<T>, D::Error>
 where
@@ -62,8 +67,10 @@ pub struct TaskPatch {
 pub struct TaskService {
     tasks: FileRepository<TaskItem>,
     notes: FileRepository<NoteItem>,
+    runs_dir: PathBuf,
     lock: Arc<Mutex<()>>,
     sink: Box<dyn EventSink>,
+    run_guard: Option<Arc<dyn RunGuard>>,
 }
 impl TaskService {
     pub(crate) fn sink_project_reload(&self) {
@@ -76,10 +83,22 @@ impl TaskService {
     ) -> Self {
         Self {
             tasks: FileRepository::for_tasks(&root),
-            notes: FileRepository::for_notes(root),
+            notes: FileRepository::for_notes(&root),
+            runs_dir: root.as_ref().join(".cairn").join("runs"),
             lock,
             sink: Box::new(sink),
+            run_guard: None,
         }
+    }
+    pub fn with_run_guard(mut self, guard: Arc<dyn RunGuard>) -> Self {
+        self.run_guard = Some(guard);
+        self
+    }
+    fn is_valid_id(id: &str) -> bool {
+        (1..=64).contains(&id.len())
+            && id
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
     }
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, ()>, ServiceError> {
         self.lock
@@ -173,23 +192,138 @@ impl TaskService {
     pub fn reconcile(&self) -> Result<Vec<String>, ServiceError> {
         let _g = self.lock()?;
         let changed = self.reconcile_locked()?;
+        let deleted_runs = self.sweep_orphan_runs_locked();
         let ids = changed.iter().map(|t| t.id.clone()).collect();
         drop(_g);
         for task in changed {
             self.emit_changed(task);
+        }
+        for run_id in deleted_runs {
+            self.sink.emit(ChangeEvent::RunDeleted(run_id));
         }
         Ok(ids)
     }
     pub fn load(&self) -> Result<Vec<TaskItem>, ServiceError> {
         let _g = self.lock()?;
         let changed = self.reconcile_locked()?;
+        let deleted_runs = self.sweep_orphan_runs_locked();
         let tasks = self.all()?;
         drop(_g);
         for task in changed {
             self.emit_changed(task);
         }
+        for run_id in deleted_runs {
+            self.sink.emit(ChangeEvent::RunDeleted(run_id));
+        }
         self.sink.emit(ChangeEvent::ProjectReloaded);
         Ok(tasks)
+    }
+    fn remove_matching_runs_locked<F>(&self, should_remove: F) -> Vec<String>
+    where
+        F: Fn(&str) -> bool,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct RunTaskRef {
+            #[serde(default)]
+            task_id: Option<String>,
+        }
+
+        let entries = match std::fs::read_dir(&self.runs_dir) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
+            Err(error) => {
+                tauri_plugin_log::log::error!(
+                    "Could not scan runs directory {}: {error}",
+                    self.runs_dir.display()
+                );
+                return Vec::new();
+            }
+        };
+        let mut deleted = Vec::new();
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) => {
+                    tauri_plugin_log::log::error!(
+                        "Could not inspect run entry in {}: {error}",
+                        self.runs_dir.display()
+                    );
+                    continue;
+                }
+            };
+            let name = entry.file_name();
+            let Some(run_id) = name.to_str() else {
+                continue;
+            };
+            if run_id == "proposals" || !Self::is_valid_id(run_id) {
+                continue;
+            }
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if !file_type.is_dir() {
+                continue;
+            }
+            if self
+                .run_guard
+                .as_ref()
+                .is_some_and(|guard| guard.is_run_active(run_id))
+            {
+                continue;
+            }
+            let run_dir = self.runs_dir.join(run_id);
+            let run_json = run_dir.join("run.json");
+            let bytes = match std::fs::read(&run_json) {
+                Ok(bytes) => bytes,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => {
+                    tauri_plugin_log::log::error!(
+                        "Could not read run metadata for {run_id}: {error}"
+                    );
+                    continue;
+                }
+            };
+            let meta: RunTaskRef = match serde_json::from_slice(&bytes) {
+                Ok(meta) => meta,
+                Err(error) => {
+                    tauri_plugin_log::log::error!(
+                        "Skipping corrupt run metadata for {run_id}: {error}"
+                    );
+                    continue;
+                }
+            };
+            let Some(task_id) = meta.task_id.as_deref().filter(|s| !s.is_empty()) else {
+                continue;
+            };
+            if !should_remove(task_id) {
+                continue;
+            }
+            if let Err(error) = std::fs::remove_dir_all(&run_dir) {
+                tauri_plugin_log::log::error!(
+                    "Could not delete run directory for {run_id}: {error}"
+                );
+                continue;
+            }
+            deleted.push(run_id.to_owned());
+        }
+        deleted
+    }
+    fn delete_runs_for_task_locked(&self, id: &str) -> Vec<String> {
+        self.remove_matching_runs_locked(|task_id| task_id == id)
+    }
+    fn sweep_orphan_runs_locked(&self) -> Vec<String> {
+        let tasks = match self.all() {
+            Ok(tasks) => tasks,
+            Err(error) => {
+                tauri_plugin_log::log::error!(
+                    "Could not list tasks for run orphan sweep: {error}"
+                );
+                return Vec::new();
+            }
+        };
+        let task_ids: HashSet<String> = tasks.into_iter().map(|t| t.id).collect();
+        self.remove_matching_runs_locked(|task_id| !task_ids.contains(task_id))
     }
     fn validate_dependency(&self, task_id: &str, dep: Option<&str>) -> Result<(), ServiceError> {
         let Some(dep) = dep else { return Ok(()) };
@@ -693,10 +827,29 @@ impl TaskService {
         Ok(ids)
     }
     pub fn delete(&self, id: &str) -> Result<(), ServiceError> {
+        if !Self::is_valid_id(id) {
+            return Err(ServiceError::validation(
+                "Id must be 1-64 characters of [A-Za-z0-9_-]",
+            ));
+        }
         let _g = self.lock()?;
+        if self
+            .run_guard
+            .as_ref()
+            .is_some_and(|guard| guard.is_task_run_active(id))
+        {
+            return Err(ServiceError::new(
+                ServiceErrorCode::RunActive,
+                "Cannot delete task while a workflow run is active",
+            ));
+        }
         let changed_records = self.delete_locked(id)?;
+        let deleted_runs = self.delete_runs_for_task_locked(id);
         drop(_g);
         self.sink.emit(ChangeEvent::TaskDeleted(id.into()));
+        for run_id in deleted_runs {
+            self.sink.emit(ChangeEvent::RunDeleted(run_id));
+        }
         for task in changed_records {
             self.emit_changed(task);
         }
@@ -1596,5 +1749,261 @@ mod tests {
         let child = s.get(&child.id).unwrap();
         assert_eq!(child.depends_on, None);
         assert_eq!(child.status, TaskStatus::Ready);
+    }
+
+    struct FakeRunGuard {
+        active_task_id: Option<String>,
+        active_run_id: Option<String>,
+    }
+
+    impl RunGuard for FakeRunGuard {
+        fn is_task_run_active(&self, task_id: &str) -> bool {
+            self.active_task_id.as_deref() == Some(task_id)
+        }
+
+        fn is_run_active(&self, run_id: &str) -> bool {
+            self.active_run_id.as_deref() == Some(run_id)
+        }
+    }
+
+    fn write_run_folder(root: &Path, run_id: &str, run_json: &str) -> PathBuf {
+        let dir = root.join(".cairn").join("runs").join(run_id);
+        std::fs::create_dir_all(dir.join("calls")).unwrap();
+        std::fs::create_dir_all(dir.join("patches")).unwrap();
+        std::fs::write(dir.join("run.json"), run_json).unwrap();
+        std::fs::write(dir.join("run.log"), "log line\n").unwrap();
+        std::fs::write(dir.join("trace.jsonl"), "{}\n").unwrap();
+        std::fs::write(dir.join("calls").join("1.json"), "{}").unwrap();
+        std::fs::write(dir.join("patches").join("p1.json"), "{}").unwrap();
+        dir
+    }
+
+    #[test]
+    fn delete_task_cascades_to_finished_runs_and_preserves_other_tasks() {
+        let d = tempdir().unwrap();
+        let (s, _, sink) = services(d.path());
+        let task = s.create(TaskItem::new("target")).unwrap();
+        let other = s.create(TaskItem::new("other")).unwrap();
+
+        let r1 = write_run_folder(
+            d.path(),
+            "run-1",
+            &format!(r#"{{"runId":"run-1","taskId":"{}","endedAt":10}}"#, task.id),
+        );
+        let r2 = write_run_folder(
+            d.path(),
+            "run-2",
+            &format!(r#"{{"runId":"run-2","taskId":"{}","endedAt":20}}"#, task.id),
+        );
+        let r_other = write_run_folder(
+            d.path(),
+            "run-other",
+            &format!(r#"{{"runId":"run-other","taskId":"{}","endedAt":30}}"#, other.id),
+        );
+
+        sink.take();
+        s.delete(&task.id).unwrap();
+
+        assert!(!r1.exists());
+        assert!(!r2.exists());
+        assert!(r_other.exists());
+
+        let deleted_runs: Vec<String> = sink
+            .events()
+            .into_iter()
+            .filter_map(|e| match e {
+                ChangeEvent::RunDeleted(id) => Some(id),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(deleted_runs.len(), 2);
+        assert!(deleted_runs.contains(&"run-1".to_string()));
+        assert!(deleted_runs.contains(&"run-2".to_string()));
+    }
+
+    #[test]
+    fn delete_task_with_active_run_returns_run_active_and_leaves_task_and_run_untouched() {
+        let d = tempdir().unwrap();
+        let lock = Arc::new(Mutex::new(()));
+        let sink = RecordingSink::default();
+        let seed = TaskService::new(d.path(), lock.clone(), sink.clone());
+        let task = seed.create(TaskItem::new("active-task")).unwrap();
+        let run_dir = write_run_folder(
+            d.path(),
+            "run-active",
+            &format!(r#"{{"runId":"run-active","taskId":"{}"}}"#, task.id),
+        );
+
+        let service = TaskService::new(d.path(), lock, sink.clone()).with_run_guard(Arc::new(
+            FakeRunGuard {
+                active_task_id: Some(task.id.clone()),
+                active_run_id: Some("run-active".into()),
+            },
+        ));
+
+        sink.take();
+        let err = service.delete(&task.id).unwrap_err();
+        assert_eq!(err.code, ServiceErrorCode::RunActive);
+        assert!(service.get(&task.id).is_ok());
+        assert!(run_dir.exists());
+        assert!(sink.events().is_empty());
+    }
+
+    #[test]
+    fn delete_task_succeeds_when_one_run_folder_fails_to_delete() {
+        let d = tempdir().unwrap();
+        let (s, _, sink) = services(d.path());
+        let task = s.create(TaskItem::new("locked-run-task")).unwrap();
+
+        let locked_dir = write_run_folder(
+            d.path(),
+            "run-locked",
+            &format!(r#"{{"runId":"run-locked","taskId":"{}","endedAt":10}}"#, task.id),
+        );
+        let removable_dir = write_run_folder(
+            d.path(),
+            "run-removable",
+            &format!(r#"{{"runId":"run-removable","taskId":"{}","endedAt":20}}"#, task.id),
+        );
+
+        // Hold an open handle inside `run-locked` on Windows (or make dir read-only on Unix)
+        // so removing `run-locked` fails while `run-removable` succeeds.
+        #[cfg(windows)]
+        let _locked_handle = {
+            use std::os::windows::fs::OpenOptionsExt;
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .share_mode(0)
+                .open(locked_dir.join("run.log"))
+                .unwrap()
+        };
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&locked_dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+        }
+
+        sink.take();
+        s.delete(&task.id).unwrap();
+
+        assert_eq!(s.get(&task.id).unwrap_err().code, ServiceErrorCode::NotFound);
+        assert!(!removable_dir.exists());
+
+        let events = sink.events();
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, ChangeEvent::TaskDeleted(id) if id == &task.id)));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, ChangeEvent::RunDeleted(id) if id == "run-removable")));
+        assert!(!events
+            .iter()
+            .any(|e| matches!(e, ChangeEvent::RunDeleted(id) if id == "run-locked")));
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&locked_dir, std::fs::Permissions::from_mode(0o755));
+        }
+    }
+
+    #[test]
+    fn load_orphan_sweep_removes_orphans_and_preserves_special_folders_and_is_idempotent() {
+        let d = tempdir().unwrap();
+        let lock = Arc::new(Mutex::new(()));
+        let sink = RecordingSink::default();
+        let seed = TaskService::new(d.path(), lock.clone(), sink.clone());
+        let existing_task = seed.create(TaskItem::new("existing")).unwrap();
+
+        let orphan_dir = write_run_folder(
+            d.path(),
+            "run-orphan",
+            r#"{"runId":"run-orphan","taskId":"missing-task","endedAt":10}"#,
+        );
+        let valid_dir = write_run_folder(
+            d.path(),
+            "run-valid",
+            &format!(
+                r#"{{"runId":"run-valid","taskId":"{}","endedAt":20}}"#,
+                existing_task.id
+            ),
+        );
+        let active_orphan_dir = write_run_folder(
+            d.path(),
+            "run-active-orphan",
+            r#"{"runId":"run-active-orphan","taskId":"missing-task"}"#,
+        );
+        let taskless_dir = write_run_folder(
+            d.path(),
+            "run-taskless",
+            r#"{"runId":"run-taskless","endedAt":30}"#,
+        );
+        let corrupt_dir = write_run_folder(d.path(), "run-corrupt", "{not valid json");
+        let proposals_dir = d.path().join(".cairn").join("runs").join("proposals");
+        std::fs::create_dir_all(&proposals_dir).unwrap();
+        std::fs::write(proposals_dir.join("p1.json"), "{}").unwrap();
+
+        let service = TaskService::new(d.path(), lock, sink.clone()).with_run_guard(Arc::new(
+            FakeRunGuard {
+                active_task_id: None,
+                active_run_id: Some("run-active-orphan".into()),
+            },
+        ));
+
+        sink.take();
+        service.load().unwrap();
+
+        assert!(!orphan_dir.exists());
+        assert!(valid_dir.exists());
+        assert!(active_orphan_dir.exists());
+        assert!(taskless_dir.exists());
+        assert!(corrupt_dir.exists());
+        assert!(proposals_dir.exists());
+        assert!(proposals_dir.join("p1.json").exists());
+
+        let deleted_runs: Vec<String> = sink
+            .events()
+            .into_iter()
+            .filter_map(|e| match e {
+                ChangeEvent::RunDeleted(id) => Some(id),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(deleted_runs, vec!["run-orphan".to_string()]);
+
+        // Second sweep is a no-op
+        sink.take();
+        service.reconcile().unwrap();
+        assert!(!sink
+            .events()
+            .iter()
+            .any(|e| matches!(e, ChangeEvent::RunDeleted(_))));
+    }
+
+    #[test]
+    fn crafted_task_id_with_path_separators_never_deletes_outside_runs() {
+        let d = tempdir().unwrap();
+        let (s, _, _) = services(d.path());
+        let outside = d.path().join("outside-secret");
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("keep.txt"), "safe").unwrap();
+
+        let crafted_run = write_run_folder(
+            d.path(),
+            "run-crafted",
+            r#"{"runId":"run-crafted","taskId":"../../outside-secret","endedAt":10}"#,
+        );
+
+        assert_eq!(
+            s.delete("../../outside-secret").unwrap_err().code,
+            ServiceErrorCode::Validation
+        );
+        assert!(outside.join("keep.txt").exists());
+
+        // Orphan sweep deletes only the run folder inside `.cairn/runs/`, never `outside-secret`
+        s.load().unwrap();
+        assert!(!crafted_run.exists());
+        assert!(outside.join("keep.txt").exists());
     }
 }

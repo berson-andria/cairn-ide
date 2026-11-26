@@ -102,6 +102,36 @@ export class RunStore {
     this._logs.update(logs => ({ ...logs, [runId]: lines.slice(-LOG_LIMIT) }));
   }
 
+  remove(runId: string): void {
+    if (this._current()?.runId === runId) {
+      this._current.set(null);
+    }
+    if (this._history().some(record => record.runId === runId)) {
+      this._history.update(history => history.filter(record => record.runId !== runId));
+    }
+    if (runId in this._byId()) {
+      this._byId.update(records => {
+        const next = { ...records };
+        delete next[runId];
+        return next;
+      });
+    }
+    if (runId in this._logs()) {
+      this._logs.update(logs => {
+        const next = { ...logs };
+        delete next[runId];
+        return next;
+      });
+    }
+    if (runId in this._stepStatus()) {
+      this._stepStatus.update(steps => {
+        const next = { ...steps };
+        delete next[runId];
+        return next;
+      });
+    }
+  }
+
   refresh(): Promise<void> {
     if (this.refreshPromise) return this.refreshPromise;
     const generation = this.generation;

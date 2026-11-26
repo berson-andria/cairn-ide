@@ -380,6 +380,7 @@ impl ChildProcess for SystemChild {
 
 struct ManagerState {
     starting: bool,
+    starting_task_id: Option<String>,
     cancel_requested: bool,
     cancel_reason: Option<String>,
     active: Option<Arc<RunControl>>,
@@ -414,6 +415,49 @@ pub struct RunManager {
     inner: Arc<ManagerInner>,
 }
 
+struct RunManagerGuard(std::sync::Weak<ManagerInner>);
+
+impl crate::services::task_service::RunGuard for RunManagerGuard {
+    fn is_task_run_active(&self, task_id: &str) -> bool {
+        let Some(inner) = self.0.upgrade() else {
+            return false;
+        };
+        let state = inner
+            .state
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if state.starting_task_id.as_deref() == Some(task_id) {
+            return true;
+        }
+        state.active.as_ref().is_some_and(|active| {
+            active
+                .record
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .task_id
+                == task_id
+        })
+    }
+
+    fn is_run_active(&self, run_id: &str) -> bool {
+        let Some(inner) = self.0.upgrade() else {
+            return false;
+        };
+        let state = inner
+            .state
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        state.active.as_ref().is_some_and(|active| {
+            active
+                .record
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .run_id
+                == run_id
+        })
+    }
+}
+
 struct StartingGuard {
     inner: Arc<ManagerInner>,
 }
@@ -426,6 +470,7 @@ impl Drop for StartingGuard {
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         state.starting = false;
+        state.starting_task_id = None;
         if state.active.is_none() {
             state.cancel_requested = false;
             state.cancel_reason = None;
@@ -502,6 +547,7 @@ impl RunManager {
             inner: Arc::new(ManagerInner {
                 state: Mutex::new(ManagerState {
                     starting: false,
+                    starting_task_id: None,
                     cancel_requested: false,
                     cancel_reason: None,
                     active: None,
@@ -516,6 +562,10 @@ impl RunManager {
                 resource_dir,
             }),
         }
+    }
+
+    pub fn guard(&self) -> Arc<dyn crate::services::task_service::RunGuard> {
+        Arc::new(RunManagerGuard(Arc::downgrade(&self.inner)))
     }
 
     pub fn run_start(
@@ -593,6 +643,7 @@ impl RunManager {
                 ));
             }
             state.starting = true;
+            state.starting_task_id = Some(task_id.clone());
             state.cancel_requested = false;
             state.cancel_reason = None;
         }

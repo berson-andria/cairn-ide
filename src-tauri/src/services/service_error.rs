@@ -108,6 +108,7 @@ pub enum ChangeEvent {
         summary: Option<String>,
         reason: Option<String>,
     },
+    RunDeleted(String),
     ProposalCreated(crate::types::proposal::Proposal),
     ProposalUpdated(crate::types::proposal::Proposal),
     ProposalDeleted(String),

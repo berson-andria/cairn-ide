@@ -23,14 +23,10 @@ export class SearchService {
 
   // search_files
   searchWorkspaceFile(folderPath: string, keyword: string): Promise<FileNameSearchResult[]> {
-    return this.tauri
-      .invokeCommand<FileNameSearchResult[]>('search_files', {
-        rootPath: folderPath,
-        query: keyword,
-      })
-      .catch((err) => {
-        console.error(err);
-        return [] as FileNameSearchResult[];
-      });
+    return this.tauri.invokeCommand<FileNameSearchResult[]>('search_files', {
+      rootPath: folderPath,
+      query: keyword,
+      excludedFolders: [],
+    });
   }
 }

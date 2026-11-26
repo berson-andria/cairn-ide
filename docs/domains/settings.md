@@ -27,7 +27,7 @@ by `model:<id>`; they are not JSON settings
 |---|---|
 | No settings Rust type or service struct exists. | `SettingDef`: `key`, `type`, `default`, `scope`, `section`, `label`, `description`, `options?`, `status`, `subsection?` [settings.registry.ts:12](../../src/app/feature/setting/settings.registry.ts#L12). |
 | No general Rust settings type; `models::Registry` reads user settings for runs. | `SettingValue = boolean \| number \| string \| string[] \| Record<string, unknown>` and `StoredValues = Record<string, SettingValue>` [settings.registry.ts:9](../../src/app/feature/setting/settings.registry.ts#L9), [settings.service.ts:16](../../src/app/feature/setting/settings.service.ts#L16). |
-| Rust `services/models::ModelEntry` and `Registry`. | `ModelEntry`: `id`, `type ('local'\|'api')`, `contextLimit`, optional `ggufPath`, `gpuLayers`, `contextSize`, `threads`, `sampling`, `provider`, `baseUrl`, `modelName`, `apiKeyRef` [model-entry.model.ts:1](../../src/app/feature/setting/model-setting/model-entry.model.ts#L1). |
+| Rust `services/models::ModelEntry` and `Registry`. | `ModelEntry`: `id`, `type: 'api'`, optional `contextLimit`, `baseUrl`, `modelName`, `apiKeyRef` [model-entry.model.ts:1](../../src/app/feature/setting/model-setting/model-entry.model.ts#L1). |
 
 `models.registry` is a string setting whose JSON payload is an array of
 `ModelEntry`; `models.defaultModel` is a string setting

@@ -58,7 +58,7 @@ Search emits no Tauri events. [src-tauri/src/commands/search.rs](../../src-tauri
 | Method | Signature | Calls | Errors handled |
 |---|---|---|---|
 | `seachWorkspaceKeyword` | `(folderPath: string, query: string, filters?: SearchFilters) => Promise<FileSearchResult[]>` | `global_search` with `{ workspacePath, query, options }` | None at wrapper level; caller catches. |
-| `searchWorkspaceFile` | `(folderPath: string, keyword: string) => Promise<FileNameSearchResult[]>` | `search_files` with `{ rootPath, query }` | Catches and logs; returns `[]`. |
+| `searchWorkspaceFile` | `(folderPath: string, keyword: string) => Promise<FileNameSearchResult[]>` | `search_files` with `{ rootPath, query, excludedFolders: [] }` | Propagates errors; callers display a warning. |
 
 The misspelled `seachWorkspaceKeyword` name is copied exactly from the code. [src/app/feature/search/search.service.ts](../../src/app/feature/search/search.service.ts:12) [src/app/feature/search/search.service.ts](../../src/app/feature/search/search.service.ts:25)
 
@@ -84,8 +84,6 @@ There is no dedicated search store or search event sync. The panel directly hold
 
 ## 6. Gaps
 
-- `search_files` requires `excludedFolders: Vec<String>`, but `SearchService.searchWorkspaceFile` invokes it without that argument. This is unverified end to end and may make file-name search fail at argument validation. [src-tauri/src/commands/search.rs](../../src-tauri/src/commands/search.rs:179) [src/app/feature/search/search.service.ts](../../src/app/feature/search/search.service.ts:25)
-- `SearchService.searchWorkspaceFile` catches every error and silently converts it to `[]`, while text search reaches a generic component catch. [src/app/feature/search/search.service.ts](../../src/app/feature/search/search.service.ts:25) [src/app/feature/search/search.ts](../../src/app/feature/search/search.ts:514)
 - Task, code, and command modes are placeholders and are not implemented. [src/app/feature/search/search.ts](../../src/app/feature/search/search.ts:551)
 - Search has no Rust service, event, store, or structured search error code; errors are plain strings. [src-tauri/src/commands/search.rs](../../src-tauri/src/commands/search.rs:83) [docs/CONTEXT.md](../CONTEXT.md:86)
 - Search supersession uses a process-static `LATEST_SEARCH` counter and cancels superseded work cooperatively; the maximum behavior for overlapping calls is unverified.

@@ -16,8 +16,8 @@ See [settings registry](../../src/app/feature/setting/settings.registry.ts:262),
 
 | Rust | Angular | Difference |
 |---|---|---|
-| `services/models::ModelEntry` and `Registry` | `ModelEntry`: `id`, `type`, `contextLimit`, optional local/API fields | Rust loads a per-run snapshot from user app-data settings; API keys remain keychain-only. |
-| Model command arguments | `ModelEntry` local fields; `ModelDraft` has editable values | See [settings](./settings.md). |
+| `services/models::ModelEntry` and `Registry` | `ModelEntry`: `id`, `type: 'api'`, optional `contextLimit`, `baseUrl`, `modelName`, `apiKeyRef` | Rust loads a per-run snapshot from user app-data settings; API keys remain keychain-only. |
+| Model command arguments | `ModelEntry` API fields; `ModelDraft` has editable values | See [settings](./settings.md). |
 | Secret command arguments | `apiKeyRef?: string` contains `model:<id>`; secret value is not stored in JSON | See [settings](./settings.md). |
 | No Rust `Problem` type in `diagnostics.rs` | `ProblemInput`, `Problem`, `Severity`; `Severity = error|warning|info` | Angular diagnostics are a separate in-memory data structure, not IPC records. |
 

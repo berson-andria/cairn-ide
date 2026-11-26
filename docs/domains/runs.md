@@ -393,6 +393,7 @@ Events are emitted through the application's event sink:
 | `run:log` | `{ "runId", "lines": string[] }` |
 | `run:finished` | `{ "runId", "taskId", "outcome": "needs_review" \| "failed", "reason"?: string }` |
 | `run:step` | `{ "runId", "taskId", "subtaskId", "status": "running" \| "needs_review" \| "failed", "summary"?: string, "reason"?: string }` |
+| `run:deleted` | `{ "runId" }` |
 
 `run:log` batches are emitted no more often than five times per second.
 
@@ -443,7 +444,10 @@ reason `step not finished`. The application kills the active child on shutdown.
 ### Recovery
 
 When a project opens, any task or subtask still marked `running` is changed to
-`failed` through the task service. Each unfinished `.cairn/runs/*/run.json`
+`failed` through the task service. The task `load`/`reconcile` pass also sweeps
+orphan run folders under `.cairn/runs/` whose `taskId` points to a missing task,
+skipping `runs/proposals/`, taskless runs, active runs, and unreadable/corrupt
+`run.json` files. Each unfinished `.cairn/runs/*/run.json`
 record is ended as `failed` with reason `interrupted (app closed during run)`;
 open steps are closed as `failed` with reason `interrupted`. Malformed run
 records are skipped and logged; recovery errors do not prevent the project
@@ -511,7 +515,7 @@ Purpose: current/last-run snapshot, history, and bounded in-memory log cache.
 | `history` | `Signal<RunRecord[]>` loaded by `RunService.loadHistory()` |
 | `record(runId)` | `Signal<RunRecord \| undefined>` for one full cached record |
 | `logLines(runId)` | Cached lines for one run |
-| `started(event)` / `append(event)` / `finished(event)` | Apply run events; retain at most 500 log lines |
+| `started(event)` / `append(event)` / `finished(event)` / `remove(runId)` | Apply run events; retain at most 500 log lines; `remove` clears cached state for a deleted run |
 | `setCurrent(run)` / `setHistory(records)` / `setRecord(record)` / `setLog(runId, lines)` | Apply command results |
 | `refresh()` | Coalesced `run_get()`; caches the full record and fetches the active run's log |
 | `clear()` | Clear current run, history, and logs on workspace change |

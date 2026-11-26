@@ -17,7 +17,7 @@ export interface WorkEventHandlers {
   noteCreated(record: NoteItem): void; noteUpdated(record: NoteItem): void; noteDeleted(id: string): void; projectReloaded(): void;
   noteReloaded(record: NoteItem): void;
   runStarted(event: RunStartedEvent): void; runLog(event: RunLogEvent): void; runFinished(event: RunFinishedEvent): void;
-  runStep(event: RunStepEvent): void;
+  runStep(event: RunStepEvent): void; runDeleted(runId: string): void;
   proposalCreated(record: Proposal): void; proposalUpdated(record: Proposal): void; proposalDeleted(id: string): void;
   patchCreated(record: PatchSummary): void; patchUpdated(record: PatchSummary): void;
 }
@@ -33,6 +33,7 @@ export async function subscribeWorkEvents(handlers: WorkEventHandlers): Promise<
     listen<RunLogEvent>('run:log', e => handlers.runLog(e.payload)),
     listen<RunFinishedEvent>('run:finished', e => handlers.runFinished(e.payload)),
     listen<RunStepEvent>('run:step', e => handlers.runStep(e.payload)),
+    listen<{ runId: string }>('run:deleted', e => handlers.runDeleted(e.payload.runId)),
     listen<Proposal>('proposal:created', e => handlers.proposalCreated(e.payload)),
     listen<Proposal>('proposal:updated', e => handlers.proposalUpdated(e.payload)),
     listen<ProposalDeletedEvent>('proposal:deleted', e => handlers.proposalDeleted(e.payload.id)),

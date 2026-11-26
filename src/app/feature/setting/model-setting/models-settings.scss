@@ -88,6 +88,14 @@
 
 .model-form__saved { color: var(--color-status-done); }
 
+.model-form__hint {
+  display: block;
+  margin-top: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-micro);
+  line-height: var(--line-height-ui);
+}
+
 .model-card__result {
   margin: 0;
   padding: var(--space-6) var(--space-8);
