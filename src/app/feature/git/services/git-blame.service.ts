@@ -3,7 +3,7 @@ import type * as Monaco from 'monaco-editor';
 import { GitService } from './git.service';
 import { FileBlame } from '../parser/blame.parser';
 
-const STORAGE_KEY = 'cairn.git.blame';
+const STORAGE_KEY = 'praide.git.blame';
 /** Beyond this, blame costs more than it is worth and is skipped for the file. */
 const MAX_LINES = 20_000;
 const MAX_CHARS = 2_000_000;

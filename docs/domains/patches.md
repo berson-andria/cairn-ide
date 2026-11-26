@@ -6,7 +6,7 @@ or discards each patch through Tauri commands.
 ## Record
 
 Patches are stored as
-`.cairn/runs/<runId>/patches/<n>.json`, with numbering starting at 1. Each
+`.praide/runs/<runId>/patches/<n>.json`, with numbering starting at 1. Each
 record uses camelCase and contains `id`, `runId`, `taskId`, optional
 `subtaskId`, `title`, optional `summary`, `status`, `createdAt`, optional
 `appliedAt`, and `files`. Status is `pending`, `applied`, or `discarded`.
@@ -70,7 +70,7 @@ explorer. Patch handling does not mutate node or tab stores.
 
 ## Secret deny list
 
-Read, list, and patch paths deny `.git` and `.cairn` components and these
+Read, list, and patch paths deny `.git` and `.praide` components and these
 case-insensitive file patterns: `.env`, `.env.*`, `.npmrc`, `.pypirc`,
 `id_rsa*`, `id_ed25519*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`. Paths must be
 relative and stay under the project root. This protects credentials and private

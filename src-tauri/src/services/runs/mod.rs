@@ -8,7 +8,7 @@ use crate::services::{
     service_error::{
         now_ms, Actor, ChangeEvent, EventSink, RunOutcome, ServiceError, ServiceErrorCode,
     },
-    storage::ensure_cairn_dir,
+    storage::ensure_praide_dir,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -76,7 +76,7 @@ pub(crate) fn recover_interrupted_runs(
     tasks: &super::task_service::TaskService,
     sink: &dyn EventSink,
 ) {
-    let runs_directory = root.join(".cairn").join("runs");
+    let runs_directory = root.join(".praide").join("runs");
     let entries = match fs::read_dir(&runs_directory) {
         Ok(entries) => entries,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return,
@@ -218,8 +218,8 @@ impl ChildLauncher for SystemLauncher {
             .arg(&config.script)
             .current_dir(&config.root)
             .env("PYTHONPATH", &config.sdk_dir)
-            .env("CAIRN_RUN_ID", &config.run_id)
-            .env("CAIRN_API_VERSION", "1")
+            .env("PRAIDE_RUN_ID", &config.run_id)
+            .env("PRAIDE_API_VERSION", "1")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -686,9 +686,9 @@ impl RunManager {
             project
                 .tasks
                 .start_with_run(&task_id, expected_rev, run_id.clone(), Actor::Ui)?;
-        let run_directory = project.root.join(".cairn").join("runs").join(&run_id);
+        let run_directory = project.root.join(".praide").join("runs").join(&run_id);
         if let Err(error) =
-            ensure_cairn_dir(&project.root).and_then(|_| fs::create_dir_all(&run_directory))
+            ensure_praide_dir(&project.root).and_then(|_| fs::create_dir_all(&run_directory))
         {
             fail_running_task(
                 &project,
@@ -1041,7 +1041,7 @@ impl RunManager {
         let project = projects.services()?;
         let path = project
             .root
-            .join(".cairn")
+            .join(".praide")
             .join("runs")
             .join(run_id)
             .join("run.json");
@@ -1070,7 +1070,7 @@ impl RunManager {
         limit: u32,
     ) -> Result<Vec<RunRecord>, ServiceError> {
         let project = projects.services()?;
-        let runs_directory = project.root.join(".cairn").join("runs");
+        let runs_directory = project.root.join(".praide").join("runs");
         let entries = match fs::read_dir(&runs_directory) {
             Ok(entries) => entries,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
@@ -1130,7 +1130,7 @@ impl RunManager {
         let project = projects.services()?;
         let log_path = project
             .root
-            .join(".cairn")
+            .join(".praide")
             .join("runs")
             .join(run_id)
             .join("run.log");
@@ -1280,7 +1280,7 @@ impl RunManager {
         }
         let project_root = if scope == "project" {
             let project = projects.services()?;
-            ensure_cairn_dir(&project.root)
+            ensure_praide_dir(&project.root)
                 .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
             let status = workflows::workflow_status_with_dirs(
                 &project.root,
@@ -1824,7 +1824,7 @@ mod tests {
     fn harness_with_grace(timeout: Duration, finish_grace: Duration, fail_spawn: bool) -> Harness {
         let root = tempdir().unwrap();
         let data = tempdir().unwrap();
-        let workflow_dir = root.path().join(".cairn/workflows");
+        let workflow_dir = root.path().join(".praide/workflows");
         fs::create_dir_all(&workflow_dir).unwrap();
         fs::write(workflow_dir.join(workflows::ENTRY_FILE), "pass").unwrap();
         let workflow =
@@ -1869,7 +1869,7 @@ mod tests {
     fn no_entry_harness() -> Harness {
         let root = tempdir().unwrap();
         let data = tempdir().unwrap();
-        let workflow_dir = root.path().join(".cairn/workflows");
+        let workflow_dir = root.path().join(".praide/workflows");
         fs::create_dir_all(&workflow_dir).unwrap();
         fs::write(workflow_dir.join("helper.py"), "pass").unwrap();
         let sink = RecordingSink::default();
@@ -1912,7 +1912,7 @@ mod tests {
         let project = ProjectState::default();
         project.open(root.path(), NoopSink).unwrap();
         let manager = RunManager::default();
-        let runs_directory = root.path().join(".cairn/runs");
+        let runs_directory = root.path().join(".praide/runs");
 
         for record in [
             RunRecord {
@@ -1995,7 +1995,7 @@ mod tests {
     #[test]
     fn run_start_requires_a_choice_for_no_entry_and_refuses_reserved_entries() {
         let h = harness(Duration::from_secs(3), false);
-        let directory = h._root.path().join(".cairn/workflows");
+        let directory = h._root.path().join(".praide/workflows");
         fs::remove_file(directory.join(workflows::ENTRY_FILE)).unwrap();
         fs::write(directory.join("Main.py"), "pass").unwrap();
         let error = start(&h).unwrap_err();
@@ -2006,12 +2006,12 @@ mod tests {
         );
 
         fs::remove_file(directory.join("Main.py")).unwrap();
-        fs::write(directory.join("Cairn.py"), "pass").unwrap();
+        fs::write(directory.join("Praide.py"), "pass").unwrap();
         let error = start(&h).unwrap_err();
         assert_eq!(error.code, ServiceErrorCode::Validation);
         assert_eq!(
             error.message,
-            "Cairn.py would shadow the Cairn SDK; rename it"
+            "Praide.py would shadow the Praide SDK; rename it"
         );
         assert_eq!(
             h.project
@@ -2031,7 +2031,7 @@ mod tests {
         let project = ProjectState::default();
         project.open(root.path(), NoopSink).unwrap();
         let manager = RunManager::default();
-        let log_directory = root.path().join(".cairn/runs/run-1");
+        let log_directory = root.path().join(".praide/runs/run-1");
         fs::create_dir_all(&log_directory).unwrap();
         let contents = (0..10_000)
             .map(|line| format!("line-{line}\n"))
@@ -2095,7 +2095,7 @@ mod tests {
         write_run_record(
             &root
                 .path()
-                .join(".cairn")
+                .join(".praide")
                 .join("runs")
                 .join(&finished.run_id),
             &finished,
@@ -2192,7 +2192,7 @@ mod tests {
             run_directory: harness
                 ._root
                 .path()
-                .join(".cairn")
+                .join(".praide")
                 .join("runs")
                 .join(&run.run_id),
             sink: Arc::new(NoopSink),
@@ -2204,7 +2204,7 @@ mod tests {
                 harness
                     ._root
                     .path()
-                    .join(".cairn")
+                    .join(".praide")
                     .join("runs")
                     .join(&run.run_id),
             )),
@@ -2325,7 +2325,7 @@ mod tests {
         let path = h
             ._root
             .path()
-            .join(".cairn/runs")
+            .join(".praide/runs")
             .join(&run.run_id)
             .join("run.json");
         let persisted: RunRecord = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
@@ -2628,7 +2628,7 @@ mod tests {
                 harness
                     ._root
                     .path()
-                    .join(".cairn/runs")
+                    .join(".praide/runs")
                     .join(run.run_id)
                     .join("run.json"),
             )
@@ -2821,7 +2821,7 @@ mod tests {
     fn project_workflow_supersedes_and_clears_a_remembered_choice_on_run_start() {
         let h = no_entry_harness();
         h.manager.workflow_choose(&h.project, "bundled").unwrap();
-        let entry = h._root.path().join(".cairn/workflows/main.py");
+        let entry = h._root.path().join(".praide/workflows/main.py");
         fs::write(&entry, "pass").unwrap();
         let status = h.manager.workflow_status(&h.project).unwrap();
         assert_eq!(status.active, Some(workflows::WorkflowSource::Project));
@@ -2872,7 +2872,7 @@ mod tests {
             .manager
             .workflow_create(&h.project, "project", "blank")
             .unwrap();
-        assert_eq!(created.entry, ".cairn/workflows/main.py");
+        assert_eq!(created.entry, ".praide/workflows/main.py");
         let choices: serde_json::Value =
             serde_json::from_slice(&fs::read(h._data.path().join("workflow-choice.json")).unwrap())
                 .unwrap();
@@ -2910,25 +2910,25 @@ mod tests {
         let data = tempdir().unwrap();
         let resources = tempdir().unwrap();
         let resource_sdk = resources.path().join("sdk").join("python");
-        let resource_cairn = resource_sdk.join("cairn");
+        let resource_praide = resource_sdk.join("praide");
         let resource_workflows = resource_sdk.join("workflows");
-        fs::create_dir_all(&resource_cairn).unwrap();
+        fs::create_dir_all(&resource_praide).unwrap();
         fs::create_dir_all(&resource_workflows).unwrap();
         let source_sdk = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("sdk")
             .join("python");
         fs::copy(
-            source_sdk.join("cairn").join("__init__.py"),
-            resource_cairn.join("__init__.py"),
+            source_sdk.join("praide").join("__init__.py"),
+            resource_praide.join("__init__.py"),
         )
         .unwrap();
         fs::write(
             resource_workflows.join(workflows::ENTRY_FILE),
-            "from cairn import run\n\nrun.context()\nrun.finish(\"needs_review\")\n",
+            "from praide import run\n\nrun.context()\nrun.finish(\"needs_review\")\n",
         )
         .unwrap();
-        let project = root.path().join(".cairn/workflows");
+        let project = root.path().join(".praide/workflows");
         fs::create_dir_all(&project).unwrap();
         fs::write(project.join("helper.py"), "pass").unwrap();
         let projects = ProjectState::default();
@@ -3038,7 +3038,7 @@ mod tests {
                 .unwrap();
         workflows::trust(h._root.path(), &workflow.script_hash, Some(h._data.path())).unwrap();
         fs::write(
-            h._root.path().join(".cairn/workflows/helper.py"),
+            h._root.path().join(".praide/workflows/helper.py"),
             "VALUE = 1",
         )
         .unwrap();
@@ -3077,7 +3077,7 @@ mod tests {
             let root = tempdir().unwrap();
             let data = tempdir().unwrap();
             let global_root = tempdir().unwrap();
-            let global_dir = global_root.path().join("cairn").join("workflows");
+            let global_dir = global_root.path().join("praide").join("workflows");
             if expected_source == workflows::WorkflowSource::Global {
                 fs::create_dir_all(&global_dir).unwrap();
                 fs::write(global_dir.join(workflows::ENTRY_FILE), "pass").unwrap();
@@ -3182,7 +3182,7 @@ mod tests {
         });
         assert!(poisoner.join().is_err());
 
-        let workflow_dir = h._root.path().join(".cairn/workflows");
+        let workflow_dir = h._root.path().join(".praide/workflows");
         fs::remove_file(workflow_dir.join(workflows::ENTRY_FILE)).unwrap();
         fs::write(workflow_dir.join("helper.py"), "pass").unwrap();
         let task = h.project.services().unwrap().tasks.get(&h.task_id).unwrap();
@@ -3481,7 +3481,7 @@ mod tests {
         let created = manager
             .workflow_create(&projects, "project", "blank")
             .unwrap();
-        assert_eq!(created.entry, ".cairn/workflows/main.py");
+        assert_eq!(created.entry, ".praide/workflows/main.py");
         let trust = manager.workspace_trust_status(&projects).unwrap();
         manager
             .workspace_trust(&projects, &trust.folder_hash)
@@ -3544,12 +3544,12 @@ mod tests {
     fn cancelling_workflow_kills_its_python_process() {
         let root = tempdir().unwrap();
         let data = tempdir().unwrap();
-        let workflow_dir = root.path().join(".cairn/workflows");
+        let workflow_dir = root.path().join(".praide/workflows");
         fs::create_dir_all(&workflow_dir).unwrap();
         let script = workflow_dir.join(workflows::ENTRY_FILE);
         fs::write(
             &script,
-            "# /// script\n# requires-python = \">=3.10\"\n# dependencies = []\n# ///\nimport cairn\nimport os, time\nprint(os.getpid(), flush=True)\ntime.sleep(120)\n",
+            "# /// script\n# requires-python = \">=3.10\"\n# dependencies = []\n# ///\nimport praide\nimport os, time\nprint(os.getpid(), flush=True)\ntime.sleep(120)\n",
         )
         .unwrap();
         let sink = RecordingSink::default();
@@ -3577,7 +3577,7 @@ mod tests {
             .unwrap();
         let log_path = root
             .path()
-            .join(".cairn/runs")
+            .join(".praide/runs")
             .join(&run.run_id)
             .join("run.log");
         let deadline = Instant::now() + Duration::from_secs(30);

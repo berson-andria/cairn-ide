@@ -5,7 +5,7 @@
 
 import sys
 
-from cairn import notes, run, tasks
+from praide import notes, run, tasks
 
 context = run.context()
 task = tasks.get(context["taskId"])

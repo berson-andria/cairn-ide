@@ -21,7 +21,7 @@ export type NoEntryResult = { kind: 'local'; entryPath: string };
           <span
             >This project has a workflow files/folder, but it has no <code>main.py</code> entry
             point. <br />
-            Cairn needs <code>.cairn/workflows/main.py</code> to start a run.
+            Praide needs <code>.praide/workflows/main.py</code> to start a run.
           </span>
         </p>
         <div class="solution">Use another workflow or edit local workflow:</div>

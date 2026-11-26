@@ -13,7 +13,7 @@ import { NodeStore } from '../../../core/store/node.store';
 import { topLevelIds } from '../../../shared/utils/node.utils';
 
 /** Custom type on purpose: with 'text/plain' the editor would accept the drop and paste the ids as text. */
-const MIME = 'application/x-cairn-nodes';
+const MIME = 'application/x-praide-nodes';
 
 /** How long a drag must hover over a collapsed folder before it opens. */
 const EXPAND_DELAY_MS = 700;

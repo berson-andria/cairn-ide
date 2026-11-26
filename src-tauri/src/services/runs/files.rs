@@ -1,7 +1,7 @@
 use crate::services::{
     project::{strip_windows_verbatim_prefix, ProjectServices},
     service_error::{now_ms, ChangeEvent, EventSink, ServiceError, ServiceErrorCode},
-    storage::ensure_cairn_dir,
+    storage::ensure_praide_dir,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -183,7 +183,7 @@ fn windows_component_invalid(name: &str) -> bool {
 
 fn denied_component(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
-    lower == ".git" || lower == ".cairn" || secret_name(name) || windows_component_invalid(name)
+    lower == ".git" || lower == ".praide" || secret_name(name) || windows_component_invalid(name)
 }
 
 pub fn is_denied_name(name: &str) -> bool {
@@ -404,7 +404,7 @@ fn atomic_json(path: &Path, value: &Patch) -> Result<(), ServiceError> {
 fn patch_directory(project: &ProjectServices, run_id: &str) -> PathBuf {
     project
         .root
-        .join(".cairn/runs")
+        .join(".praide/runs")
         .join(run_id)
         .join("patches")
 }
@@ -530,7 +530,7 @@ pub fn propose(
     }
 
     let directory = patch_directory(project, run_id);
-    ensure_cairn_dir(&project.root)
+    ensure_praide_dir(&project.root)
         .and_then(|_| fs::create_dir_all(&directory))
         .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
     let mut existing = fs::read_dir(&directory)
@@ -688,7 +688,7 @@ fn atomic_write_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let temp = path
         .parent()
         .unwrap_or(Path::new("."))
-        .join(format!(".cairn-write-{}.tmp", uuid::Uuid::new_v4()));
+        .join(format!(".praide-write-{}.tmp", uuid::Uuid::new_v4()));
     let result = (|| {
         let mut file = fs::File::create(&temp)?;
         file.write_all(bytes)?;
@@ -800,7 +800,7 @@ mod tests {
             "../x",
             r"a\..\..\x",
             ".git/config",
-            ".cairn/tasks/x.json",
+            ".praide/tasks/x.json",
             ".env",
             ".ENV.local",
             "server.PEM",
@@ -826,14 +826,14 @@ mod tests {
         fs::create_dir_all(dir.path().join("src")).unwrap();
         fs::write(dir.path().join("src/a.txt"), b"abcdef").unwrap();
         fs::write(dir.path().join(".env"), b"secret").unwrap();
-        fs::write(dir.path().join(".cairn"), b"secret").unwrap();
+        fs::write(dir.path().join(".praide"), b"secret").unwrap();
         let read = read_file(dir.path(), "src/a.txt", Some(3)).unwrap();
         assert_eq!(read.text, "abc");
         assert!(read.truncated);
         assert_eq!(read.bytes, 6);
         assert_eq!(read.sha256, sha256(b"abcdef"));
         let mut names = list_files(dir.path(), "", None).unwrap();
-        names.retain(|entry| entry.name == "src" || entry.name == ".env" || entry.name == ".cairn");
+        names.retain(|entry| entry.name == "src" || entry.name == ".env" || entry.name == ".praide");
         assert_eq!(names.len(), 1);
     }
 
@@ -857,7 +857,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         for name in [
             ".git",
-            ".cairn",
+            ".praide",
             ".env",
             ".ENV.local",
             "server.PEM",
@@ -873,7 +873,7 @@ mod tests {
         assert!(entries.iter().all(|entry| !is_denied_name(&entry.name)));
         assert!(entries
             .iter()
-            .all(|entry| entry.name != ".git" && entry.name != ".cairn"));
+            .all(|entry| entry.name != ".git" && entry.name != ".praide"));
     }
 
     #[test]
@@ -903,7 +903,7 @@ mod tests {
             project.as_ref(),
             "run-1",
             &task_id,
-            &project.root.join(".cairn/runs/run-1"),
+            &project.root.join(".praide/runs/run-1"),
             vec![
                 PatchEdit::Replace {
                     path: "one.txt".into(),
@@ -934,7 +934,7 @@ mod tests {
                     project.as_ref(),
                     "run-1",
                     &task.id,
-                    &project.root.join(".cairn/runs/run-1"),
+                    &project.root.join(".praide/runs/run-1"),
                     vec![
                         PatchEdit::Replace {
                             path: "one.txt".into(),

@@ -1,12 +1,12 @@
 <article
   class="message"
   [class.message--user]="message().role === 'user'"
-  [attr.aria-label]="message().role === 'user' ? 'Your message' : 'Cairn response'"
+  [attr.aria-label]="message().role === 'user' ? 'Your message' : 'Praide response'"
 >
   @if (message().role === 'assistant') {
     <div class="message__identity">
       <span class="message__marker" aria-hidden="true">C</span>
-      <span>Cairn</span>
+      <span>Praide</span>
     </div>
   }
   @if (message().goal) {

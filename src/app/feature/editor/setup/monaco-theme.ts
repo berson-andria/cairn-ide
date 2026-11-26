@@ -1,7 +1,7 @@
 import type * as Monaco from 'monaco-editor';
 
 /**
- * VERSION 2: everything matched to the Cairn tokens.
+ * VERSION 2: everything matched to the Praide tokens.
  *
  *  - Background, default text, comments, line numbers, selection, line highlight, widgets, borders,
  *    scrollbars, diff and gutter colors are all read from token.scss (so they follow light/dark).
@@ -17,7 +17,7 @@ type Mode = 'dark' | 'light';
 const getMode = (): Mode =>
   document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
 
-export const cairnThemeName = (mode: Mode = getMode()): string => `cairn-${mode}`;
+export const praideThemeName = (mode: Mode = getMode()): string => `praide-${mode}`;
 
 /** Fallbacks = the values in token.scss, used only if a variable can't be read. */
 const FALLBACKS: Record<Mode, Record<string, string>> = {
@@ -317,7 +317,7 @@ function buildColors(mode: Mode, t: Record<string, string>): Monaco.editor.IColo
 export function applyGhostTheme(monaco: typeof Monaco): void {
   const mode = getMode();
   const tokens = readTokens(mode);
-  const name = cairnThemeName(mode);
+  const name = praideThemeName(mode);
 
   monaco.editor.defineTheme(name, {
     base: mode === 'dark' ? 'vs-dark' : 'vs',
@@ -333,7 +333,7 @@ export function applyGhostTheme(monaco: typeof Monaco): void {
  * <html data-theme="..."> changes. Returns a disposer.
  *
  *   const stop = defineGhostTheme(monaco);
- *   monaco.editor.create(el, { theme: cairnThemeName(), ... });
+ *   monaco.editor.create(el, { theme: praideThemeName(), ... });
  */
 export function defineGhostTheme(monaco: typeof Monaco): () => void {
   applyGhostTheme(monaco);

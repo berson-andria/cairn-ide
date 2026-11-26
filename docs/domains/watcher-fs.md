@@ -17,24 +17,24 @@ filesystem-event signal and starts its 500 ms debounced refresh.
 | `.git` | No | No | No | No | No |
 | `.git/HEAD`, `index`, `packed-refs`, `refs/**` | No | Yes | No | Yes | No |
 | `.git/objects/**` | No | No | No | No | No |
-| `.cairn` | Yes | Yes | No | Yes | No |
-| `.cairn/settings.json` | Yes | Yes | No | Yes | No |
-| `.cairn/tasks/**` | Yes | Yes | No | Yes | Valid `<id>.json` only |
-| `.cairn/notes/**` | Yes | Yes | No | Yes | Valid `<id>.json` only |
-| `.cairn/workflows/**` | Yes | Yes | No | Yes | No |
-| `.cairn/cache/**` | No | No | No | No | No |
-| `.cairn/runs/**` | No | No | No | No | No |
+| `.praide` | Yes | Yes | No | Yes | No |
+| `.praide/settings.json` | Yes | Yes | No | Yes | No |
+| `.praide/tasks/**` | Yes | Yes | No | Yes | Valid `<id>.json` only |
+| `.praide/notes/**` | Yes | Yes | No | Yes | Valid `<id>.json` only |
+| `.praide/workflows/**` | Yes | Yes | No | Yes | No |
+| `.praide/cache/**` | No | No | No | No | No |
+| `.praide/runs/**` | No | No | No | No | No |
 | Hidden file such as `.env` | Yes | Entry Yes | No | Yes | No |
 
 Directory reads use `get_directory_content`, which calls `tree_hidden` only;
 there is no generic “hide dotfiles” read rule in that function
 ([fs.rs](../../src-tauri/src/services/fs.rs):8-24). `tree_hidden` hides only
-`.git` components and `.cairn/cache` or `.cairn/runs` children
+`.git` components and `.praide/cache` or `.praide/runs` children
 ([watcher.rs](../../src-tauri/src/services/watcher.rs):250-263). Thus `.venv`,
 `node_modules`, and `.env` entries remain visible on read. The `.gitignore`
 pattern list affects live and codemap filtering; this repository ignores
-`/node_modules` and `/.cairn` in [.gitignore](../../.gitignore):10,
-/.gitignore:28, but `.cairn` is explicitly re-admitted for live events while
+`/node_modules` and `/.praide` in [.gitignore](../../.gitignore):10,
+/.gitignore:28, but `.praide` is explicitly re-admitted for live events while
 cache/runs remain hidden.
 
 ### Ordered event filters
@@ -42,20 +42,20 @@ cache/runs remain hidden.
 One notify event passes these drop points, in order:
 
 1. **notify callback path filter:** for each notify path,
-   `path_allowed(...) || is_cairn_data_path(...)` retains it
+   `path_allowed(...) || is_praide_data_path(...)` retains it
    ([watcher.rs](../../src-tauri/src/services/watcher.rs):128-137).
 2. **Explorer shape filter:** `path_allowed` calls `explorer_passes`
    ([watcher.rs](../../src-tauri/src/services/watcher.rs):246-247).
    `explorer_passes` first admits `.git/HEAD`, `index`, `packed-refs`, and
-   `refs/**`; then drops every `.git` path and `.cairn/cache|runs`; for the
-   remaining path it admits the `.cairn` entry and descendants, admits an
+   `refs/**`; then drops every `.git` path and `.praide/cache|runs`; for the
+   remaining path it admits the `.praide` entry and descendants, admits an
    ignored/hidden entry itself, but drops ignored/hidden descendants
    ([watcher.rs](../../src-tauri/src/services/watcher.rs):266-293).
 3. **Batch filter:** `build_batch` calls `path_allowed` again and deduplicates
    paths; batches over 2000 unique paths become `overflow`
    ([watcher.rs](../../src-tauri/src/services/watcher.rs):302-330).
 4. **Rust internal task/note listener:** `emit_batch` extracts only valid
-   `.cairn/tasks|notes/<id>.json` paths and sends them to subscribed project
+   `.praide/tasks|notes/<id>.json` paths and sends them to subscribed project
    services ([watcher.rs](../../src-tauri/src/services/watcher.rs):181-211).
    `ProjectState::reload_changed` classifies task versus note and calls
    `reload_external`; repeated corrupt reads retry once, then emit
@@ -82,13 +82,13 @@ One notify event passes these drop points, in order:
 
 | List | Definition | Behavior |
 |---|---|---|
-| `.git`; `.cairn/cache`; `.cairn/runs` | `CAIRN_HIDDEN_CHILDREN = ["cache", "runs"]` and `tree_hidden` | Read and live drops; cache/runs are case-insensitive matches, `.git` is exact |
+| `.git`; `.praide/cache`; `.praide/runs` | `PRAIDE_HIDDEN_CHILDREN = ["cache", "runs"]` and `tree_hidden` | Read and live drops; cache/runs are case-insensitive matches, `.git` is exact |
 | Python environment/cache: `.venv/`, `venv/`, `__pycache__/`, `.mypy_cache/`, `.pytest_cache/`, `.ruff_cache/` | `watcher_ignore` | Watch/codemap ignore patterns; `.venv` folder entry is retained live, descendants are dropped |
 | Any dot component | `is_ignored` | Codemap strict drop for hidden files/folders |
 | Root `.gitignore`; `.git/info/exclude` | `watcher_ignore` | Read fresh into watcher/codemap ignore rules; nested `.gitignore` files are not read for watcher paths |
 | Git metadata allowlist: `HEAD`, `index`, `packed-refs`, `refs/**` | `git_path_needed` | These Git metadata paths pass the live explorer filter even though `.git` is hidden |
 | Heavy entry in workspace search: `node_modules`, `.git`, `target` | Directory-search skip at scan | Search/listing optimization, not the shared live event filter |
-| Valid task/note external reload: exactly `.cairn/tasks|notes/<name>.json` | `is_cairn_data_path` | Reload only names not starting `.`, not ending `.tmp`, and with `.json` extension |
+| Valid task/note external reload: exactly `.praide/tasks|notes/<name>.json` | `is_praide_data_path` | Reload only names not starting `.`, not ending `.tmp`, and with `.json` extension |
 
 ## Filesystem events
 

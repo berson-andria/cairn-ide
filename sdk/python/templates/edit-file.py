@@ -4,17 +4,17 @@
 # ///
 # This file is the workflow entry point.
 # Import helpers with absolute imports (for example, `import prompts`), not `from . import`.
-# Never name a file `cairn.py`; avoid standard-library module names.
+# Never name a file `praide.py`; avoid standard-library module names.
 # title: Propose a file edit
 # description: Read a project file and propose a reviewed text change.
 
-from cairn import edit_replace, files, patch, run
+from praide import edit_replace, files, patch, run
 
 file = files.read("README.md")
-if "Cairn" in file["text"]:
+if "Praide" in file["text"]:
     patch.propose(
         "Update README marker",
-        [edit_replace("README.md", "Cairn", "Cairn IDE")],
+        [edit_replace("README.md", "Praide", "Praide IDE")],
         summary="Proposes a README text replacement",
     )
 

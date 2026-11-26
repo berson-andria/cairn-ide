@@ -46,7 +46,7 @@ const workflow = (
   overrides: Partial<WorkflowSourceStatus> = {},
 ): WorkflowSourceStatus => ({
   source,
-  folder: source === 'project' ? '.cairn/workflows' : `${source}/workflows`,
+  folder: source === 'project' ? '.praide/workflows' : `${source}/workflows`,
   status: 'ok',
   entry: `${source}/workflows/main.py`,
   warnings: [],
@@ -127,10 +127,11 @@ function makeHarness(
     runStart: async () => ({}) as RunRecord,
     ...options.api,
   };
-  const activeStatus = computed(() =>
-    (options.workflowStatus ?? workflowStatus()).sources.find((source) =>
-      source.source === (options.workflowStatus ?? workflowStatus()).active
-    ) ?? null
+  const activeStatus = computed(
+    () =>
+      (options.workflowStatus ?? workflowStatus()).sources.find(
+        (source) => source.source === (options.workflowStatus ?? workflowStatus()).active,
+      ) ?? null,
   );
   const workflows = {
     active: activeStatus,
@@ -328,20 +329,27 @@ test('runDisabledReason reports every blocker in priority order', () => {
   assert.equal(noWorkflows.runDisabledReason(task('task-1')), 'No workflows are available.');
 
   const noEntry = makeHarness({
-    workflowStatus: workflowStatus('project', [workflow('project', {
-      status: 'no-entry',
-      message: 'no main.py in .cairn/workflows',
-    })]),
+    workflowStatus: workflowStatus('project', [
+      workflow('project', {
+        status: 'no-entry',
+        message: 'no main.py in .praide/workflows',
+      }),
+    ]),
   }).runService;
-  assert.equal(noEntry.runDisabledReason(task('task-1')), 'no main.py in .cairn/workflows');
+  assert.equal(noEntry.runDisabledReason(task('task-1')), 'no main.py in .praide/workflows');
 
   const reserved = makeHarness({
-    workflowStatus: workflowStatus('project', [workflow('project', {
-      status: 'reserved-name',
-      message: 'cairn.py would shadow the Cairn SDK; rename it',
-    })]),
+    workflowStatus: workflowStatus('project', [
+      workflow('project', {
+        status: 'reserved-name',
+        message: 'praide.py would shadow the Praide SDK; rename it',
+      }),
+    ]),
   }).runService;
-  assert.equal(reserved.runDisabledReason(task('task-1')), 'cairn.py would shadow the Cairn SDK; rename it');
+  assert.equal(
+    reserved.runDisabledReason(task('task-1')),
+    'praide.py would shadow the Praide SDK; rename it',
+  );
 
   const projectUntrusted = makeHarness({
     workflowStatus: workflowStatus('project', [workflow('project', { trusted: false })]),
@@ -551,14 +559,29 @@ test('patch store upserts status transitions and clears with patch cache for a n
 test('patch service exposes task, run, and pending summary signals', () => {
   const { store, service } = patchServiceHarness({});
   store.upsert(patchSummary('p-1', { taskId: 'task-1', runId: 'run-1' }));
-  store.upsert(patchSummary('p-2', {
-    taskId: 'task-2',
-    runId: 'run-2',
-    status: 'applied',
-  }));
-  assert.deepEqual(service.pending().map((patch) => patch.id), ['p-1']);
-  assert.deepEqual(service.forTask('task-1')().map((patch) => patch.id), ['p-1']);
-  assert.deepEqual(service.forRun('run-2')().map((patch) => patch.id), ['p-2']);
+  store.upsert(
+    patchSummary('p-2', {
+      taskId: 'task-2',
+      runId: 'run-2',
+      status: 'applied',
+    }),
+  );
+  assert.deepEqual(
+    service.pending().map((patch) => patch.id),
+    ['p-1'],
+  );
+  assert.deepEqual(
+    service
+      .forTask('task-1')()
+      .map((patch) => patch.id),
+    ['p-1'],
+  );
+  assert.deepEqual(
+    service
+      .forRun('run-2')()
+      .map((patch) => patch.id),
+    ['p-2'],
+  );
 });
 
 test('patch load evicts the oldest cache entry and refetches when summary status changes', async () => {
@@ -653,10 +676,7 @@ test('deriveTrustState covers all workflow trust states and stale approval cases
   assert.equal(deriveTrustState(trustStatus({ hasWorkflows: false })), 'none');
   assert.equal(deriveTrustState(trustStatus({ trusted: true })), 'trusted');
   assert.equal(deriveTrustState(trustStatus({ approvedHash: undefined })), 'unreviewed');
-  assert.equal(
-    deriveTrustState(trustStatus({ approvedHash: 'old-hash', changes: [] })),
-    'changed',
-  );
+  assert.equal(deriveTrustState(trustStatus({ approvedHash: 'old-hash', changes: [] })), 'changed');
   assert.equal(
     deriveTrustState(trustStatus({ hasWorkflows: false, approvedHash: 'old-hash' })),
     'none',
@@ -665,20 +685,24 @@ test('deriveTrustState covers all workflow trust states and stale approval cases
 
 test('summarizeChanges counts added modified removed and details availability', () => {
   assert.deepEqual(
-    summarizeChanges(trustStatus({
-      changes: [
-        { path: 'a.py', change: 'added' },
-        { path: 'b.py', change: 'modified' },
-        { path: 'b.py', change: 'modified' },
-        { path: 'c.py', change: 'removed' },
-      ],
-    })),
+    summarizeChanges(
+      trustStatus({
+        changes: [
+          { path: 'a.py', change: 'added' },
+          { path: 'b.py', change: 'modified' },
+          { path: 'b.py', change: 'modified' },
+          { path: 'c.py', change: 'removed' },
+        ],
+      }),
+    ),
     { added: 1, modified: 2, removed: 1, detailsAvailable: true },
   );
-  assert.deepEqual(
-    summarizeChanges(trustStatus({ approvedHash: 'old-hash', changes: [] })),
-    { added: 0, modified: 0, removed: 0, detailsAvailable: false },
-  );
+  assert.deepEqual(summarizeChanges(trustStatus({ approvedHash: 'old-hash', changes: [] })), {
+    added: 0,
+    modified: 0,
+    removed: 0,
+    detailsAvailable: false,
+  });
 });
 
 test('trustReview$ emits once per hash and resets on workspace clear', async () => {
@@ -691,14 +715,18 @@ test('trustReview$ emits once per hash and resets on workspace clear', async () 
 
   await service.refreshTrust();
   await service.refreshTrust();
-  assert.deepEqual(emissions, [{
-    state: 'unreviewed',
-    summary: { added: 0, modified: 0, removed: 0, detailsAvailable: false },
-  }]);
+  assert.deepEqual(emissions, [
+    {
+      state: 'unreviewed',
+      summary: { added: 0, modified: 0, removed: 0, detailsAvailable: false },
+    },
+  ]);
 
-  status = trustStatus({ folderHash: 'changed-hash', approvedHash: 'old-hash', changes: [
-    { path: 'main.py', change: 'modified' },
-  ] });
+  status = trustStatus({
+    folderHash: 'changed-hash',
+    approvedHash: 'old-hash',
+    changes: [{ path: 'main.py', change: 'modified' }],
+  });
   await service.refreshTrust();
   assert.deepEqual(emissions.at(-1), {
     state: 'changed',
@@ -737,9 +765,11 @@ test('approve uses the displayed hash and handles validation by refreshing trust
   const changedService = workflowServiceHarness({
     workspaceTrustStatus: async () => {
       refreshes++;
-      return trustStatus({ folderHash: 'new-hash', approvedHash: 'old-hash', changes: [
-        { path: 'main.py', change: 'modified' },
-      ] });
+      return trustStatus({
+        folderHash: 'new-hash',
+        approvedHash: 'old-hash',
+        changes: [{ path: 'main.py', change: 'modified' }],
+      });
     },
     workspaceTrust: async () => {
       throw { code: 'Validation', message: 'The workflow files changed.' };
@@ -747,10 +777,7 @@ test('approve uses the displayed hash and handles validation by refreshing trust
   });
   await changedService.refreshTrust();
   refreshes = 0;
-  assert.deepEqual(
-    await changedService.approve('stale-hash'),
-    { kind: 'changed-while-reviewing' },
-  );
+  assert.deepEqual(await changedService.approve('stale-hash'), { kind: 'changed-while-reviewing' });
   assert.equal(refreshes, 1);
 });
 
@@ -766,26 +793,28 @@ test('workflow active status exposes issue and warnings for every status', async
       workflowTemplates: async () => [],
     });
     await service.refresh();
-    assert.equal(
-      service.active()?.status,
-      status === 'empty' ? undefined : status,
-    );
+    assert.equal(service.active()?.status, status === 'empty' ? undefined : status);
   }
 
   const issueService = workflowServiceHarness({
-    workflowStatus: async () => workflowStatus('project', [workflow('project', {
-      status: 'no-entry',
-      message: 'no main.py in .cairn/workflows',
-      warnings: ['stdlib warning'],
-    })]),
-    workflowTemplates: async () => [{
-      id: 'blank',
-      title: 'Blank',
-      description: 'Start from a blank workflow',
-    }],
+    workflowStatus: async () =>
+      workflowStatus('project', [
+        workflow('project', {
+          status: 'no-entry',
+          message: 'no main.py in .praide/workflows',
+          warnings: ['stdlib warning'],
+        }),
+      ]),
+    workflowTemplates: async () => [
+      {
+        id: 'blank',
+        title: 'Blank',
+        description: 'Start from a blank workflow',
+      },
+    ],
   });
   await issueService.refresh();
-  assert.equal(issueService.activeIssue(), 'no main.py in .cairn/workflows');
+  assert.equal(issueService.activeIssue(), 'no main.py in .praide/workflows');
   assert.deepEqual(issueService.warnings(), ['stdlib warning']);
   assert.equal(issueService.templates()[0]?.id, 'blank');
 });
@@ -796,14 +825,14 @@ test('workflow create reports created and duplicate results and handles other er
     workflowTemplates: async () => [],
     workflowCreate: async () => ({
       source: 'project',
-      entry: '.cairn/workflows/main.py',
-      entryPath: '/project/.cairn/workflows/main.py',
+      entry: '.praide/workflows/main.py',
+      entryPath: '/project/.praide/workflows/main.py',
     }),
   });
-  assert.deepEqual(
-    await created.create('project', 'blank'),
-    { kind: 'created', entryPath: '/project/.cairn/workflows/main.py' },
-  );
+  assert.deepEqual(await created.create('project', 'blank'), {
+    kind: 'created',
+    entryPath: '/project/.praide/workflows/main.py',
+  });
 
   const duplicate = workflowServiceHarness({
     workflowCreate: async () => {
@@ -830,22 +859,26 @@ test('project create auto-approves only when trusted before and trust setting is
     definitions: [{ key: 'agents.trustIdeEdits' }],
     get: () => signal(true).asReadonly(),
   };
-  const trusted = workflowServiceHarness({
-    workspaceTrustStatus: async () => {
-      trustCalls++;
-      return trustStatus({ trusted: true, folderHash: 'new-hash' });
+  const trusted = workflowServiceHarness(
+    {
+      workspaceTrustStatus: async () => {
+        trustCalls++;
+        return trustStatus({ trusted: true, folderHash: 'new-hash' });
+      },
+      workflowStatus: async () => workflowStatus('project', [workflow('project')]),
+      workflowTemplates: async () => [],
+      workflowCreate: async () => ({
+        source: 'project',
+        entry: '.praide/workflows/main.py',
+        entryPath: '/project/.praide/workflows/main.py',
+      }),
+      workspaceTrust: async (hash: string) => {
+        approved.push(hash);
+      },
     },
-    workflowStatus: async () => workflowStatus('project', [workflow('project')]),
-    workflowTemplates: async () => [],
-    workflowCreate: async () => ({
-      source: 'project',
-      entry: '.cairn/workflows/main.py',
-      entryPath: '/project/.cairn/workflows/main.py',
-    }),
-    workspaceTrust: async (hash: string) => {
-      approved.push(hash);
-    },
-  }, '/project', settingsOn);
+    '/project',
+    settingsOn,
+  );
   await trusted.refreshTrust();
   await trusted.create('project', 'blank');
   assert.deepEqual(approved, ['new-hash']);
@@ -856,36 +889,44 @@ test('project create auto-approves only when trusted before and trust setting is
     definitions: [{ key: 'agents.trustIdeEdits' }],
     get: () => signal(false).asReadonly(),
   };
-  const notAutoApproved = workflowServiceHarness({
-    workspaceTrustStatus: async () => trustStatus({ trusted: true, folderHash: 'new-hash' }),
-    workflowStatus: async () => workflowStatus('project', [workflow('project')]),
-    workflowTemplates: async () => [],
-    workflowCreate: async () => ({
-      source: 'project',
-      entry: '.cairn/workflows/main.py',
-      entryPath: '/project/.cairn/workflows/main.py',
-    }),
-    workspaceTrust: async (hash: string) => {
-      approved.push(hash);
+  const notAutoApproved = workflowServiceHarness(
+    {
+      workspaceTrustStatus: async () => trustStatus({ trusted: true, folderHash: 'new-hash' }),
+      workflowStatus: async () => workflowStatus('project', [workflow('project')]),
+      workflowTemplates: async () => [],
+      workflowCreate: async () => ({
+        source: 'project',
+        entry: '.praide/workflows/main.py',
+        entryPath: '/project/.praide/workflows/main.py',
+      }),
+      workspaceTrust: async (hash: string) => {
+        approved.push(hash);
+      },
     },
-  }, '/project', settingOff);
+    '/project',
+    settingOff,
+  );
   await notAutoApproved.refreshTrust();
   await notAutoApproved.create('project', 'blank');
   assert.deepEqual(approved, []);
 
-  const untrusted = workflowServiceHarness({
-    workspaceTrustStatus: async () => trustStatus(),
-    workflowStatus: async () => workflowStatus('project', [workflow('project')]),
-    workflowTemplates: async () => [],
-    workflowCreate: async () => ({
-      source: 'project',
-      entry: '.cairn/workflows/main.py',
-      entryPath: '/project/.cairn/workflows/main.py',
-    }),
-    workspaceTrust: async (hash: string) => {
-      approved.push(hash);
+  const untrusted = workflowServiceHarness(
+    {
+      workspaceTrustStatus: async () => trustStatus(),
+      workflowStatus: async () => workflowStatus('project', [workflow('project')]),
+      workflowTemplates: async () => [],
+      workflowCreate: async () => ({
+        source: 'project',
+        entry: '.praide/workflows/main.py',
+        entryPath: '/project/.praide/workflows/main.py',
+      }),
+      workspaceTrust: async (hash: string) => {
+        approved.push(hash);
+      },
     },
-  }, '/project', settingsOn);
+    '/project',
+    settingsOn,
+  );
   await untrusted.refreshTrust();
   await untrusted.create('project', 'blank');
   assert.deepEqual(approved, []);
@@ -927,10 +968,10 @@ test('workflow status and trust refresh once per window only for workflow paths'
   await new Promise((resolve) => setTimeout(resolve, 550));
   assert.equal(calls, 0);
 
-  service.filesChanged(['/project/.cairn/workflows/main.py']);
+  service.filesChanged(['/project/.praide/workflows/main.py']);
   await new Promise((resolve) => setTimeout(resolve, 350));
   assert.equal(calls, 0);
-  service.filesChanged(['/project/.cairn/workflows/helpers/common.py']);
+  service.filesChanged(['/project/.praide/workflows/helpers/common.py']);
   await new Promise((resolve) => setTimeout(resolve, 350));
   assert.equal(calls, 0);
   await new Promise((resolve) => setTimeout(resolve, 200));

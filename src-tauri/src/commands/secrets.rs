@@ -1,6 +1,6 @@
 use keyring::{Entry, Error};
 
-const SERVICE_NAME: &str = "cairn-ide";
+const SERVICE_NAME: &str = "praide-ide";
 
 fn entry(id: &str) -> Result<Entry, String> {
     if id.trim().is_empty() {

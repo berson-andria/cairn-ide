@@ -70,7 +70,7 @@ pub mod test_support {
     /// Makes `lang` available to a test: downloaded once into a temp folder (network needed the first time only).
     pub fn ensure(lang: &str) {
         let _guard = LOCK.lock().unwrap_or_else(|p| p.into_inner());
-        super::set_cache_dir(std::env::temp_dir().join("cairn-test-grammars")).unwrap();
+        super::set_cache_dir(std::env::temp_dir().join("praide-test-grammars")).unwrap();
         if !super::is_installed(lang) {
             super::install(&[lang.to_string()])
                 .expect("the first run downloads the parser and needs network access");

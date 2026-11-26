@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 
-from cairn import run
+from praide import run
 
 summaries = []
 for pending_step in run.pending_steps():

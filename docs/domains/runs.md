@@ -3,7 +3,7 @@
 ## runs
 
 Rust starts a trusted Python workflow as a child process. The child uses the
-stdlib-only SDK at `sdk/python/cairn`; it never reads or writes project files
+stdlib-only SDK at `sdk/python/praide`; it never reads or writes project files
 directly. The SDK and host communicate over the child's stdin and stdout using
 JSON-RPC 2.0, one UTF-8 JSON message per line. Stdout is reserved for RPC;
 workflow `print()` output is redirected to stderr and becomes run log output.
@@ -30,18 +30,18 @@ The Tauri commands are:
 | `workspace_trust` | `hash` | `null` |
 | `workspace_trust_revoke` | — | `null` |
 
-`run_list` reads `.cairn/runs/*/run.json`, skips and logs unreadable or
+`run_list` reads `.praide/runs/*/run.json`, skips and logs unreadable or
 malformed records, and clamps `limit` to 1–50. Active records omit `endedAt`.
 When `run_get` receives `runId`, it returns the active in-memory record if that
-id matches; otherwise it reads `.cairn/runs/<runId>/run.json`. An unknown id
+id matches; otherwise it reads `.praide/runs/<runId>/run.json`. An unknown id
 returns `NotFound`; malformed ids return `Validation`.
 `run_log` returns the last `maxLines` lines from a run's log, clamped to
 1–2000; a missing log returns an empty array. `runId` must match
 `[A-Za-z0-9-]{1,64}`.
 
 Each scope is a `workflows/` directory with one entry point, exactly
-`main.py` directly inside it. The scopes are `.cairn/workflows` in the project,
-`cairn/workflows` under the platform config directory, then the bundled
+`main.py` directly inside it. The scopes are `.praide/workflows` in the project,
+`praide/workflows` under the platform config directory, then the bundled
 `workflows` directory (app resources in release builds,
 `sdk/python/workflows` in development). Nothing is selected by filename.
 
@@ -56,11 +56,11 @@ folder; it is `null` when the saved choice is ignored or unusable.
 
 Statuses are `empty` (missing directory or only `__pycache__`), `ok`,
 `no-entry` (has entries but no exact-case `main.py`), and `reserved-name`
-(a root `cairn.py` file or `cairn` directory, case-insensitive). An active
+(a root `praide.py` file or `praide` directory, case-insensitive). An active
 scope that is not `ok` fails `run_start` with `Validation`. The messages are
 `no main.py in <display folder>` and
-`<conflicting name> would shadow the Cairn SDK; rename it`. Display folders
-are `.cairn/workflows`, `<config dir>/cairn/workflows`, and
+`<conflicting name> would shadow the Praide SDK; rename it`. Display folders
+are `.praide/workflows`, `<config dir>/praide/workflows`, and
 `<app>/workflows`; they never expose an absolute path or username. `entry` is
 the display folder plus `/main.py`. Warnings identify top-level files and
 directories named after common standard-library modules; they do not block
@@ -125,7 +125,7 @@ bundled workflow directory). Project creation is allowed in `empty` or
 existing files; a case-insensitive `Main.py`-style entry must be renamed, and
 bundled copies are refused if any destination path collides case-insensitively.
 It never overwrites. Global creation behavior is unchanged. Project creation
-first ensures `.cairn`, and global creation creates its directories.
+first ensures `.praide`, and global creation creates its directories.
 `entryPath` is the real
 absolute path to open in the editor; unlike status display strings, it is not
 redacted.
@@ -133,8 +133,8 @@ redacted.
 Workflow scripts must use absolute imports for local helpers, for example
 `import prompts` or `from helpers import x`; do not use `from . import helper`.
 `uv run --script` adds the entry file's directory to imports, and namespace
-subfolders work without `__init__.py`. Never name a file `cairn.py` or a
-directory `cairn`, because it shadows the SDK on `PYTHONPATH`. Avoid
+subfolders work without `__init__.py`. Never name a file `praide.py` or a
+directory `praide`, because it shadows the SDK on `PYTHONPATH`. Avoid
 standard-library module names for top-level files and folders.
 
 ### Bundled default workflow
@@ -177,7 +177,7 @@ logged and give the run an empty registry; later settings edits do not affect
 an active run.
 
 Project trust is per canonical project root, not per run. Project workflows
-require approval of the SHA-256 hash of the entire `.cairn/workflows` folder.
+require approval of the SHA-256 hash of the entire `.praide/workflows` folder.
 The hash covers every file and subfolder helper, sorted by relative path, with
 each relative path and its content; symlinks are not followed and their link
 target strings are hashed. `__pycache__` directories and `*.pyc` files are
@@ -213,7 +213,7 @@ The Angular workflow service exposes `status`, `active`, `activeIssue`,
 
 After a project opens, the service refreshes workflow status and templates.
 The existing 500 ms filesystem debounce is shared by workflow and trust
-refreshes: a batch containing a path under `.cairn/workflows/` refreshes both
+refreshes: a batch containing a path under `.praide/workflows/` refreshes both
 once per window, while unrelated paths do nothing.
 
 **Workflow settings UI:** not implemented. `WorkflowService` exposes scope
@@ -354,7 +354,7 @@ other than `needs_review` or `failed` returns `Forbidden`.
 bytes and the ceiling is 1,000,000 bytes; files larger than 5 MB or containing
 a NUL byte in the first 8 KB return `Validation`. `files.list` is directory-only,
 sorted, capped at 500 entries (default 200), and omits denied secret names.
-Project paths never expose `.git` or `.cairn`, secret files, or paths outside the
+Project paths never expose `.git` or `.praide`, secret files, or paths outside the
 project root. Script traces record file paths and byte counts but never file text.
 Scripts cannot apply or discard patches.
 
@@ -380,7 +380,7 @@ text is redacted. A `hello` version mismatch returns an invalid-parameters
 error, then terminates the child and fails the run with reason
 `SDK API version mismatch`.
 
-The Python SDK raises `CairnError(code, message)` for error responses and exits
+The Python SDK raises `PraideError(code, message)` for error responses and exits
 with status 1 if stdin reaches EOF.
 
 ### Events
@@ -405,8 +405,8 @@ its working directory and stdin, stdout, and stderr piped. The host sets:
 | Variable | Value |
 |---|---|
 | `PYTHONPATH` | SDK directory (`sdk/python`) |
-| `CAIRN_RUN_ID` | current run id |
-| `CAIRN_API_VERSION` | `1` |
+| `PRAIDE_RUN_ID` | current run id |
+| `PRAIDE_API_VERSION` | `1` |
 
 On Windows, the launcher and its descendants are placed in a Job Object that
 kills the entire job when closed. On Unix, the launcher starts in a new
@@ -414,7 +414,7 @@ process group and termination signals the group. Cancellation, timeout,
 project close/switch, version mismatch, and application shutdown stop the
 whole process tree.
 
-Run data is stored under `.cairn/runs/<runId>/`:
+Run data is stored under `.praide/runs/<runId>/`:
 
 | File | Contents |
 |---|---|
@@ -445,9 +445,9 @@ reason `step not finished`. The application kills the active child on shutdown.
 
 When a project opens, any task or subtask still marked `running` is changed to
 `failed` through the task service. The task `load`/`reconcile` pass also sweeps
-orphan run folders under `.cairn/runs/` whose `taskId` points to a missing task,
+orphan run folders under `.praide/runs/` whose `taskId` points to a missing task,
 skipping `runs/proposals/`, taskless runs, active runs, and unreadable/corrupt
-`run.json` files. Each unfinished `.cairn/runs/*/run.json`
+`run.json` files. Each unfinished `.praide/runs/*/run.json`
 record is ended as `failed` with reason `interrupted (app closed during run)`;
 open steps are closed as `failed` with reason `interrupted`. Malformed run
 records are skipped and logged; recovery errors do not prevent the project
@@ -542,7 +542,7 @@ Scope status, templates, and project-level trust status.
 | `create(scope, template)` | Create a template or recursively copy the bundled scope; never overwrite |
 | `projectOpened()` | Refresh project trust status |
 | `approve()` / `revoke()` | Approve the latest displayed folder hash or remove the project approval |
-| `filesChanged(paths)` | Debounce trust refreshes by 500 ms for paths in `.cairn/workflows` |
+| `filesChanged(paths)` | Debounce trust refreshes by 500 ms for paths in `.praide/workflows` |
 | `clear()` | Reset workspace-scoped state and pending refresh timers |
 
 Command errors are reported through `handleApiError`. The workspace watcher
@@ -739,7 +739,7 @@ To open an older attempt's log, call
 
 ### Python SDK usage
 
-The stdlib-only SDK is imported from `cairn`. It performs the `hello` handshake on the first RPC call, keeps JSON-RPC on stdout, and redirects workflow `print()` output to stderr.
+The stdlib-only SDK is imported from `praide`. It performs the `hello` handshake on the first RPC call, keeps JSON-RPC on stdout, and redirects workflow `print()` output to stderr.
 
 | Namespace | Methods |
 |---|---|
@@ -767,7 +767,7 @@ See [ask.py](../../sdk/python/examples/ask.py) for a minimal request.
 
 import sys
 
-from cairn import notes, run, tasks
+from praide import notes, run, tasks
 
 context = run.context()
 task = tasks.get(context["taskId"])
@@ -785,7 +785,7 @@ run.finish("needs_review", summary=summary)
 # dependencies = []
 # ///
 
-from cairn import run, tasks
+from praide import run, tasks
 
 context = run.context()
 task = tasks.get(context["taskId"])
@@ -804,7 +804,7 @@ print(f"Proposed follow-up task {proposal_id}")
 # dependencies = []
 # ///
 
-from cairn import run, tasks
+from praide import run, tasks
 
 context = run.context()
 current = tasks.get(context["taskId"])
@@ -836,7 +836,7 @@ print(f"Proposed a three-task split for {current['title']}: {proposal_id}")
 # dependencies = []
 # ///
 
-from cairn import run
+from praide import run
 
 summaries = []
 for pending_step in run.pending_steps():

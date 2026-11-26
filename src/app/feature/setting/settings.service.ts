@@ -1,11 +1,18 @@
 import { computed, effect, inject, Injectable, Signal, signal } from '@angular/core';
-import { BaseDirectory, exists, mkdir, readTextFile, rename, writeTextFile } from '@tauri-apps/plugin-fs';
+import {
+  BaseDirectory,
+  exists,
+  mkdir,
+  readTextFile,
+  rename,
+  writeTextFile,
+} from '@tauri-apps/plugin-fs';
 import { join } from '@tauri-apps/api/path';
 import { NodeStore } from '../../core/store/node.store';
 import { SETTINGS, SettingDef, SettingScope, SettingValue } from './settings.registry';
 
 const USER_SETTINGS_FILE = 'settings.json';
-const WORKSPACE_SETTINGS_DIR = '.cairn';
+const WORKSPACE_SETTINGS_DIR = '.praide';
 const WRITE_DEBOUNCE_MS = 300;
 type StoredValues = Record<string, SettingValue>;
 
@@ -17,11 +24,15 @@ export class SettingsService {
   private readonly userValues = signal<StoredValues>({});
   private readonly workspaceValues = signal<StoredValues>({});
   private readonly workspacePath = signal<string | null>(null);
-  private readonly writeTimers: Partial<Record<'user' | 'workspace', ReturnType<typeof setTimeout>>> = {};
+  private readonly writeTimers: Partial<
+    Record<'user' | 'workspace', ReturnType<typeof setTimeout>>
+  > = {};
   private writeQueue: Promise<void> = Promise.resolve();
   private loadGeneration = 0;
 
-  readonly modifiedCount = computed(() => this.definitions.filter((def) => this.isModified(def.key)).length);
+  readonly modifiedCount = computed(
+    () => this.definitions.filter((def) => this.isModified(def.key)).length,
+  );
 
   constructor() {
     effect(() => {
@@ -138,7 +149,9 @@ export class SettingsService {
     try {
       if (!(await exists(path, opts))) return {};
       const parsed: unknown = JSON.parse(await readTextFile(path, opts));
-      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as StoredValues : {};
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as StoredValues)
+        : {};
     } catch {
       // Missing, unreadable, or malformed files all fall back to defaults.
       return {};
@@ -156,18 +169,26 @@ export class SettingsService {
     }, WRITE_DEBOUNCE_MS);
   }
 
-  private enqueueWrite(scope: 'user' | 'workspace', snapshot: StoredValues, targetPath: string | null): void {
+  private enqueueWrite(
+    scope: 'user' | 'workspace',
+    snapshot: StoredValues,
+    targetPath: string | null,
+  ): void {
     if (scope === 'workspace' && !targetPath) return;
     this.writeQueue = this.writeQueue
-      .then(() => scope === 'user'
-        ? this.writeUserSettings(snapshot)
-        : this.writeWorkspaceSettings(targetPath!, snapshot))
+      .then(() =>
+        scope === 'user'
+          ? this.writeUserSettings(snapshot)
+          : this.writeWorkspaceSettings(targetPath!, snapshot),
+      )
       .catch((error) => console.error(`Failed to write ${scope} settings`, error));
   }
 
   private async writeUserSettings(values: StoredValues): Promise<void> {
     await mkdir('', { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {});
-    await this.atomicWrite(USER_SETTINGS_FILE, JSON.stringify(values, null, 2), { baseDir: BaseDirectory.AppData });
+    await this.atomicWrite(USER_SETTINGS_FILE, JSON.stringify(values, null, 2), {
+      baseDir: BaseDirectory.AppData,
+    });
   }
 
   private async writeWorkspaceSettings(rootPath: string, values: StoredValues): Promise<void> {
@@ -177,22 +198,35 @@ export class SettingsService {
     await this.atomicWrite(path, JSON.stringify(values, null, 2));
   }
 
-  private async atomicWrite(path: string, contents: string, opts?: { baseDir: BaseDirectory }): Promise<void> {
+  private async atomicWrite(
+    path: string,
+    contents: string,
+    opts?: { baseDir: BaseDirectory },
+  ): Promise<void> {
     const temporary = `${path}.tmp`;
     await writeTextFile(temporary, contents, opts);
-    await rename(temporary, path, opts && { oldPathBaseDir: opts.baseDir, newPathBaseDir: opts.baseDir });
+    await rename(
+      temporary,
+      path,
+      opts && { oldPathBaseDir: opts.baseDir, newPathBaseDir: opts.baseDir },
+    );
   }
 }
 
 function isValidValue(def: SettingDef, value: unknown): value is SettingValue {
   switch (def.type) {
-    case 'boolean': return typeof value === 'boolean';
-    case 'number': return typeof value === 'number' && Number.isFinite(value);
-    case 'enum': return typeof value === 'string' && !!def.options?.some((option) => option.value === value);
+    case 'boolean':
+      return typeof value === 'boolean';
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value);
+    case 'enum':
+      return typeof value === 'string' && !!def.options?.some((option) => option.value === value);
     case 'string':
     case 'path':
-    case 'command': return typeof value === 'string';
-    case 'string-list': return Array.isArray(value) && value.every((item) => typeof item === 'string');
+    case 'command':
+      return typeof value === 'string';
+    case 'string-list':
+      return Array.isArray(value) && value.every((item) => typeof item === 'string');
   }
 }
 
@@ -204,7 +238,12 @@ function filterValues(
   const accepted: StoredValues = {};
   for (const [key, value] of Object.entries(values)) {
     const def = definitions.get(key);
-    if (def && (def.scope === scope || def.scope === 'both') && isValidValue(def, value) && !sameValue(value, def.default)) {
+    if (
+      def &&
+      (def.scope === scope || def.scope === 'both') &&
+      isValidValue(def, value) &&
+      !sameValue(value, def.default)
+    ) {
       accepted[key] = cloneValue(value);
     }
   }
@@ -213,7 +252,11 @@ function filterValues(
 
 function sameValue(left: unknown, right: unknown): boolean {
   if (Object.is(left, right)) return true;
-  try { return JSON.stringify(left) === JSON.stringify(right); } catch { return false; }
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
 }
 
 function cloneValue<T extends SettingValue>(value: T): T {

@@ -14,8 +14,8 @@ import { lucideExternalLink, lucideX } from '@ng-icons/lucide';
         <div style="width:520px">
           <div style="font-size:32px;font-weight:600;line-height:1.2">Open a folder to begin</div>
           <div class="s" style="font-size:14px;margin:12px 0 24px;line-height:1.55">
-            Cairn keeps tasks and notes as plain files in a .ide folder inside your project, so they
-            travel with your git history.
+            Praide keeps tasks and notes as plain files in a .ide folder inside your project, so
+            they travel with your git history.
           </div>
           <div style="display:flex;gap:10px">
             <button class="btn-primary" (click)="commands.openFolder()">Open Folder</button>

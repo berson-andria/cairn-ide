@@ -6,9 +6,9 @@ use std::process::ExitCode;
 fn main() -> ExitCode {
     // git / ssh start this same executable as their askpass program. Answer the question and
     // leave before any window or plugin is created.
-    if cairn_lib::is_askpass_helper() {
-        return cairn_lib::run_askpass_helper();
+    if praide_lib::is_askpass_helper() {
+        return praide_lib::run_askpass_helper();
     }
-    cairn_lib::run();
+    praide_lib::run();
     ExitCode::SUCCESS
 }

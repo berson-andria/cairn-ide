@@ -13,10 +13,10 @@ receives log-level changes and provides model/secret commands
 [diagnostics.rs:3](../../src-tauri/src/commands/diagnostics.rs#L3).
 
 User settings live under app data; workspace settings live at
-`.cairn/settings.json`. Workspace values override user values, then registry
+`.praide/settings.json`. Workspace values override user values, then registry
 defaults [settings.service.ts:17](../../src/app/feature/setting/settings.service.ts#L17),
 [settings.service.ts:83](../../src/app/feature/setting/settings.service.ts#L83).
-API keys are secrets in the OS keychain under service `cairn-ide`, referenced
+API keys are secrets in the OS keychain under service `praide-ide`, referenced
 by `model:<id>`; they are not JSON settings
 [secrets.rs:3](../../src-tauri/src/commands/secrets.rs#L3),
 [models-settings.ts:145](../../src/app/feature/setting/model-setting/models-settings.ts#L145).
@@ -152,7 +152,7 @@ its value is owned and persisted by Angular settings.
 ### Load settings
 
 UI startup -> `SettingsService.load()` -> read app-data `settings.json`, then
-read workspace `.cairn/settings.json` -> filter/merge signals -> UI getters
+read workspace `.praide/settings.json` -> filter/merge signals -> UI getters
 reactive to `userValues`/`workspaceValues`
 [settings.service.ts:88](../../src/app/feature/setting/settings.service.ts#L88).
 No Rust command or event is in this flow.

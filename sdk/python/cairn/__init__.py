@@ -12,7 +12,7 @@ _request_id = 0
 _hello_complete = False
 
 
-class CairnError(Exception):
+class PraideError(Exception):
     def __init__(self, code, message):
         self.code = code
         self.message = message
@@ -38,15 +38,18 @@ def _send(method, params):
     try:
         response = json.loads(line)
     except json.JSONDecodeError as error:
-        raise CairnError("ProtocolError", "The host returned invalid JSON") from error
+        raise PraideError("ProtocolError", "The host returned invalid JSON") from error
     if response.get("id") != request_id:
-        raise CairnError("ProtocolError", "The host returned a mismatched request id")
+        raise PraideError("ProtocolError", "The host returned a mismatched request id")
     if "error" in response:
         error = response["error"]
         details = error.get("data") or {}
-        raise CairnError(details.get("code", error.get("code")), details.get("message", error.get("message", "RPC error")))
+        raise PraideError(
+            details.get("code", error.get("code")),
+            details.get("message", error.get("message", "RPC error")),
+        )
     if "result" not in response:
-        raise CairnError("ProtocolError", "The host returned no result")
+        raise PraideError("ProtocolError", "The host returned no result")
     return response["result"]
 
 
@@ -100,7 +103,9 @@ class _Tasks:
             "acceptanceCriteria": acceptance_criteria,
             "presentation": presentation,
         }
-        params.update({key: value for key, value in optional.items() if value is not None})
+        params.update(
+            {key: value for key, value in optional.items() if value is not None}
+        )
         return call("tasks.propose", params)["proposalId"]
 
     @staticmethod
@@ -213,7 +218,9 @@ class _Models:
             "temperature": temperature,
             "stop": stop,
         }
-        params.update({key: value for key, value in optional.items() if value is not None})
+        params.update(
+            {key: value for key, value in optional.items() if value is not None}
+        )
         if json:
             params["json"] = True
         result = call("models.complete", params)

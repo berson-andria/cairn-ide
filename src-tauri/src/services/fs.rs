@@ -7,13 +7,13 @@ use uuid::Uuid;
 
 pub fn get_directory_content(path: &Path) -> Result<Vec<Node>, String> {
     let mut nodes = Vec::new();
-    let cairn_root = project_root_for_cairn_path(path);
+    let praide_root = project_root_for_praide_path(path);
     let entries = read_dir(path).map_err(|e| format!("Failed to read directory details: {}", e))?;
 
     for entry in entries {
         if let Ok(entry) = entry {
             let item_path = entry.path();
-            let visibility_path = cairn_root
+            let visibility_path = praide_root
                 .as_deref()
                 .and_then(|root| item_path.strip_prefix(root).ok())
                 .or_else(|| item_path.file_name().map(Path::new))
@@ -85,10 +85,10 @@ pub fn get_directory_content(path: &Path) -> Result<Vec<Node>, String> {
     Ok(nodes)
 }
 
-fn project_root_for_cairn_path(path: &Path) -> Option<PathBuf> {
+fn project_root_for_praide_path(path: &Path) -> Option<PathBuf> {
     let mut root = PathBuf::new();
     for component in path.components() {
-        if component.as_os_str() == ".cairn" {
+        if component.as_os_str() == ".praide" {
             return Some(root);
         }
         root.push(component.as_os_str());
@@ -112,49 +112,49 @@ mod tests {
     }
 
     #[test]
-    fn directory_listing_hides_git_and_private_cairn_data_only() {
+    fn directory_listing_hides_git_and_private_praide_data_only() {
         let root = tempfile::tempdir().unwrap();
         for name in [".git", ".venv", "venv", "node_modules", ".env"] {
             create_dir_all(root.path().join(name)).unwrap();
         }
-        create_dir_all(root.path().join(".cairn/tasks")).unwrap();
-        create_dir_all(root.path().join(".cairn/notes")).unwrap();
-        create_dir_all(root.path().join(".cairn/cache")).unwrap();
-        create_dir_all(root.path().join(".cairn/runs/id")).unwrap();
+        create_dir_all(root.path().join(".praide/tasks")).unwrap();
+        create_dir_all(root.path().join(".praide/notes")).unwrap();
+        create_dir_all(root.path().join(".praide/cache")).unwrap();
+        create_dir_all(root.path().join(".praide/runs/id")).unwrap();
         create_dir_all(root.path().join("target/debug")).unwrap();
-        std::fs::write(root.path().join(".cairn/settings.json"), "{}").unwrap();
-        std::fs::write(root.path().join(".cairn/tasks/a.json"), "{}").unwrap();
-        std::fs::write(root.path().join(".cairn/notes/n.json"), "{}").unwrap();
-        std::fs::write(root.path().join(".cairn/cache/codemap.json"), "{}").unwrap();
-        std::fs::write(root.path().join(".cairn/runs/id/run.log"), "").unwrap();
+        std::fs::write(root.path().join(".praide/settings.json"), "{}").unwrap();
+        std::fs::write(root.path().join(".praide/tasks/a.json"), "{}").unwrap();
+        std::fs::write(root.path().join(".praide/notes/n.json"), "{}").unwrap();
+        std::fs::write(root.path().join(".praide/cache/codemap.json"), "{}").unwrap();
+        std::fs::write(root.path().join(".praide/runs/id/run.log"), "").unwrap();
         std::fs::write(root.path().join(".venv/lib.py"), "").unwrap();
         std::fs::write(root.path().join("node_modules/pkg.js"), "").unwrap();
         std::fs::write(root.path().join("target/debug/app.exe"), "").unwrap();
 
         let root_entries = names(root.path());
-        assert!(root_entries.contains(&".cairn".to_string()));
+        assert!(root_entries.contains(&".praide".to_string()));
         assert!(!root_entries.contains(&".git".to_string()));
         assert!(root_entries.contains(&".venv".to_string()));
         assert!(root_entries.contains(&"node_modules".to_string()));
         assert!(root_entries.contains(&".env".to_string()));
 
-        let cairn_entries = names(&root.path().join(".cairn"));
+        let praide_entries = names(&root.path().join(".praide"));
         for visible in ["settings.json", "tasks", "notes"] {
-            assert!(cairn_entries.contains(&visible.to_string()), "{visible}");
+            assert!(praide_entries.contains(&visible.to_string()), "{visible}");
         }
         for hidden in ["cache", "runs", "workflows"] {
-            assert!(!cairn_entries.contains(&hidden.to_string()), "{hidden}");
+            assert!(!praide_entries.contains(&hidden.to_string()), "{hidden}");
         }
         assert_eq!(
-            names(&root.path().join(".cairn/tasks")),
+            names(&root.path().join(".praide/tasks")),
             vec!["a.json".to_string()]
         );
 
-        create_dir_all(root.path().join(".cairn/workflows")).unwrap();
-        std::fs::write(root.path().join(".cairn/workflows/main.py"), "pass").unwrap();
-        assert!(names(&root.path().join(".cairn")).contains(&"workflows".to_string()));
+        create_dir_all(root.path().join(".praide/workflows")).unwrap();
+        std::fs::write(root.path().join(".praide/workflows/main.py"), "pass").unwrap();
+        assert!(names(&root.path().join(".praide")).contains(&"workflows".to_string()));
         assert_eq!(
-            names(&root.path().join(".cairn/workflows")),
+            names(&root.path().join(".praide/workflows")),
             vec!["main.py".to_string()]
         );
         assert_eq!(names(&root.path().join(".venv")), vec!["lib.py"]);

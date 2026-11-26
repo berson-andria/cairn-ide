@@ -3,13 +3,13 @@
 # dependencies = []
 # ///
 
-from cairn import edit_replace, files, patch, run
+from praide import edit_replace, files, patch, run
 
 file = files.read("README.md")
-if "Cairn" in file["text"]:
+if "Praide" in file["text"]:
     patch.propose(
         "Update README marker",
-        [edit_replace("README.md", "Cairn", "Cairn IDE")],
+        [edit_replace("README.md", "Praide", "Praide IDE")],
         summary="Proposes a README text replacement",
     )
 

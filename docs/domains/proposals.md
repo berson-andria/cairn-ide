@@ -2,8 +2,8 @@
 
 Workflows may suggest tasks, but a suggestion is stored as a proposal and does
 not become a task until a user accepts it. Proposals are records in
-`.cairn/runs/proposals/<id>.json`; they are not task statuses. The project root
-is the only `.cairn` directory.
+`.praide/runs/proposals/<id>.json`; they are not task statuses. The project root
+is the only `.praide` directory.
 
 ## Proposal record
 

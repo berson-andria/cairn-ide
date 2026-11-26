@@ -45,7 +45,7 @@ pub fn classify_changed_paths(root: &Path, paths: &[PathBuf]) -> Vec<ChangedReco
             .map(|p| p.as_os_str().to_string_lossy().into_owned())
             .collect::<Vec<_>>();
         if parts.len() != 3
-            || parts[0] != ".cairn"
+            || parts[0] != ".praide"
             || !matches!(parts[1].as_str(), "tasks" | "notes")
             || parts[2].starts_with('.')
             || !parts[2].ends_with(".json")
@@ -374,7 +374,7 @@ mod tests {
     use std::fs;
 
     fn task_path(root: &Path, id: &str) -> PathBuf {
-        root.join(".cairn/tasks").join(format!("{id}.json"))
+        root.join(".praide/tasks").join(format!("{id}.json"))
     }
 
     #[test]
@@ -400,7 +400,7 @@ mod tests {
             task_ids.push((repository.create(task).unwrap().id, status));
         }
 
-        let run_directory = dir.path().join(".cairn/runs/interrupted-run");
+        let run_directory = dir.path().join(".praide/runs/interrupted-run");
         fs::create_dir_all(&run_directory).unwrap();
         let record = RunRecord {
             run_id: "interrupted-run".into(),
@@ -427,7 +427,7 @@ mod tests {
             serde_json::to_vec(&record).unwrap(),
         )
         .unwrap();
-        let malformed_directory = dir.path().join(".cairn/runs/malformed-run");
+        let malformed_directory = dir.path().join(".praide/runs/malformed-run");
         fs::create_dir_all(&malformed_directory).unwrap();
         fs::write(malformed_directory.join("run.json"), "{").unwrap();
 
@@ -486,11 +486,11 @@ mod tests {
     fn classifies_only_direct_valid_task_and_note_ids() {
         let root = PathBuf::from(if cfg!(windows) { r"C:\work" } else { "/work" });
         let paths = [
-            ".cairn/tasks/valid-id.json",
-            ".cairn/notes/n1.json",
-            ".cairn/tasks/../x.json",
-            ".cairn/tasks/nested/x.json",
-            ".cairn/tasks/a.tmp",
+            ".praide/tasks/valid-id.json",
+            ".praide/notes/n1.json",
+            ".praide/tasks/../x.json",
+            ".praide/tasks/nested/x.json",
+            ".praide/tasks/a.tmp",
             ".other/tasks/x.json",
         ]
         .iter()

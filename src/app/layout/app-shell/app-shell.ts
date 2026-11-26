@@ -107,7 +107,7 @@ export class AppShell {
   readonly dialogService = inject(DialogService);
 
   protected readonly project = computed(() => {
-    return this.nodeStore.rootName() ? this.nodeStore.rootName() : 'cairn-ide';
+    return this.nodeStore.rootName() ? this.nodeStore.rootName() : 'praide-ide';
   });
   protected readonly nextReview = 'Retry once on network failure';
   protected readonly model = 'qwen-local';
@@ -168,17 +168,17 @@ export class AppShell {
       const rootPath = this.nodeStore.rootPath();
       if (!entryPath || !rootPath || this.openingWorkflowEntry) return;
 
-      const cairnFolder = Object.values(this.nodeStore.rootNodes()).find(
-        (v) => v.name === '.cairn',
+      const praideFolder = Object.values(this.nodeStore.rootNodes()).find(
+        (v) => v.name === '.praide',
       );
-      let cairnFolderId = cairnFolder?.id ?? null;
-      if (!cairnFolderId) {
-        cairnFolderId = await this.nodeStore.submitInlineCreation('.cairn', 'folder', null);
-        if (!cairnFolderId) return;
+      let praideFolderId = praideFolder?.id ?? null;
+      if (!praideFolderId) {
+        praideFolderId = await this.nodeStore.submitInlineCreation('.praide', 'folder', null);
+        if (!praideFolderId) return;
       }
-      await this.nodeStore.expandFolder(cairnFolderId);
+      await this.nodeStore.expandFolder(praideFolderId);
 
-      const workflowDirectory = `${rootPath.replace(/[\\/]+$/, '')}/.cairn/workflows`;
+      const workflowDirectory = `${rootPath.replace(/[\\/]+$/, '')}/.praide/workflows`;
       const workflowFolder = findNodeByPath(nodes, workflowDirectory);
       if (!workflowFolder || !('children' in workflowFolder)) return;
 

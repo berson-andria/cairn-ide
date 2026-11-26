@@ -17,7 +17,7 @@ use super::codemap::service::watcher_ignore;
 
 const BATCH_WINDOW: Duration = Duration::from_millis(100);
 const MAX_PATHS: usize = 2000;
-const CAIRN_HIDDEN_CHILDREN: [&str; 2] = ["cache", "runs"];
+const PRAIDE_HIDDEN_CHILDREN: [&str; 2] = ["cache", "runs"];
 
 struct BatchAccumulator<T> {
     started: std::time::Instant,
@@ -131,7 +131,7 @@ fn run_watch(root: PathBuf, app: AppHandle, stop: Arc<AtomicBool>, listeners: Ve
             let filtered = event.map(|mut event| {
                 event.paths.retain(|path| {
                     path_allowed(&callback_root, path, &callback_ignore)
-                        || is_cairn_data_path(&callback_root, path)
+                        || is_praide_data_path(&callback_root, path)
                 });
                 event
             });
@@ -182,7 +182,7 @@ fn emit_batch(app: &AppHandle, root: &Path, events: &[Event], listeners: &[Watch
     let internal = events
         .iter()
         .flat_map(|event| event.paths.iter())
-        .filter(|path| is_cairn_data_path(root, path))
+        .filter(|path| is_praide_data_path(root, path))
         .cloned()
         .collect::<Vec<_>>();
     if !internal.is_empty() {
@@ -196,7 +196,7 @@ fn emit_batch(app: &AppHandle, root: &Path, events: &[Event], listeners: &[Watch
     }
 }
 
-fn is_cairn_data_path(root: &Path, path: &Path) -> bool {
+fn is_praide_data_path(root: &Path, path: &Path) -> bool {
     let Ok(rel) = path.strip_prefix(root) else {
         return false;
     };
@@ -204,7 +204,8 @@ fn is_cairn_data_path(root: &Path, path: &Path) -> bool {
         .components()
         .map(|c| c.as_os_str().to_string_lossy())
         .collect::<Vec<_>>();
-    if parts.len() != 3 || parts[0] != ".cairn" || !matches!(parts[1].as_ref(), "tasks" | "notes") {
+    if parts.len() != 3 || parts[0] != ".praide" || !matches!(parts[1].as_ref(), "tasks" | "notes")
+    {
         return false;
     }
     let name = parts[2].as_ref();
@@ -254,9 +255,9 @@ pub fn tree_hidden(path: &Path) -> bool {
         .collect::<Vec<_>>();
     parts.iter().enumerate().any(|(index, part)| {
         *part == ".git"
-            || (*part == ".cairn"
+            || (*part == ".praide"
                 && parts.get(index + 1).is_some_and(|child| {
-                    CAIRN_HIDDEN_CHILDREN
+                    PRAIDE_HIDDEN_CHILDREN
                         .iter()
                         .any(|hidden| child.to_string_lossy().eq_ignore_ascii_case(hidden))
                 }))
@@ -284,7 +285,7 @@ pub fn explorer_passes(root: &Path, path: &Path, ignore: &ignore::gitignore::Git
     }
     let mut prefix = PathBuf::new();
     for (index, part) in parts.iter().enumerate() {
-        if *part == ".cairn" {
+        if *part == ".praide" {
             return true;
         }
         prefix.push(part);
@@ -347,23 +348,23 @@ mod tests {
     }
 
     #[test]
-    fn tree_hidden_hides_git_and_private_cairn_children_only() {
+    fn tree_hidden_hides_git_and_private_praide_children_only() {
         for path in [
             ".git",
             "x/.git/y",
-            ".cairn/cache",
-            ".cairn/Cache/a",
-            ".cairn/runs/id/trace.jsonl",
+            ".praide/cache",
+            ".praide/Cache/a",
+            ".praide/runs/id/trace.jsonl",
         ] {
             assert!(tree_hidden(Path::new(path)), "{path}");
         }
         for path in [
-            ".cairn",
-            ".cairn/settings.json",
-            ".cairn/tasks/a.json",
-            ".cairn/workflows",
-            ".cairn/workflows/main.py",
-            ".cairnx/cache",
+            ".praide",
+            ".praide/settings.json",
+            ".praide/tasks/a.json",
+            ".praide/workflows",
+            ".praide/workflows/main.py",
+            ".praidex/cache",
             "src/cache",
             "src/runs",
         ] {
@@ -398,14 +399,14 @@ mod tests {
             );
         }
         for p in [
-            ".cairn/tasks/a.json",
-            ".cairn/tasks/.a.json",
-            ".cairn/tasks/a.tmp",
-            ".cairn/tasks/a.txt",
+            ".praide/tasks/a.json",
+            ".praide/tasks/.a.json",
+            ".praide/tasks/a.tmp",
+            ".praide/tasks/a.txt",
         ] {
             assert!(
-                is_cairn_data_path(root.path(), &root.path().join(p))
-                    == (p == ".cairn/tasks/a.json"),
+                is_praide_data_path(root.path(), &root.path().join(p))
+                    == (p == ".praide/tasks/a.json"),
                 "{p}"
             );
         }
@@ -427,10 +428,10 @@ mod tests {
     fn workspace_state_cache_paths_are_not_filesystem_events() {
         let root = tempdir().unwrap();
         let ignore = watcher_ignore(root.path());
-        let path = root.path().join(".cairn/cache/workspace.json");
+        let path = root.path().join(".praide/cache/workspace.json");
 
         assert!(!path_allowed(root.path(), &path, &ignore));
-        assert!(!is_cairn_data_path(root.path(), &path));
+        assert!(!is_praide_data_path(root.path(), &path));
         assert!(build_batch(root.path(), &[event(EventKind::Any, &[path])])
             .events
             .is_empty());
@@ -456,13 +457,13 @@ mod tests {
             (".git", false),
             (".git/objects/x", false),
             (".git/HEAD", true),
-            (".cairn", true),
-            (".cairn/workflows", true),
-            (".cairn/workflows/x.py", true),
-            (".cairn/tasks/a.json", true),
-            (".cairn/cache/codemap.json", false),
-            (".cairn/runs/id/trace.jsonl", false),
-            (".cairn/runs/id/run.log", false),
+            (".praide", true),
+            (".praide/workflows", true),
+            (".praide/workflows/x.py", true),
+            (".praide/tasks/a.json", true),
+            (".praide/cache/codemap.json", false),
+            (".praide/runs/id/trace.jsonl", false),
+            (".praide/runs/id/run.log", false),
             ("src/main.rs", true),
             ("target/debug/x", false),
         ];
@@ -485,7 +486,7 @@ mod tests {
             );
         }
 
-        let nested_root = root.path().join(".git/.cairn/project");
+        let nested_root = root.path().join(".git/.praide/project");
         fs::create_dir_all(&nested_root).unwrap();
         let nested_ignore = watcher_ignore(&nested_root);
         assert!(explorer_passes(

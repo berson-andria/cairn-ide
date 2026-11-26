@@ -1,7 +1,6 @@
 import re
 
-from cairn import CairnError, files
-
+from praide import PraideError, files
 
 _PATH_RE = re.compile(
     r"(?<![\w])(?:[A-Za-z0-9_.-]+[\\/])+[A-Za-z0-9_.-]+(?:\.[A-Za-z0-9_-]+)?(?![\w])"
@@ -47,7 +46,9 @@ def is_safe_project_path(path):
     components = normalized.split("/")
     if any(not part or part in {".", ".."} for part in components):
         return False
-    if any(part.casefold() in {".git", ".cairn"} | _GENERATED_DIRS for part in components):
+    if any(
+        part.casefold() in {".git", ".praide"} | _GENERATED_DIRS for part in components
+    ):
         return False
     for component in components:
         name = component.casefold()
@@ -84,10 +85,7 @@ def unique_paths(paths):
 
 def paths_in_text(text):
     text = text or ""
-    matches = [
-        match.group(0).rstrip(".,;:!?)]}")
-        for match in _PATH_RE.finditer(text)
-    ]
+    matches = [match.group(0).rstrip(".,;:!?)]}") for match in _PATH_RE.finditer(text)]
     for match in _QUOTED_PATH_RE.finditer(text):
         candidate = match.group(1).strip()
         basename = candidate.replace("\\", "/").rsplit("/", 1)[-1]
@@ -102,7 +100,11 @@ def paths_in_text(text):
 
 
 def budget_for_context(context_limit):
-    limit = context_limit if isinstance(context_limit, int) and context_limit > 0 else 16_000
+    limit = (
+        context_limit
+        if isinstance(context_limit, int) and context_limit > 0
+        else 16_000
+    )
     max_tokens = min(1_200, max(1, limit // 8))
     remaining_tokens = max(0, limit - max_tokens)
     return {
@@ -126,7 +128,7 @@ class FileCollector:
         self.attempted.add(key)
         try:
             return files.read(normalized, max_bytes=max(1, max_bytes))
-        except CairnError:
+        except PraideError:
             self.rejected.add(key)
             return None
 
@@ -150,7 +152,11 @@ class FileCollector:
             if remaining <= 0:
                 break
             allowance = max(1, remaining // (len(candidates) - index))
-            record = self.read(path, allowance) if not refresh else self._refresh(path, allowance)
+            record = (
+                self.read(path, allowance)
+                if not refresh
+                else self._refresh(path, allowance)
+            )
             if record is None:
                 continue
             files_by_path[record["path"]] = record
@@ -164,7 +170,7 @@ class FileCollector:
         self.attempted.add(key)
         try:
             return files.read(path, max_bytes=max(1, max_bytes))
-        except CairnError:
+        except PraideError:
             self.rejected.add(key)
             return None
 
@@ -193,7 +199,7 @@ def project_listing():
             break
         try:
             children = files.list(directory)
-        except CairnError:
+        except PraideError:
             continue
         for entry in children:
             if count >= 200:

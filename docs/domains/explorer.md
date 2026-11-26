@@ -36,7 +36,7 @@ The Rust and TS shapes are in
 - `WorkspaceWatcher::subscribe/start/stop`: subscribes or starts/stops the native
   watcher ([watcher.rs](../../src-tauri/src/services/watcher.rs:84)).
 - `run_watch/emit_batch/emit_error`: filters, batches, and emits filesystem events;
-  internal `.cairn/tasks|notes` events are also delivered to Rust listeners
+  internal `.praide/tasks|notes` events are also delivered to Rust listeners
   ([watcher.rs](../../src-tauri/src/services/watcher.rs:103),
   [watcher.rs](../../src-tauri/src/services/watcher.rs:172),
   [watcher.rs](../../src-tauri/src/services/watcher.rs:216)).

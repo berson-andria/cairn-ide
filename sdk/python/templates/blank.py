@@ -4,11 +4,11 @@
 # ///
 # This file is the workflow entry point.
 # Import helpers with absolute imports (for example, `import prompts`), not `from . import`.
-# Never name a file `cairn.py`; avoid standard-library module names.
+# Never name a file `praide.py`; avoid standard-library module names.
 # title: Blank workflow
 # description: Read the current task context and finish with a review summary.
 
-from cairn import run, tasks
+from praide import run, tasks
 
 context = run.context()
 task = tasks.get(context["taskId"])

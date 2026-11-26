@@ -1,4 +1,4 @@
-# Cairn IDE
+# Praide IDE
 
 > A lean, high-performance, extensible desktop IDE built with **Tauri**, **Angular**, and **Monaco Editor**, for structured, deterministic AI-assisted development.
 
@@ -13,15 +13,15 @@
 
 ## The Vision
 
-Most AI coding tools retrieve context as a probabilistic black box and wrap it in a hardcoded chat interface. Cairn takes a different approach:
+Most AI coding tools retrieve context as a probabilistic black box and wrap it in a hardcoded chat interface. Praide takes a different approach:
 
 > **The IDE provides Tasks, Notes, and a Living Code Map; the user programs the Agent in Python.**
 
-Cairn separates discovery from extraction. A code map gives the model structured symbol and reference information instead of dumping whole project files into every prompt. Tasks and contextual notes retain the work to be done and the decisions around it.
+Praide separates discovery from extraction. A code map gives the model structured symbol and reference information instead of dumping whole project files into every prompt. Tasks and contextual notes retain the work to be done and the decisions around it.
 
 The IDE is an open host rather than a closed agent. Project, global, and bundled Python workflows communicate with Rust over JSON-RPC and use the first-class SDK to read tasks and notes, inspect run context, report progress, read selected project files, and propose work.
 
-Cairn is a native desktop application: Rust owns project data and process lifecycle; Angular provides the workspace UI and caches; Python workflows run as separate processes.
+Praide is a native desktop application: Rust owns project data and process lifecycle; Angular provides the workspace UI and caches; Python workflows run as separate processes.
 
 ---
 
@@ -45,8 +45,8 @@ Cairn is a native desktop application: Rust owns project data and process lifecy
 ### 3. Python Workflows and SDK
 
 Each workflow scope has a single `main.py` entry: project
-`.cairn/workflows/main.py`, the global workflow under the platform config
-directory, or Cairn's bundled default at `sdk/python/workflows/main.py`. A
+`.praide/workflows/main.py`, the global workflow under the platform config
+directory, or Praide's bundled default at `sdk/python/workflows/main.py`. A
 valid project workflow takes precedence; when a project workflow folder has
 files but no `main.py`, Rust requires a source choice and remembers it for that
 project; the full Angular choice flow is in progress. Project workflow trust is
@@ -60,7 +60,7 @@ operations can change workspace files. Task and subtask proposals remain
 pending until a user accepts or rejects them; the proposal inbox UI is in
 progress.
 
-The stdlib-only SDK in `sdk/python/cairn` communicates with Rust using
+The stdlib-only SDK in `sdk/python/praide` communicates with Rust using
 JSON-RPC 2.0. Stdout is reserved for RPC; Python `print()` output goes to
 stderr and becomes run-log output. Its API v1 methods are:
 
@@ -69,7 +69,7 @@ stderr and becomes run-log output. Its API v1 methods are:
 `patch.propose`, `step.start`, `step.finish`, `tasks.propose`,
 `tasks.propose_batch`, `tasks.propose_subtasks`, and `proposals.list`.
 
-The SDK raises `CairnError(code, message)` for RPC errors and exits when the
+The SDK raises `PraideError(code, message)` for RPC errors and exits when the
 host closes stdin. A workflow that calls a model sends the task text, linked
 notes and the project files it reads to the model provider you configured; a
 local endpoint keeps data on your machine. Files such as `.env` and key files
@@ -96,7 +96,7 @@ Settings and model entries are managed in the Angular app. Rust owns API-key sto
 └───────────┬─────────────────────────────────┘
             │ JSON-RPC 2.0 over child stdin/stdout
 ┌───────────▼─────────────────────────────────┐
-│  Python workflow process + cairn SDK        │
+│  Python workflow process + praide SDK        │
 │  trusted project workflow or global workflow│
 └─────────────────────────────────────────────┘
 ```
@@ -140,7 +140,7 @@ Recent projects are stored in the application data directory as a device-local h
 - Stable Rust toolchain
 - Tauri v2 platform prerequisites
 - uv: Workflows run through uv, which installs the packages a workflow lists in
-  its header into an isolated environment. Install uv first; Cairn shows a
+  its header into an isolated environment. Install uv first; Praide shows a
   clear message if it's missing.
 
 ### Development

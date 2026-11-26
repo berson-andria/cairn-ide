@@ -16,8 +16,8 @@ use std::{
 const TRUST_FILE: &str = "workflow-trust.json";
 const CHOICE_FILE: &str = "workflow-choice.json";
 pub const ENTRY_FILE: &str = "main.py";
-const PROJECT_FOLDER: &str = ".cairn/workflows";
-const GLOBAL_FOLDER: &str = "<config dir>/cairn/workflows";
+const PROJECT_FOLDER: &str = ".praide/workflows";
+const GLOBAL_FOLDER: &str = "<config dir>/praide/workflows";
 const BUNDLED_FOLDER: &str = "<app>/workflows";
 const STDLIB_MODULES: &[&str] = &[
     "abc",
@@ -468,8 +468,8 @@ fn scope_status(
         let kind = entry
             .file_type()
             .map_err(|error| ServiceError::new(ServiceErrorCode::Io, error.to_string()))?;
-        if (name.eq_ignore_ascii_case("cairn.py") && kind.is_file())
-            || (name.eq_ignore_ascii_case("cairn") && kind.is_dir())
+        if (name.eq_ignore_ascii_case("praide.py") && kind.is_file())
+            || (name.eq_ignore_ascii_case("praide") && kind.is_dir())
         {
             reserved_name = Some(name.clone());
         }
@@ -480,7 +480,7 @@ fn scope_status(
         (
             WorkflowFolderStatus::ReservedName,
             None,
-            Some(format!("{name} would shadow the Cairn SDK; rename it")),
+            Some(format!("{name} would shadow the Praide SDK; rename it")),
         )
     } else if has_entry {
         (
@@ -604,7 +604,10 @@ pub fn workflow_template_get(sdk_path: &Path, id: &str) -> Result<String, Servic
         return Err(ServiceError::validation("invalid workflow template id"));
     }
 
-    if !workflow_templates(sdk_path)?.iter().any(|template| template.id == id) {
+    if !workflow_templates(sdk_path)?
+        .iter()
+        .any(|template| template.id == id)
+    {
         return Err(ServiceError::new(
             ServiceErrorCode::NotFound,
             format!("workflow template '{id}' was not found"),
@@ -904,11 +907,11 @@ pub fn require_trust(_root: &Path, workflow: &Workflow) -> Result<(), ServiceErr
 }
 
 pub fn global_workflows_dir() -> Option<PathBuf> {
-    dirs::config_dir().map(|directory| directory.join("cairn").join("workflows"))
+    dirs::config_dir().map(|directory| directory.join("praide").join("workflows"))
 }
 
 pub fn trust(root: &Path, hash: &str, data_dir: Option<&Path>) -> Result<(), ServiceError> {
-    let directory = root.join(".cairn").join("workflows");
+    let directory = root.join(".praide").join("workflows");
     let current = hash_workflows_dir(&directory)?;
     if current.hash != hash {
         return Err(ServiceError::validation(
@@ -959,7 +962,7 @@ fn trust_status_with_data(
     root: &Path,
     data_dir: Option<&Path>,
 ) -> Result<WorkflowTrustStatus, ServiceError> {
-    let directory = root.join(".cairn").join("workflows");
+    let directory = root.join(".praide").join("workflows");
     let current = hash_workflows_dir(&directory)?;
     let has_workflows = has_main_entry(&directory)?;
     let store = read_trust_store(data_dir)?;
@@ -1145,7 +1148,7 @@ fn app_data_dir(data_dir: Option<&Path>) -> Result<PathBuf, ServiceError> {
     match data_dir {
         Some(path) => Ok(path.to_path_buf()),
         None => dirs::data_dir()
-            .map(|path| path.join("cairn"))
+            .map(|path| path.join("praide"))
             .ok_or_else(|| {
                 ServiceError::new(
                     ServiceErrorCode::RuntimeUnavailable,
@@ -1271,7 +1274,7 @@ fn trust_key(root: &Path) -> Result<String, ServiceError> {
 }
 
 fn legacy_trust_key(root: &Path) -> Result<String, ServiceError> {
-    Ok(format!("{}|.cairn/workflows", trust_key(root)?))
+    Ok(format!("{}|.praide/workflows", trust_key(root)?))
 }
 
 fn is_trusted(
@@ -1301,7 +1304,7 @@ mod tests {
     use tempfile::tempdir;
 
     fn workflow_dir(root: &Path) -> PathBuf {
-        root.join(".cairn").join("workflows")
+        root.join(".praide").join("workflows")
     }
 
     fn create_entry(directory: &Path, body: &str) {
@@ -1489,7 +1492,7 @@ mod tests {
         let directory = workflow_dir(root.path());
         create_entry(&directory, "pass");
         fs::write(
-            root.path().join(".cairn").join("settings.json"),
+            root.path().join(".praide").join("settings.json"),
             r#"{"workflowTrusted":true,"folderHash":"anything"}"#,
         )
         .unwrap();
@@ -1516,7 +1519,7 @@ mod tests {
             }
             WorkflowFolderStatus::ReservedName => {
                 fs::create_dir_all(directory).unwrap();
-                fs::write(directory.join("Cairn.py"), "pass").unwrap();
+                fs::write(directory.join("Praide.py"), "pass").unwrap();
             }
         }
     }
@@ -1615,14 +1618,14 @@ mod tests {
                 "sources": [
                     {
                         "source": "project",
-                        "folder": ".cairn/workflows",
+                        "folder": ".praide/workflows",
                         "status": "empty",
                         "warnings": [],
                         "trusted": null
                     },
                     {
                         "source": "global",
-                        "folder": "<config dir>/cairn/workflows",
+                        "folder": "<config dir>/praide/workflows",
                         "status": "empty",
                         "warnings": [],
                         "trusted": null
@@ -1671,17 +1674,17 @@ mod tests {
                 "sources": [
                     {
                         "source": "project",
-                        "folder": ".cairn/workflows",
+                        "folder": ".praide/workflows",
                         "status": "ok",
-                        "entry": ".cairn/workflows/main.py",
+                        "entry": ".praide/workflows/main.py",
                         "warnings": [],
                         "trusted": false
                     },
                     {
                         "source": "global",
-                        "folder": "<config dir>/cairn/workflows",
+                        "folder": "<config dir>/praide/workflows",
                         "status": "ok",
-                        "entry": "<config dir>/cairn/workflows/main.py",
+                        "entry": "<config dir>/praide/workflows/main.py",
                         "warnings": [],
                         "trusted": true
                     },
@@ -1705,7 +1708,7 @@ mod tests {
         );
 
         fs::remove_file(project.join(ENTRY_FILE)).unwrap();
-        fs::write(project.join("Cairn.py"), "reserved").unwrap();
+        fs::write(project.join("Praide.py"), "reserved").unwrap();
         let reserved = workflow_status_with_dirs(
             root.path(),
             Some(data.path()),
@@ -1720,17 +1723,17 @@ mod tests {
                 "sources": [
                     {
                         "source": "project",
-                        "folder": ".cairn/workflows",
+                        "folder": ".praide/workflows",
                         "status": "reserved-name",
-                        "message": "Cairn.py would shadow the Cairn SDK; rename it",
+                        "message": "Praide.py would shadow the Praide SDK; rename it",
                         "warnings": [],
                         "trusted": false
                     },
                     {
                         "source": "global",
-                        "folder": "<config dir>/cairn/workflows",
+                        "folder": "<config dir>/praide/workflows",
                         "status": "ok",
-                        "entry": "<config dir>/cairn/workflows/main.py",
+                        "entry": "<config dir>/praide/workflows/main.py",
                         "warnings": [],
                         "trusted": true
                     },
@@ -1810,11 +1813,11 @@ mod tests {
         assert_eq!(status.sources[0].status, WorkflowFolderStatus::NoEntry);
         assert_eq!(
             status.sources[0].message.as_deref(),
-            Some("no main.py in .cairn/workflows")
+            Some("no main.py in .praide/workflows")
         );
 
         fs::write(directory.join("main.py"), "pass").unwrap();
-        fs::write(directory.join("Cairn.py"), "shadow").unwrap();
+        fs::write(directory.join("Praide.py"), "shadow").unwrap();
         let reserved =
             workflow_status_with_dirs(root.path(), Some(data.path()), None, None).unwrap();
         assert_eq!(
@@ -1823,15 +1826,15 @@ mod tests {
         );
         assert_eq!(
             reserved.sources[0].message.as_deref(),
-            Some("Cairn.py would shadow the Cairn SDK; rename it")
+            Some("Praide.py would shadow the Praide SDK; rename it")
         );
-        fs::remove_file(directory.join("Cairn.py")).unwrap();
-        fs::create_dir(directory.join("CAIRN")).unwrap();
+        fs::remove_file(directory.join("Praide.py")).unwrap();
+        fs::create_dir(directory.join("PRAIDE")).unwrap();
         let reserved_directory =
             workflow_status_with_dirs(root.path(), Some(data.path()), None, None).unwrap();
         assert_eq!(
             reserved_directory.sources[0].message.as_deref(),
-            Some("CAIRN would shadow the Cairn SDK; rename it")
+            Some("PRAIDE would shadow the Praide SDK; rename it")
         );
     }
 
@@ -1878,7 +1881,7 @@ mod tests {
         );
 
         fs::remove_file(project.join("helper.py")).unwrap();
-        fs::write(project.join("cairn.py"), "shadow").unwrap();
+        fs::write(project.join("praide.py"), "shadow").unwrap();
         let error = resolve_active_with_dirs(
             root.path(),
             Some(data.path()),
@@ -1889,7 +1892,7 @@ mod tests {
         assert_eq!(error.code, ServiceErrorCode::Validation);
         assert_eq!(
             error.message,
-            "cairn.py would shadow the Cairn SDK; rename it"
+            "praide.py would shadow the Praide SDK; rename it"
         );
 
         fs::remove_dir_all(&project).unwrap();
@@ -1903,7 +1906,7 @@ mod tests {
             Some(bundled.path()),
         )
         .unwrap_err();
-        assert_eq!(error.message, "no main.py in <config dir>/cairn/workflows");
+        assert_eq!(error.message, "no main.py in <config dir>/praide/workflows");
 
         fs::remove_dir_all(global.path()).unwrap();
         fs::remove_dir_all(bundled.path()).unwrap();
@@ -1980,17 +1983,17 @@ mod tests {
                 "sources": [
                     {
                         "source": "project",
-                        "folder": ".cairn/workflows",
+                        "folder": ".praide/workflows",
                         "status": "no-entry",
-                        "message": "no main.py in .cairn/workflows",
+                        "message": "no main.py in .praide/workflows",
                         "warnings": [],
                         "trusted": false
                     },
                     {
                         "source": "global",
-                        "folder": "<config dir>/cairn/workflows",
+                        "folder": "<config dir>/praide/workflows",
                         "status": "ok",
-                        "entry": "<config dir>/cairn/workflows/main.py",
+                        "entry": "<config dir>/praide/workflows/main.py",
                         "warnings": [],
                         "trusted": true
                     },
@@ -2131,15 +2134,15 @@ mod tests {
                 "sources": [
                     {
                         "source": "project",
-                        "folder": ".cairn/workflows",
+                        "folder": ".praide/workflows",
                         "status": "no-entry",
-                        "message": "no main.py in .cairn/workflows",
+                        "message": "no main.py in .praide/workflows",
                         "warnings": [],
                         "trusted": false
                     },
                     {
                         "source": "global",
-                        "folder": "<config dir>/cairn/workflows",
+                        "folder": "<config dir>/praide/workflows",
                         "status": "empty",
                         "warnings": [],
                         "trusted": null
@@ -2162,7 +2165,7 @@ mod tests {
             })
         );
 
-        fs::write(project.join("cairn.py"), "shadow").unwrap();
+        fs::write(project.join("praide.py"), "shadow").unwrap();
         let reserved =
             workflow_status_with_dirs(root.path(), Some(data.path()), None, None).unwrap();
         assert_eq!(
@@ -2219,7 +2222,7 @@ mod tests {
             )
             .unwrap();
             assert_eq!(created.source, WorkflowSource::Project);
-            assert_eq!(created.entry, ".cairn/workflows/main.py");
+            assert_eq!(created.entry, ".praide/workflows/main.py");
             let expected_path = PathBuf::from(strip_windows_verbatim_prefix(
                 &root
                     .path()
@@ -2244,7 +2247,7 @@ mod tests {
             assert_eq!(error.code, ServiceErrorCode::Validation);
             assert_eq!(
                 error.message,
-                "a workflow already exists in .cairn/workflows"
+                "a workflow already exists in .praide/workflows"
             );
             assert_eq!(
                 fs::read_to_string(created.entry_path).unwrap(),
@@ -2378,7 +2381,7 @@ mod tests {
             super::super::sdk_dir(true, Path::new(env!("CARGO_MANIFEST_DIR")), None).unwrap();
         let root = tempdir().unwrap();
         let global_root = tempdir().unwrap();
-        let global = global_root.path().join("cairn").join("workflows");
+        let global = global_root.path().join("praide").join("workflows");
         let bundled = tempdir().unwrap();
         fs::create_dir_all(bundled.path().join("helpers")).unwrap();
         fs::write(bundled.path().join(ENTRY_FILE), "pass").unwrap();
@@ -2409,7 +2412,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             error.message,
-            "a workflow already exists in <config dir>/cairn/workflows"
+            "a workflow already exists in <config dir>/praide/workflows"
         );
     }
 

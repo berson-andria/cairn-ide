@@ -2,7 +2,7 @@
 
 ## 1. Purpose and ownership
 
-Tabs and Monaco editor state belong to Angular, not Rust: the tab store owns open-tab metadata, focus, diff metadata, and dirty IDs, while `EditorService` owns live Monaco models and `EditorCommands` coordinates tabs, nodes, saves, and project switches. Persistence is also Angular-owned in `WorkspaceStateService`, writing `.cairn/cache/workspace.json`. [src/app/core/store/tab.store.ts:40] [src/app/feature/editor/services/editor.service.ts:50] [src/app/feature/editor/editor.commands.ts:20] [src/app/core/services/workspace-state.service.ts:15]
+Tabs and Monaco editor state belong to Angular, not Rust: the tab store owns open-tab metadata, focus, diff metadata, and dirty IDs, while `EditorService` owns live Monaco models and `EditorCommands` coordinates tabs, nodes, saves, and project switches. Persistence is also Angular-owned in `WorkspaceStateService`, writing `.praide/cache/workspace.json`. [src/app/core/store/tab.store.ts:40] [src/app/feature/editor/services/editor.service.ts:50] [src/app/feature/editor/editor.commands.ts:20] [src/app/core/services/workspace-state.service.ts:15]
 
 No Rust tab/editor Rust type, service, Tauri command, or event is listed for this row in `docs/MAP.md:472`; the Rust side for these data shapes is therefore unverified by this domain review.
 
@@ -48,7 +48,7 @@ There is no API wrapper for tab data. No Tauri call is made by `TabStore` or `Ed
 - `EditorService` mounts Monaco, acquires/releases/replaces models, tracks dirty state and exposes content/reveal/format operations. It has no tab persistence or Rust API; load failure is rethrown and the next call retries. [src/app/feature/editor/services/editor.service.ts:99] [src/app/feature/editor/services/editor.service.ts:132] [src/app/feature/editor/services/editor.service.ts:199]
 - `ModelSourceService.acquire/acquireFile/release` resolves live working or git-side models and refreshes HEAD/index snapshots. Resolution methods return `null` for missing nodes/models; git read failures are not normalized here. [src/app/feature/editor/services/model-source.service.ts:26] [src/app/feature/editor/services/model-source.service.ts:43]
 - `GitDiffService.open(openChange)` resolves side paths and calls `TabStore.openDiff`; returns a string error or `null`. [src/app/feature/git/services/git-diff.service.ts:24] [src/app/feature/git/services/git-diff.service.ts:46]
-- `WorkspaceStateService.prepareProjectSwitch/restoreProject/flush` and the close handler serialize, restore, and flush Angular tab state as `.cairn/cache/workspace.json`; read/restore errors are reported or logged. [src/app/core/services/workspace-state.service.ts:46] [src/app/core/services/workspace-state.service.ts:112]
+- `WorkspaceStateService.prepareProjectSwitch/restoreProject/flush` and the close handler serialize, restore, and flush Angular tab state as `.praide/cache/workspace.json`; read/restore errors are reported or logged. [src/app/core/services/workspace-state.service.ts:46] [src/app/core/services/workspace-state.service.ts:112]
 
 ## 5. Main flows
 
@@ -64,7 +64,7 @@ There is no API wrapper for tab data. No Tauri call is made by `TabStore` or `Ed
 - `Review` and `Chat` tab types are skipped by workspace restore; restore reports them as skipped types. [src/app/shared/models/workspace-state.model.ts:84] [src/app/core/services/workspace-state.service.ts:205]
 - There is no tab `*:changed` event and no Tauri persistence API; persistence is plugin-FS-only.
 - `DiffEditor` is not mounted until at least one diff tab exists, while code/diff panes are selected by store type. [src/app/feature/editor/editor.html:10]
-- Undo/redo, per-tab restoration content, and tab lifecycle persistence outside `.cairn/cache/workspace.json` are unverified.
+- Undo/redo, per-tab restoration content, and tab lifecycle persistence outside `.praide/cache/workspace.json` are unverified.
 
 ## 7. Logic in the wrong layer
 

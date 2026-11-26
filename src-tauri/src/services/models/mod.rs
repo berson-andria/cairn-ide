@@ -192,7 +192,7 @@ pub struct KeyringSecretProvider;
 
 impl SecretProvider for KeyringSecretProvider {
     fn get(&self, reference: &str) -> Result<String, String> {
-        keyring::Entry::new("cairn-ide", reference)
+        keyring::Entry::new("praide-ide", reference)
             .and_then(|entry| entry.get_password())
             .map_err(|error| error.to_string())
     }

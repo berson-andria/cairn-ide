@@ -31,7 +31,7 @@ redaction, secret handling, cloud sync, or cross-device backup.
 | `LaunchArgs { folder: Option<String>, new_window: bool }` camelCased by serde | `LaunchArgs { folder?: string, newWindow: boolean }` | Missing Rust `folder` becomes absent; field names differ until JSON camelCase. |
 | `ProjectEntry { path, name, last_opened_at }` | `ProjectHistoryEntry { path, name, lastOpenedAt, missing }` | Rust JSON camelCases `last_opened_at`; snapshot adds `missing`. |
 | `SessionHistory { schema_version, last_project, projects }` | `ProjectHistorySnapshot { lastProject, projects }` | Angular sees only snapshot fields, not persisted schema version. |
-| `WorkspaceStateFile { schemaVersion, expandedFolders, tabs, focus }` | same-name TypeScript model | Rust does not own this file; it is a cache/state file under `.cairn/cache/workspace.json` (`src/app/core/services/workspace-state.service.ts:12-16`, `src/app/shared/models/workspace-state.model.ts:1-20`). |
+| `WorkspaceStateFile { schemaVersion, expandedFolders, tabs, focus }` | same-name TypeScript model | Rust does not own this file; it is a cache/state file under `.praide/cache/workspace.json` (`src/app/core/services/workspace-state.service.ts:12-16`, `src/app/shared/models/workspace-state.model.ts:1-20`). |
 
 Line and field claims are from
 `src-tauri/src/commands/project.rs:9-36`,

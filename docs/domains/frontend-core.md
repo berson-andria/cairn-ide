@@ -109,7 +109,7 @@ workflows need review. No trust-review observable is implemented. The full start
 **Workflow status:** `WorkflowService.status` and `templates` are refreshed
 after project open. `active` is the active source status or `null`,
 `activeIssue` is its issue message when status is not `ok`, and `warnings`
-contains the active source warnings. An `.cairn/workflows/` filesystem batch
+contains the active source warnings. An `.praide/workflows/` filesystem batch
 shares the 500 ms debounce with trust refresh: status and trust refresh once
 per window.
 
@@ -143,7 +143,7 @@ changes from the resulting event or list refresh, not from component mutation.
 
 Workflow scripts use absolute imports for local helpers. Top-level helper
 files and directories are on the entry file's Python path; relative package
-imports and names that shadow the Cairn SDK or common standard-library modules
+imports and names that shadow the Praide SDK or common standard-library modules
 are not supported.
 
 The Angular 7d boundary imports workflow types from

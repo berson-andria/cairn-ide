@@ -638,7 +638,7 @@ fn previous_run(ctx: &RpcContext, run_id: &str) -> Option<Value> {
     let path = ctx
         .project
         .root
-        .join(".cairn")
+        .join(".praide")
         .join("runs")
         .join(run_id)
         .join("run.json");
@@ -999,7 +999,7 @@ mod tests {
         let project_state = ProjectState::default();
         let sink = RecordingSink::default();
         project_state.open(directory.path(), sink.clone()).unwrap();
-        let run_directory = directory.path().join(".cairn/runs/run-id");
+        let run_directory = directory.path().join(".praide/runs/run-id");
         let record = super::super::RunRecord {
             run_id: "run-id".into(),
             task_id: "task-id".into(),
@@ -1344,7 +1344,7 @@ mod tests {
         std::fs::write(
             ctx.project
                 .root
-                .join(".cairn/tasks")
+                .join(".praide/tasks")
                 .join(format!("{}.json", task.id)),
             serde_json::to_vec(&task_with_dangling_note).unwrap(),
         )
@@ -1416,7 +1416,7 @@ mod tests {
         std::fs::write(
             ctx.project
                 .root
-                .join(".cairn")
+                .join(".praide")
                 .join("tasks")
                 .join(format!("{}.json", task.id)),
             serde_json::to_vec(&task).unwrap(),
@@ -1715,7 +1715,7 @@ mod tests {
             }
         }
         let statuses = task.sub_tasks.unwrap();
-        let previous_dir = ctx.project.root.join(".cairn/runs/previous-run");
+        let previous_dir = ctx.project.root.join(".praide/runs/previous-run");
         let previous = super::super::RunRecord {
             run_id: "previous-run".into(),
             task_id: ctx.task_id.clone(),
@@ -1860,8 +1860,8 @@ mod tests {
             .arg(&script)
             .current_dir(&project.root)
             .env("PYTHONPATH", &sdk_dir)
-            .env("CAIRN_RUN_ID", "integration-run")
-            .env("CAIRN_API_VERSION", "1")
+            .env("PRAIDE_RUN_ID", "integration-run")
+            .env("PRAIDE_API_VERSION", "1")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -1888,14 +1888,14 @@ mod tests {
                 summary: None,
                 steps: Vec::new(),
             })),
-            run_directory: project.root.join(".cairn/runs/integration-run"),
+            run_directory: project.root.join(".praide/runs/integration-run"),
             sink: Arc::new(NoopSink),
             version_mismatch: Arc::new(AtomicBool::new(false)),
-            trace_path: project.root.join(".cairn/runs/integration-run/trace.jsonl"),
+            trace_path: project.root.join(".praide/runs/integration-run/trace.jsonl"),
             models: Arc::new(ModelBroker::with_default_client(
                 Arc::new(Registry::default()),
                 Arc::new(ModelCallControl::default()),
-                project.root.join(".cairn/runs/integration-run"),
+                project.root.join(".praide/runs/integration-run"),
             )),
         };
         let mut line = String::new();
@@ -1927,7 +1927,7 @@ mod tests {
         assert_eq!(proposals[0].payload.title(), "First step");
         assert!(project
             .root
-            .join(".cairn/runs/proposals")
+            .join(".praide/runs/proposals")
             .join(format!("{}.json", proposals[0].id))
             .is_file());
         let tasks = project.tasks.list().unwrap().records;
@@ -1962,7 +1962,7 @@ mod tests {
             .tasks
             .start_with_run(&task.id, task.rev, run_id.into(), Actor::Ui)
             .unwrap();
-        let run_directory = project.root.join(".cairn/runs").join(run_id);
+        let run_directory = project.root.join(".praide/runs").join(run_id);
         let record = super::super::RunRecord {
             run_id: run_id.into(),
             task_id: task.id.clone(),
@@ -1988,8 +1988,8 @@ mod tests {
             .arg(&script)
             .current_dir(&project.root)
             .env("PYTHONPATH", &sdk_dir)
-            .env("CAIRN_RUN_ID", run_id)
-            .env("CAIRN_API_VERSION", "1")
+            .env("PRAIDE_RUN_ID", run_id)
+            .env("PRAIDE_API_VERSION", "1")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -2079,7 +2079,7 @@ mod tests {
             .tasks
             .start_with_run(&task.id, ready_task.rev, retry_id.into(), Actor::Ui)
             .unwrap();
-        let retry_dir = project.root.join(".cairn/runs").join(retry_id);
+        let retry_dir = project.root.join(".praide/runs").join(retry_id);
         let retry_record = super::super::RunRecord {
             run_id: retry_id.into(),
             task_id: task.id.clone(),
@@ -2106,7 +2106,7 @@ mod tests {
             version_mismatch: Arc::new(AtomicBool::new(false)),
             trace_path: project
                 .root
-                .join(".cairn/runs/integration-retry/trace.jsonl"),
+                .join(".praide/runs/integration-retry/trace.jsonl"),
             models: Arc::new(ModelBroker::with_default_client(
                 Arc::new(Registry::default()),
                 Arc::new(ModelCallControl::default()),
@@ -2133,7 +2133,7 @@ mod tests {
         let mut task = TaskItem::new("edit task");
         task.id = context.task_id.clone();
         context.project.tasks.create(task).unwrap();
-        fs::write(context.project.root.join("README.md"), "Cairn project").unwrap();
+        fs::write(context.project.root.join("README.md"), "Praide project").unwrap();
         let sdk_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("sdk")
@@ -2175,12 +2175,12 @@ mod tests {
         assert!(status.success(), "edit_file.py failed: {stderr}");
         assert_eq!(
             fs::read_to_string(context.project.root.join("README.md")).unwrap(),
-            "Cairn project"
+            "Praide project"
         );
         let patches = context
             .project
             .root
-            .join(".cairn/runs")
+            .join(".praide/runs")
             .join(&context.run_id)
             .join("patches");
         let count = fs::read_dir(patches).unwrap().count();
@@ -2251,8 +2251,8 @@ mod tests {
             .arg(&script)
             .current_dir(&context.project.root)
             .env("PYTHONPATH", &sdk_dir)
-            .env("CAIRN_RUN_ID", "run-id")
-            .env("CAIRN_API_VERSION", "1")
+            .env("PRAIDE_RUN_ID", "run-id")
+            .env("PRAIDE_API_VERSION", "1")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -2381,7 +2381,7 @@ mod tests {
         let original_first = fs::read(project.root.join("first.txt")).unwrap();
         let original_second = fs::read(project.root.join("second.txt")).unwrap();
 
-        let run_directory = project.root.join(".cairn/runs").join(run_id);
+        let run_directory = project.root.join(".praide/runs").join(run_id);
         let record = super::super::RunRecord {
             run_id: run_id.into(),
             task_id: task.id.clone(),
@@ -2407,8 +2407,8 @@ mod tests {
             .arg(&script)
             .current_dir(&project.root)
             .env("PYTHONPATH", &sdk_dir)
-            .env("CAIRN_RUN_ID", run_id)
-            .env("CAIRN_API_VERSION", "1")
+            .env("PRAIDE_RUN_ID", run_id)
+            .env("PRAIDE_API_VERSION", "1")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -2466,7 +2466,7 @@ mod tests {
             .unwrap();
         server.join().unwrap();
         assert!(status.success(), "bundled workflow failed: {stderr}");
-        assert!(!project.root.join(".cairn/workflows").exists());
+        assert!(!project.root.join(".praide/workflows").exists());
         assert_eq!(
             fs::read(project.root.join("first.txt")).unwrap(),
             original_first

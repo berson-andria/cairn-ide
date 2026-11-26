@@ -1,5 +1,5 @@
 //! The code map's data: held in memory while the app runs, saved as one JSON file
-//! (`<workspace>/.cairn/cache/codemap.json`). It is a rebuildable cache: a missing, damaged or
+//! (`<workspace>/.praide/cache/codemap.json`). It is a rebuildable cache: a missing, damaged or
 //! older-format file just means the workspace is indexed again (only summaries cost anything).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -112,14 +112,14 @@ impl Store {
                 .parent()
                 .and_then(Path::parent)
                 .and_then(Path::file_name)
-                .is_some_and(|name| name == ".cairn")
+                .is_some_and(|name| name == ".praide")
         {
             let root = path
                 .parent()
                 .and_then(Path::parent)
                 .and_then(Path::parent)
                 .expect("codemap cache has a project root");
-            crate::services::storage::ensure_cairn_dir(root).map_err(|e| e.to_string())?;
+            crate::services::storage::ensure_praide_dir(root).map_err(|e| e.to_string())?;
         }
         let mut files: Vec<&FileRecord> = self.files.values().collect();
         files.sort_by(|a, b| a.path.cmp(&b.path));
@@ -431,7 +431,7 @@ mod tests {
     #[test]
     fn saves_and_reloads_including_summaries() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(".cairn/cache/codemap.json");
+        let path = dir.path().join(".praide/cache/codemap.json");
         let mut store = Store::open(&path).unwrap();
         store
             .replace_file(&rec("a.rs", "h1"), &syms("fn a() {}\nfn b() {}"))

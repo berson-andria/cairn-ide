@@ -1,4 +1,4 @@
-# Cairn architecture decisions
+# Praide architecture decisions
 
 Status: decisions for the tasks/notes service and the Python SDK.
 Facts about the current code live in `docs/CONTEXT.md` and
@@ -20,7 +20,7 @@ Facts about the current code live in `docs/CONTEXT.md` and
 6. **Angular remains the only writer of settings.** Rust gets a read-only
    settings reader when the SDK needs it (`models`, check commands, python path).
 
-## 2. Layout of `.cairn/`
+## 2. Layout of `.praide/`
 
 | Path | Content | Git |
 |---|---|---|
@@ -32,7 +32,7 @@ Facts about the current code live in `docs/CONTEXT.md` and
 | `runs/` | traces, model calls, logs | ignored |
 
 Tasks and notes belong to the working tree, not to a branch: committed files
-would vanish and reappear on every checkout. The app creates `.cairn/.gitignore`
+would vanish and reappear on every checkout. The app creates `.praide/.gitignore`
 (`cache/`, `runs/`, `tasks/`, `notes/`) only when it is missing and never edits
 it afterwards. Deleting the `tasks/` and `notes/` lines shares them through
 git. `task.branch` is metadata only. Ignored files are not backed up by git,
@@ -155,17 +155,17 @@ Python is a separate process, started lazily, never embedded in Rust.
 holds `SettingDef`, `SECTIONS`, `SETTINGS`. `SettingsService` exposes
 `get(key)` as a signal, `set`, `reset`, `sourceOf`, `load`. Precedence is
 workspace over user over default. User scope is a JSON file in app data;
-workspace scope is `.cairn/settings.json`. Only non-default keys are written,
+workspace scope is `.praide/settings.json`. Only non-default keys are written,
 and writes are debounced. `core/services/settings-runtime.service.ts` applies
 settings live (themes, Monaco options, terminal, LSP restarts, log level).
 Model entries live in user settings. API keys are in the OS keychain through
-The `keyring` crate (service `cairn-ide`, ref `model:<id>`); they never appear
+The `keyring` crate (service `praide-ide`, ref `model:<id>`); they never appear
 in JSON. Model and secret command details: see
 [settings](docs/domains/settings.md).
 
 **Codemap** (`src-tauri/src/services/codemap/`). Rust only. Tree-sitter
 extraction, blake3 body hashes, caller/callee graph, cache at
-`.cairn/cache/codemap.json`. Production currently enables the Rust grammar
+`.praide/cache/codemap.json`. Production currently enables the Rust grammar
 only; grammars are installed on demand. Command details: see
 [codemap](docs/domains/codemap.md).
 This is the base for the SDK's `codemap` namespace.

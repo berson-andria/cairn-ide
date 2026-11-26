@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 
-from cairn import models, run
+from praide import models, run
 
 response = models.complete(
     [{"role": "user", "content": "Say hello in one short sentence."}]

@@ -216,10 +216,10 @@ mod tests {
             .unwrap();
         assert!(a
             .path()
-            .join(format!(".cairn/tasks/{}.json", old.id))
+            .join(format!(".praide/tasks/{}.json", old.id))
             .exists());
         assert_eq!(
-            std::fs::read_dir(b.path().join(".cairn/tasks"))
+            std::fs::read_dir(b.path().join(".praide/tasks"))
                 .unwrap()
                 .count(),
             1

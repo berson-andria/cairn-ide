@@ -6,7 +6,7 @@
     "analytics": false
   },
   "projects": {
-    "cairn": {
+    "praide": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -68,10 +68,10 @@
           },
           "configurations": {
             "production": {
-              "buildTarget": "cairn:build:production"
+              "buildTarget": "praide:build:production"
             },
             "development": {
-              "buildTarget": "cairn:build:development"
+              "buildTarget": "praide:build:development"
             }
           },
           "defaultConfiguration": "development"

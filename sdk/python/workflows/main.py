@@ -5,11 +5,10 @@
 # title: Implement a task with reviewed patches
 # description: Explore project files and propose minimal task changes for review.
 
-from cairn import CairnError, models, notes, patch, run, tasks
-
 import context
 import parse
 import prompts
+from praide import PraideError, models, notes, patch, run, tasks
 
 
 class UnitFailure(Exception):
@@ -132,7 +131,9 @@ def _action(value, has_subtasks):
         return value
     if action == "split":
         if has_subtasks:
-            raise UnitFailure("A split can only be proposed for a task without subtasks")
+            raise UnitFailure(
+                "A split can only be proposed for a task without subtasks"
+            )
         items = value.get("subtasks")
         if not isinstance(items, list) or not 2 <= len(items) <= 8:
             raise UnitFailure("Split response must contain 2 to 8 subtasks")
@@ -143,7 +144,9 @@ def _action(value, has_subtasks):
             or not isinstance(item.get("description", ""), str)
             for item in items
         ):
-            raise UnitFailure("Each proposed subtask needs a title and string description")
+            raise UnitFailure(
+                "Each proposed subtask needs a title and string description"
+            )
         return value
     if action != "edit":
         raise UnitFailure(f"Unsupported model action: {action}")
@@ -167,9 +170,9 @@ def _action(value, has_subtasks):
 
 
 def _repair_files(collector, paths, file_budget):
-    return collector.read_paths(
-        context.unique_paths(paths), file_budget, refresh=True
-    )["files"]
+    return collector.read_paths(context.unique_paths(paths), file_budget, refresh=True)[
+        "files"
+    ]
 
 
 def _process_unit(
@@ -195,9 +198,7 @@ def _process_unit(
     ]
     extra_budget = max(0, budget["file_chars"] - seed_result["used"])
     extra_result = collector.read_paths(extra_paths, extra_budget)
-    all_paths = context.unique_paths(
-        [*seed_result["paths"], *extra_result["paths"]]
-    )
+    all_paths = context.unique_paths([*seed_result["paths"], *extra_result["paths"]])
     file_records = dict(seed_result["files"])
     file_records.update(extra_result["files"])
 
@@ -230,7 +231,7 @@ def _process_unit(
                 max_tokens=budget["max_tokens"],
                 json=True,
             )
-        except CairnError as error:
+        except PraideError as error:
             if error.code == "ContextTooLarge" and not context_retried:
                 context_retried = True
                 reduced_budget = budget["file_chars"] // 2
@@ -259,12 +260,8 @@ def _process_unit(
                 {"title": item["title"], "description": item.get("description", "")}
                 for item in action["subtasks"]
             ]
-            tasks.propose_subtasks(
-                task["id"], items, presentation="notify"
-            )
-            message = (
-                f"Proposed {len(items)} subtasks; accept them and run again"
-            )
+            tasks.propose_subtasks(task["id"], items, presentation="notify")
+            message = f"Proposed {len(items)} subtasks; accept them and run again"
             return {"split": True, "summary": message}
         try:
             patch.propose(
@@ -274,7 +271,7 @@ def _process_unit(
             )
             _log(f"Proposed patch: {action['summary'][:180]}")
             return {"split": False, "summary": action["summary"]}
-        except CairnError as error:
+        except PraideError as error:
             if error.code != "Validation":
                 raise
             repair_error = f"patch.propose Validation: {error.message}"
@@ -363,7 +360,7 @@ def main():
                 patch_count += 1
             except Exception as error:
                 # Stop here so a retry resumes from this failed step.
-                if isinstance(error, CairnError):
+                if isinstance(error, PraideError):
                     reason = _failure_reason(error)
                 elif isinstance(error, UnitFailure):
                     reason = str(error)
@@ -376,7 +373,7 @@ def main():
             "needs_review",
             summary=f"{patch_count} patches proposed for {processed_steps} steps",
         )
-    except CairnError as error:
+    except PraideError as error:
         run.finish("failed", reason=_failure_reason(error)[:500])
     except Exception as error:
         run.finish("failed", reason=type(error).__name__)

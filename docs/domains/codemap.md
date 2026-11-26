@@ -3,7 +3,7 @@
 ## 1. Purpose and ownership
 
 Rust owns the project index and its rebuildable cache at
-`.cairn/cache/codemap.json`; `CodeMapService::open` binds the workspace root,
+`.praide/cache/codemap.json`; `CodeMapService::open` binds the workspace root,
 and `Store` loads/saves the cache
 (`src-tauri/src/services/codemap/service.rs:24-37`,
 `src-tauri/src/services/codemap/store.rs:1-4`). Writes use a temporary file
@@ -44,7 +44,7 @@ than failing the whole index
 
 | Function | What it does | Errors / behavior |
 |---|---|---|
-| `CodeMapService::open` (`src-tauri/src/services/codemap/service.rs:31`) | Opens or initializes the root's cache. | Cache path is `.cairn/cache/codemap.json`; corrupt or old snapshots load empty (`src-tauri/src/services/codemap/store.rs:59-78`). |
+| `CodeMapService::open` (`src-tauri/src/services/codemap/service.rs:31`) | Opens or initializes the root's cache. | Cache path is `.praide/cache/codemap.json`; corrupt or old snapshots load empty (`src-tauri/src/services/codemap/store.rs:59-78`). |
 | `index_workspace` (`src-tauri/src/services/codemap/service.rs:40`) | Walks project files, indexes changed files, removes missing entries, saves, and reports progress. | Store errors return as `String`; unreadable files are skipped. |
 | `update_files` (`src-tauri/src/services/codemap/service.rs:86`) | Incrementally indexes changed paths and removes deleted file/folder prefixes. | Paths outside the root or ignored paths are skipped; store errors return as `String`. |
 | `missing_languages` (`src-tauri/src/services/codemap/service.rs:215`) | Counts files whose supported parser is absent, most files first. | Store errors return as `String`. |

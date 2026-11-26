@@ -43,7 +43,7 @@ export function containsWorkflowPath(rootPath: string | null, paths: readonly st
       .replace(/[\\/]+/g, '/')
       .toLowerCase()
       .replace(/\/+$/, '');
-  const workflowDirectory = `${normalize(rootPath)}/.cairn/workflows`;
+  const workflowDirectory = `${normalize(rootPath)}/.praide/workflows`;
   return paths.some((path) => {
     const changedPath = normalize(path);
     return changedPath === workflowDirectory || changedPath.startsWith(`${workflowDirectory}/`);

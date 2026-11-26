@@ -7,8 +7,8 @@ use std::{
     sync::Mutex,
 };
 
-pub fn ensure_cairn_dir(root: impl AsRef<Path>) -> io::Result<()> {
-    let directory = root.as_ref().join(".cairn");
+pub fn ensure_praide_dir(root: impl AsRef<Path>) -> io::Result<()> {
+    let directory = root.as_ref().join(".praide");
     fs::create_dir_all(&directory)?;
     let ignore = directory.join(".gitignore");
     match OpenOptions::new().write(true).create_new(true).open(ignore) {
@@ -137,13 +137,13 @@ impl<T> FileRepository<T> {
         }
     }
     pub fn for_tasks(root: impl AsRef<Path>) -> Self {
-        Self::new(root.as_ref().join(".cairn/tasks"))
+        Self::new(root.as_ref().join(".praide/tasks"))
     }
     pub fn for_notes(root: impl AsRef<Path>) -> Self {
-        Self::new(root.as_ref().join(".cairn/notes"))
+        Self::new(root.as_ref().join(".praide/notes"))
     }
     pub fn for_proposals(root: impl AsRef<Path>) -> Self {
-        Self::new(root.as_ref().join(".cairn/runs/proposals"))
+        Self::new(root.as_ref().join(".praide/runs/proposals"))
     }
     fn path(&self, id: &str) -> Result<PathBuf, StorageError> {
         if id.is_empty()
@@ -186,7 +186,7 @@ impl<T: RepositoryRecord> FileRepository<T> {
     }
 
     fn write(&self, record: &T) -> Result<(), StorageError> {
-        let cairn_directory = if self
+        let praide_directory = if self
             .directory
             .file_name()
             .is_some_and(|name| name == "tasks" || name == "notes")
@@ -194,7 +194,7 @@ impl<T: RepositoryRecord> FileRepository<T> {
                 .directory
                 .parent()
                 .and_then(Path::file_name)
-                .is_some_and(|name| name == ".cairn")
+                .is_some_and(|name| name == ".praide")
         {
             self.directory.parent()
         } else if self
@@ -211,17 +211,17 @@ impl<T: RepositoryRecord> FileRepository<T> {
                 .parent()
                 .and_then(Path::parent)
                 .and_then(Path::file_name)
-                .is_some_and(|name| name == ".cairn")
+                .is_some_and(|name| name == ".praide")
         {
             self.directory.parent().and_then(Path::parent)
         } else {
             None
         };
-        if let Some(cairn_directory) = cairn_directory {
-            let root = cairn_directory
+        if let Some(praide_directory) = praide_directory {
+            let root = praide_directory
                 .parent()
-                .expect(".cairn directory has a project root");
-            ensure_cairn_dir(root)
+                .expect(".praide directory has a project root");
+            ensure_praide_dir(root)
                 .map_err(|e| StorageError::new(StorageErrorCode::Io, e.to_string()))?;
         }
         fs::create_dir_all(&self.directory)
@@ -414,24 +414,24 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn ensure_cairn_dir_creates_default_ignore_only_once() {
+    fn ensure_praide_dir_creates_default_ignore_only_once() {
         let d = tempdir().unwrap();
-        let ignore = d.path().join(".cairn/.gitignore");
-        ensure_cairn_dir(d.path()).unwrap();
+        let ignore = d.path().join(".praide/.gitignore");
+        ensure_praide_dir(d.path()).unwrap();
         let expected = b"cache/\nruns/\ntasks/\nnotes/\n";
         assert_eq!(fs::read(&ignore).unwrap(), expected);
-        ensure_cairn_dir(d.path()).unwrap();
+        ensure_praide_dir(d.path()).unwrap();
         assert_eq!(fs::read(&ignore).unwrap(), expected);
     }
 
     #[test]
-    fn ensure_cairn_dir_preserves_custom_ignore() {
+    fn ensure_praide_dir_preserves_custom_ignore() {
         let d = tempdir().unwrap();
-        let dir = d.path().join(".cairn");
+        let dir = d.path().join(".praide");
         fs::create_dir_all(&dir).unwrap();
         let ignore = dir.join(".gitignore");
         fs::write(&ignore, "custom\n").unwrap();
-        ensure_cairn_dir(d.path()).unwrap();
+        ensure_praide_dir(d.path()).unwrap();
         assert_eq!(fs::read_to_string(ignore).unwrap(), "custom\n");
     }
 

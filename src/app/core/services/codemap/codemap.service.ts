@@ -158,6 +158,6 @@ export class CodeMapService {
   }
 
   private dismissedKey(name: string): string {
-    return `cairn.codemap.dismissed-language.${name}`;
+    return `praide.codemap.dismissed-language.${name}`;
   }
 }

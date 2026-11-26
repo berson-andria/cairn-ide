@@ -9,7 +9,7 @@ and filesystem-event contracts are in
 
 All commands return structured service errors as `{ "code": "...", "message": "..." }`. Tauri exposes Rust snake_case argument names as camelCase. Workspace open/close commands and startup/history behavior are documented in [workspace](./workspace.md). Every task and note command requires an open project. List commands return `{ records, errors }`; each error carries `{ code, message }`.
 
-Tasks and notes are ignored by default in `.cairn/.gitignore`, which Rust creates as `cache/`, `runs/`, `tasks/`, and `notes/` only when that file is missing. It never overwrites a user file. Removing the `tasks/` and `notes/` lines allows those files to be added to Git and shared through Git.
+Tasks and notes are ignored by default in `.praide/.gitignore`, which Rust creates as `cache/`, `runs/`, `tasks/`, and `notes/` only when that file is missing. It never overwrites a user file. Removing the `tasks/` and `notes/` lines allows those files to be added to Git and shared through Git.
 
 ### Commands
 
@@ -74,7 +74,7 @@ For `task:reloaded` and `note:reloaded`, replace the cached record unconditional
 
 ### Error codes
 
-`NotFound`, `StaleRev`, `InvalidTransition`, `Forbidden`, `Validation`, `Io`, `Corrupt`, `NoProject`, `RunActive`. `NoProject` means no workspace has been opened. `Forbidden` means the requested transition exists but the UI actor cannot make it; callers cannot supply an actor. `task_delete` returns `RunActive` when the task has an active run; otherwise it deletes the task file, cascades to `.cairn/runs/<id>/` folders whose `run.json` `taskId` matches (emitting `run:deleted` per removed folder, continuing on per-folder delete errors), and `load`/`reconcile` sweeps orphan run folders.
+`NotFound`, `StaleRev`, `InvalidTransition`, `Forbidden`, `Validation`, `Io`, `Corrupt`, `NoProject`, `RunActive`. `NoProject` means no workspace has been opened. `Forbidden` means the requested transition exists but the UI actor cannot make it; callers cannot supply an actor. `task_delete` returns `RunActive` when the task has an active run; otherwise it deletes the task file, cascades to `.praide/runs/<id>/` folders whose `run.json` `taskId` matches (emitting `run:deleted` per removed folder, continuing on per-folder delete errors), and `load`/`reconcile` sweeps orphan run folders.
 
 ### Null and absent values
 

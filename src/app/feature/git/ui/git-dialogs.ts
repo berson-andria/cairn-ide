@@ -6,7 +6,7 @@ import { ask } from '@tauri-apps/plugin-dialog';
  */
 export function confirmAction(message: string, okLabel: string): Promise<boolean> {
   return ask(message, {
-    title: 'Cairn IDE',
+    title: 'Praide IDE',
     kind: 'warning',
     okLabel,
     cancelLabel: 'Cancel',

@@ -265,7 +265,7 @@ mod tests {
         assert_eq!(proposal.workflow, context.workflow);
         assert!(project.tasks.get(&proposal.id).is_err());
         assert!(std::path::Path::new(&project.root)
-            .join(".cairn/runs/proposals")
+            .join(".praide/runs/proposals")
             .join(format!("{}.json", proposal.id))
             .is_file());
     }

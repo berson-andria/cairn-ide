@@ -8,7 +8,7 @@ import { GitClient } from '../../services/git-client.service';
     <div class="m">
       <div style="font-size:15px;font-weight:600">This folder isn't a Git repository</div>
       <div class="s" style="max-width:600px">
-        Cairn uses Git to show you what a task changed before you approve it, and to keep your own
+        Praide uses Git to show you what a task changed before you approve it, and to keep your own
         history. Tasks and notes still work without it.
       </div>
       <div

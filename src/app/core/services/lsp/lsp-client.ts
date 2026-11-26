@@ -128,7 +128,7 @@ export class LspClient {
       'initialize',
       {
         processId: null,
-        clientInfo: { name: 'cairn' },
+        clientInfo: { name: 'praide' },
         rootUri,
         workspaceFolders: this.workspaceFolders,
         capabilities: {

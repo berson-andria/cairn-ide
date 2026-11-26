@@ -4,7 +4,6 @@ import sys
 import types
 import unittest
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / "workflows"
 
@@ -169,8 +168,8 @@ class WorkflowHarness:
                     raise reply
                 return types.SimpleNamespace(text=reply)
 
-        self.module = types.ModuleType("cairn")
-        self.module.CairnError = FakeError
+        self.module = types.ModuleType("praide")
+        self.module.PraideError = FakeError
         self.module.files = FakeFiles()
         self.module.patch = FakePatch()
         self.module.tasks = FakeTasks()
@@ -179,10 +178,10 @@ class WorkflowHarness:
         self.module.models = FakeModels()
 
     def run_workflow(self):
-        old_cairn = sys.modules.get("cairn")
+        old_praide = sys.modules.get("praide")
         old_path = list(sys.path)
         try:
-            sys.modules["cairn"] = self.module
+            sys.modules["praide"] = self.module
             sys.path.insert(0, str(WORKFLOW))
             for name in ("context", "parse", "prompts", "default_workflow_main"):
                 sys.modules.pop(name, None)
@@ -197,10 +196,10 @@ class WorkflowHarness:
             for name in ("context", "parse", "prompts", "default_workflow_main"):
                 sys.modules.pop(name, None)
             sys.path[:] = old_path
-            if old_cairn is None:
-                sys.modules.pop("cairn", None)
+            if old_praide is None:
+                sys.modules.pop("praide", None)
             else:
-                sys.modules["cairn"] = old_cairn
+                sys.modules["praide"] = old_praide
 
 
 def edit(summary="updated", path="feature.py"):
@@ -236,7 +235,9 @@ class DefaultWorkflowTests(unittest.TestCase):
         harness.run_workflow()
         self.assertEqual(len(harness.patches), 1)
         self.assertEqual(harness.finished[0]["outcome"], "needs_review")
-        self.assertEqual(harness.finished[0]["summary"], "1 patches proposed for 0 steps")
+        self.assertEqual(
+            harness.finished[0]["summary"], "1 patches proposed for 0 steps"
+        )
 
     def test_fails_second_pending_step_and_never_starts_third(self):
         pending = [
@@ -245,7 +246,12 @@ class DefaultWorkflowTests(unittest.TestCase):
             {"id": "s3", "title": "third"},
         ]
         harness = WorkflowHarness(
-            ['{"files":[]}', edit(), '{"files":[]}', '{"action":"cannot","summary":"blocked","reason":"cannot continue"}'],
+            [
+                '{"files":[]}',
+                edit(),
+                '{"files":[]}',
+                '{"action":"cannot","summary":"blocked","reason":"cannot continue"}',
+            ],
             task={
                 "id": "task-1",
                 "title": "Task",
@@ -383,8 +389,8 @@ class DefaultWorkflowTests(unittest.TestCase):
 
     def test_context_budget_small_and_missing_limit(self):
         harness = WorkflowHarness()
-        old_cairn = sys.modules.get("cairn")
-        sys.modules["cairn"] = harness.module
+        old_praide = sys.modules.get("praide")
+        sys.modules["praide"] = harness.module
         sys.path.insert(0, str(WORKFLOW))
         try:
             import context as workflow_context
@@ -401,18 +407,16 @@ class DefaultWorkflowTests(unittest.TestCase):
         finally:
             sys.path.remove(str(WORKFLOW))
             sys.modules.pop("context", None)
-            if old_cairn is None:
-                sys.modules.pop("cairn", None)
+            if old_praide is None:
+                sys.modules.pop("praide", None)
             else:
-                sys.modules["cairn"] = old_cairn
+                sys.modules["praide"] = old_praide
 
     def test_truncated_file_is_marked_in_prompt(self):
         harness = WorkflowHarness(
             ['{"files":[]}', edit()],
             file_tree={"feature.py": "old" + "x" * 100},
-            models_list=[
-                {"id": "test-model", "default": True, "contextLimit": 64}
-            ],
+            models_list=[{"id": "test-model", "default": True, "contextLimit": 64}],
         )
         harness.run_workflow()
         edit_prompt = harness.completions[1][0][1]["content"]
@@ -493,7 +497,9 @@ class DefaultWorkflowTests(unittest.TestCase):
             harness.run_workflow()
         finally:
             sys.stdout = old_stdout
-        self.assertTrue(all(len(line) <= 200 for line in capture.getvalue().splitlines()))
+        self.assertTrue(
+            all(len(line) <= 200 for line in capture.getvalue().splitlines())
+        )
 
 
 if __name__ == "__main__":

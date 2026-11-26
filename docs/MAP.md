@@ -1,4 +1,4 @@
-# Cairn module map
+# Praide module map
 
 Last updated: 2026-11-24
 
@@ -34,7 +34,7 @@ Last updated: 2026-11-24
 │   └── docs-tree.mjs
 ├── sdk/
 │   └── python/
-│       ├── cairn/
+│       ├── praide/
 │       │   ├── __pycache__/
 │       │   │   └── __init__.cpython-312.pyc
 │       │   └── __init__.py

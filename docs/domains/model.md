@@ -92,7 +92,7 @@ builds `ModelEntry`, writes `models.registry`, and may set `models.defaultModel`
 [models-settings.ts](../../src/app/feature/setting/model-setting/models-settings.ts:124).
 The SettingsService updates a signal immediately and debounces an app-data write
 [settings.service.ts](../../src/app/feature/setting/settings.service.ts:36).
-Rust `secret_*` commands read/write the `cairn-ide:model:<id>` keyring entry;
+Rust `secret_*` commands read/write the `praide-ide:model:<id>` keyring entry;
 no Tauri event is emitted.
 
 **Remove model**
@@ -172,6 +172,6 @@ redacted body characters.
 Run traces record method, model id, elapsed time, success, token usage, and
 sanitized errors. Model prompts and responses, authorization headers, and API
 keys are never written to `run.log` or `trace.jsonl`. Successful model calls
-are stored separately under `.cairn/runs/<runId>/calls/<n>.json`; messages and
+are stored separately under `.praide/runs/<runId>/calls/<n>.json`; messages and
 response text are sanitized before writing. Each call file is limited to 1 MB
 and a run to 20 MB. No headers or API keys are stored in call files.

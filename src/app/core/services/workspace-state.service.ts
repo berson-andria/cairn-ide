@@ -22,7 +22,7 @@ import {
 import { NoticeManager } from './notification/notification.service';
 import { WorkSyncService } from './tauri/work-sync.service';
 
-const WORKSPACE_STATE_DIRECTORY = ['.cairn', 'cache'];
+const WORKSPACE_STATE_DIRECTORY = ['.praide', 'cache'];
 const WORKSPACE_STATE_FILE = 'workspace.json';
 const SAVE_DEBOUNCE_MS = 500;
 

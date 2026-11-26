@@ -30,7 +30,7 @@ impl CodeMapService {
     /// Opens a workspace and creates or loads the code map cache. Does not index yet.
     pub fn open(root: impl AsRef<Path>) -> Result<Self, String> {
         let root = root.as_ref().to_path_buf();
-        let cache_path = root.join(".cairn/cache/codemap.json");
+        let cache_path = root.join(".praide/cache/codemap.json");
         let store = Store::open(&cache_path)?;
         Ok(Self { root, store })
     }
@@ -122,7 +122,7 @@ impl CodeMapService {
     }
 
     /// Every file the walk finds, as paths relative to the root. Languages do not matter here.
-    /// What is left out: hidden files and folders (`.git`, `.cairn`, `.ide`...) and whatever `.gitignore` lists.
+    /// What is left out: hidden files and folders (`.git`, `.praide`, `.ide`...) and whatever `.gitignore` lists.
     fn collect_files(&self) -> Vec<PathBuf> {
         ignore::WalkBuilder::new(&self.root)
             .git_ignore(true)
@@ -519,13 +519,13 @@ mod tests {
         write(&dir, ".gitignore", "node_modules/\n");
         let hidden_python = write(&dir, ".venv/lib/hidden.py", "def hidden(): pass");
         let hidden_env = write(&dir, ".env", "SECRET=value");
-        let cache = write(&dir, ".cairn/cache/codemap.json", "not source");
-        let workflow = write(&dir, ".cairn/workflows/main.py", "def hidden(): pass");
-        let task = write(&dir, ".cairn/tasks/x.json", r#"{"title":"hidden"}"#);
+        let cache = write(&dir, ".praide/cache/codemap.json", "not source");
+        let workflow = write(&dir, ".praide/workflows/main.py", "def hidden(): pass");
+        let task = write(&dir, ".praide/tasks/x.json", r#"{"title":"hidden"}"#);
         let git_head = write(&dir, ".git/HEAD", "ref: refs/heads/main");
         let git_object = write(&dir, ".git/objects/x.rs", "fn hidden() {}");
         let ignored = write(&dir, "node_modules/pkg/hidden.rs", "fn hidden() {}");
-        let cache_path = dir.path().join(".cairn/cache/codemap.json");
+        let cache_path = dir.path().join(".praide/cache/codemap.json");
         let mut svc = CodeMapService::open(dir.path()).unwrap();
         let stats = svc
             .update_files(&[

@@ -73,7 +73,7 @@ export class WorkflowSettings {
       if (result?.kind === 'created') {
         await this.openPath(result.entryPath);
       } else if (result?.kind === 'exists') {
-        this.message.set('A workflow already exists in .cairn/workflows.');
+        this.message.set('A workflow already exists in .praide/workflows.');
       } else {
         this.message.set(
           'Workflow creation failed. Check the notification for validation details, including main.py name conflicts and path collisions.',

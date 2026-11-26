@@ -1,19 +1,19 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "cairn",
+  "productName": "praide",
   "version": "0.1.0",
-  "identifier": "com.cost.cairn",
+  "identifier": "com.cost.praide",
   "build": {
     "beforeDevCommand": "npm run start",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist/cairn/browser"
+    "frontendDist": "../dist/praide/browser"
   },
   "plugins": { "fs": { "requireLiteralLeadingDot": false } },
   "app": {
     "windows": [
       {
-        "title": "cairn",
+        "title": "praide",
         "maximized": true,
         "decorations": false,
         "dragDropEnabled": false,
@@ -29,7 +29,7 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "../sdk/python/cairn/*.py": "sdk/python/cairn/",
+      "../sdk/python/praide/*.py": "sdk/python/praide/",
       "../sdk/python/workflows/*.py": "sdk/python/workflows/",
       "../sdk/python/templates/*.py": "sdk/python/templates/"
     },

@@ -84,7 +84,7 @@ impl TaskService {
         Self {
             tasks: FileRepository::for_tasks(&root),
             notes: FileRepository::for_notes(&root),
-            runs_dir: root.as_ref().join(".cairn").join("runs"),
+            runs_dir: root.as_ref().join(".praide").join("runs"),
             lock,
             sink: Box::new(sink),
             run_guard: None,
@@ -316,9 +316,7 @@ impl TaskService {
         let tasks = match self.all() {
             Ok(tasks) => tasks,
             Err(error) => {
-                tauri_plugin_log::log::error!(
-                    "Could not list tasks for run orphan sweep: {error}"
-                );
+                tauri_plugin_log::log::error!("Could not list tasks for run orphan sweep: {error}");
                 return Vec::new();
             }
         };
@@ -1099,7 +1097,7 @@ mod tests {
         edited.title = "after".into();
         std::fs::write(
             d.path()
-                .join(".cairn/tasks")
+                .join(".praide/tasks")
                 .join(format!("{}.json", created.id)),
             serde_json::to_vec_pretty(&edited).unwrap(),
         )
@@ -1158,8 +1156,8 @@ mod tests {
         let d = tempdir().unwrap();
         let (s, _, _) = services(d.path());
         s.create(TaskItem::new("good")).unwrap();
-        std::fs::create_dir_all(d.path().join(".cairn/tasks")).unwrap();
-        std::fs::write(d.path().join(".cairn/tasks/bad.json"), "{").unwrap();
+        std::fs::create_dir_all(d.path().join(".praide/tasks")).unwrap();
+        std::fs::write(d.path().join(".praide/tasks/bad.json"), "{").unwrap();
         let report = s.list().unwrap();
         assert_eq!(report.records.len(), 1);
         assert_eq!(report.errors.len(), 1);
@@ -1418,10 +1416,10 @@ mod tests {
         let d = tempdir().unwrap();
         let (service, _, _) = services(d.path());
         let task_id = "hand-written";
-        std::fs::create_dir_all(d.path().join(".cairn/tasks")).unwrap();
+        std::fs::create_dir_all(d.path().join(".praide/tasks")).unwrap();
         std::fs::write(
             d.path()
-                .join(".cairn/tasks")
+                .join(".praide/tasks")
                 .join(format!("{task_id}.json")),
             r#"{"id":"hand-written","title":"task","status":"ready","createdAt":1,"schemaVersion":1,"rev":1,"runs":["bogus-run-id"]}"#,
         )
@@ -1799,7 +1797,7 @@ mod tests {
     }
 
     fn write_run_folder(root: &Path, run_id: &str, run_json: &str) -> PathBuf {
-        let dir = root.join(".cairn").join("runs").join(run_id);
+        let dir = root.join(".praide").join("runs").join(run_id);
         std::fs::create_dir_all(dir.join("calls")).unwrap();
         std::fs::create_dir_all(dir.join("patches")).unwrap();
         std::fs::write(dir.join("run.json"), run_json).unwrap();
@@ -1830,7 +1828,10 @@ mod tests {
         let r_other = write_run_folder(
             d.path(),
             "run-other",
-            &format!(r#"{{"runId":"run-other","taskId":"{}","endedAt":30}}"#, other.id),
+            &format!(
+                r#"{{"runId":"run-other","taskId":"{}","endedAt":30}}"#,
+                other.id
+            ),
         );
 
         sink.take();
@@ -1866,12 +1867,11 @@ mod tests {
             &format!(r#"{{"runId":"run-active","taskId":"{}"}}"#, task.id),
         );
 
-        let service = TaskService::new(d.path(), lock, sink.clone()).with_run_guard(Arc::new(
-            FakeRunGuard {
+        let service =
+            TaskService::new(d.path(), lock, sink.clone()).with_run_guard(Arc::new(FakeRunGuard {
                 active_task_id: Some(task.id.clone()),
                 active_run_id: Some("run-active".into()),
-            },
-        ));
+            }));
 
         sink.take();
         let err = service.delete(&task.id).unwrap_err();
@@ -1890,12 +1890,18 @@ mod tests {
         let locked_dir = write_run_folder(
             d.path(),
             "run-locked",
-            &format!(r#"{{"runId":"run-locked","taskId":"{}","endedAt":10}}"#, task.id),
+            &format!(
+                r#"{{"runId":"run-locked","taskId":"{}","endedAt":10}}"#,
+                task.id
+            ),
         );
         let removable_dir = write_run_folder(
             d.path(),
             "run-removable",
-            &format!(r#"{{"runId":"run-removable","taskId":"{}","endedAt":20}}"#, task.id),
+            &format!(
+                r#"{{"runId":"run-removable","taskId":"{}","endedAt":20}}"#,
+                task.id
+            ),
         );
 
         // Hold an open handle inside `run-locked` on Windows (or make dir read-only on Unix)
@@ -1919,7 +1925,10 @@ mod tests {
         sink.take();
         s.delete(&task.id).unwrap();
 
-        assert_eq!(s.get(&task.id).unwrap_err().code, ServiceErrorCode::NotFound);
+        assert_eq!(
+            s.get(&task.id).unwrap_err().code,
+            ServiceErrorCode::NotFound
+        );
         assert!(!removable_dir.exists());
 
         let events = sink.events();
@@ -1972,16 +1981,15 @@ mod tests {
             r#"{"runId":"run-taskless","endedAt":30}"#,
         );
         let corrupt_dir = write_run_folder(d.path(), "run-corrupt", "{not valid json");
-        let proposals_dir = d.path().join(".cairn").join("runs").join("proposals");
+        let proposals_dir = d.path().join(".praide").join("runs").join("proposals");
         std::fs::create_dir_all(&proposals_dir).unwrap();
         std::fs::write(proposals_dir.join("p1.json"), "{}").unwrap();
 
-        let service = TaskService::new(d.path(), lock, sink.clone()).with_run_guard(Arc::new(
-            FakeRunGuard {
+        let service =
+            TaskService::new(d.path(), lock, sink.clone()).with_run_guard(Arc::new(FakeRunGuard {
                 active_task_id: None,
                 active_run_id: Some("run-active-orphan".into()),
-            },
-        ));
+            }));
 
         sink.take();
         service.load().unwrap();
@@ -2033,7 +2041,7 @@ mod tests {
         );
         assert!(outside.join("keep.txt").exists());
 
-        // Orphan sweep deletes only the run folder inside `.cairn/runs/`, never `outside-secret`
+        // Orphan sweep deletes only the run folder inside `.praide/runs/`, never `outside-secret`
         s.load().unwrap();
         assert!(!crafted_run.exists());
         assert!(outside.join("keep.txt").exists());
@@ -2052,7 +2060,7 @@ mod tests {
     fn legacy_task_with_single_anchor_loads_and_rewrites_on_save() {
         let d = tempdir().unwrap();
         let (s, _, _) = services(d.path());
-        let tasks_dir = d.path().join(".cairn/tasks");
+        let tasks_dir = d.path().join(".praide/tasks");
         std::fs::create_dir_all(&tasks_dir).unwrap();
         let path = tasks_dir.join("legacy-task.json");
         std::fs::write(
@@ -2085,7 +2093,7 @@ mod tests {
     fn task_with_both_anchor_and_anchors_prefers_anchors() {
         let d = tempdir().unwrap();
         let (s, _, _) = services(d.path());
-        let tasks_dir = d.path().join(".cairn/tasks");
+        let tasks_dir = d.path().join(".praide/tasks");
         std::fs::create_dir_all(&tasks_dir).unwrap();
         std::fs::write(
             tasks_dir.join("both-keys.json"),
@@ -2128,7 +2136,11 @@ mod tests {
 
         // Set again then clear with []
         let set_again = s
-            .set_anchors(&created.id, Some(vec![file_anchor("b.rs")]), cleared_null.rev)
+            .set_anchors(
+                &created.id,
+                Some(vec![file_anchor("b.rs")]),
+                cleared_null.rev,
+            )
             .unwrap();
         let cleared_empty = s
             .set_anchors(&created.id, Some(vec![]), set_again.rev)

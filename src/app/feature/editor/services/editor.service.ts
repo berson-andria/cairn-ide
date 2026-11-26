@@ -79,7 +79,7 @@ export class EditorService implements OnDestroy {
 
   readonly editorOption: Monaco.editor.IStandaloneEditorConstructionOptions = {
     model: null,
-    theme: 'cairn-dark',
+    theme: 'praide-dark',
     fontSize: 14,
     minimap: { enabled: true },
     fixedOverflowWidgets: true,
@@ -97,8 +97,13 @@ export class EditorService implements OnDestroy {
         lineHeight: this.settings.get<number>('appearance.editorLineHeight')(),
         wordWrap: this.settings.get<Monaco.editor.IEditorOptions['wordWrap']>('editor.wordWrap')(),
         minimap: { enabled: this.settings.get<boolean>('editor.minimap')() },
-        bracketPairColorization: { enabled: this.settings.get<boolean>('editor.bracketColorization')() },
-        renderWhitespace: this.settings.get<Monaco.editor.IEditorOptions['renderWhitespace']>('editor.renderWhitespace')(),
+        bracketPairColorization: {
+          enabled: this.settings.get<boolean>('editor.bracketColorization')(),
+        },
+        renderWhitespace:
+          this.settings.get<Monaco.editor.IEditorOptions['renderWhitespace']>(
+            'editor.renderWhitespace',
+          )(),
       };
       const modelOptions: Monaco.editor.ITextModelUpdateOptions = {
         tabSize: this.settings.get<number>('editor.tabSize')(),
