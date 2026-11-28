@@ -257,19 +257,19 @@ button:disabled {
 }
 
 .notif {
-  color: var(--color-attention);
+  color: color-mix(in srgb,  var(--color-status-running) 50%, var(--color-text-secondary));
   background-color: var(--color-surface-raised);
   &:hover {
     background-color: var(--color-surface-raised-hover);
-    color: var(--color-attention) !important;
+    color: color-mix(in srgb,  var(--color-status-running) 50%, var(--color-text-secondary)) !important;
   }
 }
 .notif-action {
-  color: var(--color-attention);
+  color: color-mix(in srgb,  var(--color-status-running) 50%, var(--color-text-secondary));
   background-color: transparent;
   &:hover {
     background-color: var(--color-surface-raised-hover);
-    color: var(--color-attention) !important;
+    color: color-mix(in srgb,  var(--color-status-running) 50%, var(--color-text-secondary)) !important;
   }
 }
 ng-icon {
@@ -418,4 +418,12 @@ textarea[autoExpand] {
   aspect-ratio: 1/1;
   background: var(--color-attention);
   color: var(--color-text-on-action);
+}
+.badge {
+  margin-left: var(--space-4);
+  background: var(--hue-orange);
+  color: var(--color-text-on-action);
+  font-size: var(--font-size-label);
+  padding: 0 var(--space-4);
+  border-radius: var(--space-10);
 }

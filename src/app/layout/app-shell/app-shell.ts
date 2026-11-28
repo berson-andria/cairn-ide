@@ -44,7 +44,7 @@ import {
 import { DiagnosticsService } from '../../core/services/diagnostics.service';
 import { GitService } from '../../feature/git/services/git.service';
 import { MonitoringService } from '../../core/services/monitoring.service';
-import { CommonModule } from '@angular/common';
+import { CommonModule, TitleCasePipe, UpperCasePipe } from '@angular/common';
 import { loadIconSprite } from '../../shared/utils/icon-sprite';
 import { MenuDirective } from '../../shared/directives/menu.directive';
 import { Tab, TabStore } from '../../core/store/tab.store';
@@ -61,7 +61,16 @@ import { findNodeByPath } from '../../core/services/file-system/external-watcher
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [LeftPanel, MainPanel, ChatHistory, NgIcon, CommonModule, MenuDirective, NoticeList],
+  imports: [
+    LeftPanel,
+    MainPanel,
+    ChatHistory,
+    NgIcon,
+    UpperCasePipe,
+    TitleCasePipe,
+    MenuDirective,
+    NoticeList,
+  ],
   templateUrl: './app-shell.html',
   styleUrl: './app-shell.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

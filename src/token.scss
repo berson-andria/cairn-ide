@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Praide IDE: design tokens (common variables)
+   Praide: design tokens (common variables), neutral cool-grey base (matches icon)
    Source: "Praide token sheet" (Tokens / TokensLight) + values observed in screens.
 
    Theming: dark is the default. Light is applied with
@@ -17,54 +17,54 @@
   color-scheme: dark;
 
   /* ---------- Surfaces ---------- */
-  --color-surface-base: #1c1a17; /* [sheet] base, editor */
-  --color-surface-panel: #211e1a; /* [sheet] panel, left panel */
-  --color-surface-raised: #2a2620; /* [sheet] raised, selected */
-  --color-surface-hover: #2e2a24; /* [sheet] hover */
-  --color-surface-raised-hover: #3a352d; /* [screens] hover row inside a raised surface (menus) */
-  --color-surface-annotation: #24211b; /* [screens] band behind doc/usage lines in the editor */
-  --color-surface-diff: #201d19; /* [screens] diff container */
-  --color-surface-diff-empty: #1b1916; /* [screens] empty side of a diff row */
-  --color-scrim: #141210; /* [screens] app dimmed behind a modal */
+  --color-surface-base: #1c1d1f; /* [sheet] base, editor */
+  --color-surface-panel: #212225; /* [sheet] panel, left panel */
+  --color-surface-raised: #2a2b2f; /* [sheet] raised, selected */
+  --color-surface-hover: #2f3034; /* [sheet] hover */
+  --color-surface-raised-hover: #3a3b40; /* [screens] hover row inside a raised surface (menus) */
+  --color-surface-annotation: #232428; /* [screens] band behind doc/usage lines in the editor */
+  --color-surface-diff: #202124; /* [screens] diff container */
+  --color-surface-diff-empty: #1a1b1d; /* [screens] empty side of a diff row */
+  --color-scrim: #121314; /* [screens] app dimmed behind a modal */
 
   /* ---------- Lines ---------- */
-  --color-divider: #2e2a24; /* [sheet] "hover, divider": same value, separate role */
-  --color-border: #3a352d; /* [sheet] */
-  --color-border-strong: #4a443a; /* [sheet] */
+  --color-divider: #2f3034; /* [sheet] "hover, divider": same value, separate role */
+  --color-border: #3a3b40; /* [sheet] */
+  --color-border-strong: #4a4b51; /* [sheet] */
 
   /* ---------- Text ---------- */
-  --color-text-primary: #e8e2d6; /* [sheet] */
-  --color-text-secondary: #c9c1b0; /* [sheet] */
-  --color-text-muted: #a39b8b; /* [sheet] */
-  --color-text-faint: #7f7868; /* [sheet] line numbers */
-  --color-text-prose: #d8d0c0; /* [screens] body prose + code */
-  --color-text-code-comment: #8a8374; /* [screens] code comments */
-  --color-text-on-action: #1c1a17; /* [derived] text on a primary button = base surface */
+  --color-text-primary: #e6e7e9; /* [sheet] */
+  --color-text-secondary: #c5c7cb; /* [sheet] */
+  --color-text-muted: #9fa2a8; /* [sheet] */
+  --color-text-faint: #7c7f86; /* [sheet] line numbers */
+  --color-text-prose: #d5d7da; /* [screens] body prose + code */
+  --color-text-code-comment: #878a91; /* [screens] code comments */
+  --color-text-on-action: #1c1d1f; /* [derived] text on a primary button = base surface */
 
   /* ---------- Attention and actions ---------- */
   --color-attention: #e2a93b; /* [sheet] only for things that need you */
-  --color-action: #e8e2d6; /* [sheet] primary button fill */
-  --color-action-hover: #f5f0e6; /* [sheet] */
-  --color-focus: #e8e2d6; /* [sheet] 2px outline, 2px offset */
+  --color-action: #e6e7e9; /* [sheet] primary button fill */
+  --color-action-hover: #f4f5f6; /* [sheet] */
+  --color-focus: #e6e7e9; /* [sheet] 2px outline, 2px offset */
 
   /* ---------- Status (always paired with a shape) ---------- */
-  --color-status-todo: #a39b8b; /* [sheet] ring */
-  --color-status-running: #7fb0d9; /* [sheet] half ring */
+  --color-status-todo: #9fa2a8; /* [sheet] ring */
+  --color-status-running: #5aa9e6; /* [sheet] half ring */
   --color-status-review: #e2a93b; /* [sheet] diamond, = attention */
-  --color-status-done: #6f8f6b; /* [sheet] dot */
-  --color-status-blocked: #d49a8a; /* [sheet] dashed square */
+  --color-status-done: #6fae85; /* [sheet] dot */
+  --color-status-blocked: #d98f98; /* [sheet] dashed square */
 
   /* ---------- Feedback tints (bg / fg) ---------- */
-  --color-added-bg: #1f2a1e; /* [sheet] */
-  --color-added-fg: #b9d2ae;
-  --color-removed-bg: #2e1d1b; /* [sheet] */
-  --color-removed-fg: #e0b0a6;
-  --color-warning-bg: #382f1c; /* [sheet] */
+  --color-added-bg: #1c2b23; /* [sheet] */
+  --color-added-fg: #a8d5b5;
+  --color-removed-bg: #2f1e22; /* [sheet] */
+  --color-removed-fg: #e8a2aa;
+  --color-warning-bg: #2f2a1b; /* [sheet] */
   --color-warning-fg: #e2c27b;
-  --color-error-bg: #3a2420; /* [sheet] */
-  --color-error-fg: #e0b0a6;
+  --color-error-bg: #321f23; /* [sheet] */
+  --color-error-fg: #e8a2aa;
 
-  --color-terminal-pass: #9db58a; /* [screens] "PASS" in the terminal pane */
+  --color-terminal-pass: #8fc5a0; /* [screens] "PASS" in the terminal pane */
 
   /* ---------- Elevation ---------- */
   --shadow-float: 0 2px 8px rgba(0, 0, 0, 0.4); /* [screens] floating chip */
@@ -149,52 +149,52 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --color-surface-base: #fbf8f2;
-  --color-surface-panel: #f3efe6;
-  --color-surface-raised: #ece6d8;
-  --color-surface-hover: #e4decf;
-  --color-surface-raised-hover: #d9d2c1; /* [derived] */
-  --color-surface-annotation: #f0ebdf; /* [derived] */
-  --color-surface-diff: #f7f3ea; /* [derived] */
-  --color-surface-diff-empty: #efeadd; /* [derived] */
-  --color-scrim: rgba(42, 38, 32, 0.35); /* [PROVISIONAL] no light modal screen exists */
+  --color-surface-base: #fafafa;
+  --color-surface-panel: #f2f2f3;
+  --color-surface-raised: #ebebed;
+  --color-surface-hover: #e3e3e6;
+  --color-surface-raised-hover: #d8d8dc; /* [derived] */
+  --color-surface-annotation: #f0f0f1; /* [derived] */
+  --color-surface-diff: #f6f6f7; /* [derived] */
+  --color-surface-diff-empty: #eeeeef; /* [derived] */
+  --color-scrim: rgba(28, 29, 31, 0.35); /* [PROVISIONAL] no light modal screen exists */
 
-  --color-divider: #e4decf;
-  --color-border: #d9d2c1;
-  --color-border-strong: #c4bca8;
+  --color-divider: #e3e3e6;
+  --color-border: #d8d8dc;
+  --color-border-strong: #c2c2c8;
 
-  --color-text-primary: #2a2620;
-  --color-text-secondary: #4a443a;
-  --color-text-muted: #6e6657;
-  --color-text-faint: #8a8372;
-  --color-text-prose: #3a352d; /* [derived] */
-  --color-text-code-comment: #7a7362; /* [derived] */
-  --color-text-on-action: #fbf8f2; /* [derived] */
+  --color-text-primary: #1c1d1f;
+  --color-text-secondary: #44454a;
+  --color-text-muted: #686a70;
+  --color-text-faint: #85878d;
+  --color-text-prose: #2e2f33; /* [derived] */
+  --color-text-code-comment: #76787e; /* [derived] */
+  --color-text-on-action: #fafafa; /* [derived] */
 
   --color-attention: #9a610a;
-  --color-action: #2a2620;
-  --color-action-hover: #3a352d;
-  --color-focus: #2a2620;
+  --color-action: #1c1d1f;
+  --color-action-hover: #34353a;
+  --color-focus: #1c1d1f;
 
-  --color-status-todo: #6e6657;
+  --color-status-todo: #686a70;
   --color-status-running: #2f73a8;
   --color-status-review: #9a610a;
-  --color-status-done: #4e7a4a;
-  --color-status-blocked: #a5533e;
+  --color-status-done: #3f7d58;
+  --color-status-blocked: #a8434f;
 
-  --color-added-bg: #e3f0dd;
-  --color-added-fg: #2f5e2a;
-  --color-removed-bg: #f8e1dc;
-  --color-removed-fg: #8f3a2b;
-  --color-warning-bg: #f6ecc9;
+  --color-added-bg: #e2f1e8;
+  --color-added-fg: #23603a;
+  --color-removed-bg: #f9e3e6;
+  --color-removed-fg: #9a3342;
+  --color-warning-bg: #f4eccf;
   --color-warning-fg: #7a5a0c;
-  --color-error-bg: #f6d9d2;
-  --color-error-fg: #8f3a2b;
+  --color-error-bg: #f7dadf;
+  --color-error-fg: #9a3342;
 
-  --color-terminal-pass: #4e7a4a; /* [PROVISIONAL] terminal has no light design */
+  --color-terminal-pass: #3f7d58; /* [PROVISIONAL] terminal has no light design */
 
-  --shadow-float: 0 2px 8px rgba(42, 38, 32, 0.16); /* [derived] */
-  --shadow-overlay: 0 4px 14px rgba(42, 38, 32, 0.22); /* [PROVISIONAL] only the float shadow exists in light */
+  --shadow-float: 0 2px 8px rgba(28, 29, 31, 0.16); /* [derived] */
+  --shadow-overlay: 0 4px 14px rgba(28, 29, 31, 0.22); /* [PROVISIONAL] only the float shadow exists in light */
 
   --hue-blue: #2f73a8;
   --hue-green: #3f7f45;

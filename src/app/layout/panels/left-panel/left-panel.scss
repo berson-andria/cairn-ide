@@ -37,9 +37,6 @@
       width: 16px;
       height: 16px;
     }
-    &.dirty {
-      color: var(--color-warning-fg);
-    }
   }
 }
 .rail-section-container {
@@ -48,12 +45,4 @@
   flex-direction: column;
   overflow: hidden;
   margin-top: var(--space-8);
-}
-.badge {
-  margin-left: var(--space-4);
-  background: var(--color-attention);
-  color: var(--color-text-on-action);
-  font-size: var(--font-size-label);
-  padding: 0 var(--space-4);
-  border-radius: var(--space-10);
 }

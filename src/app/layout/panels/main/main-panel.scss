@@ -22,7 +22,7 @@
   display: none;
 } /* Chromium (Tauri on Windows) */
 
-.editor-tab {
+.tab {
   display: flex;
   flex-direction: row;
   gap: var(--space-6);
@@ -31,17 +31,20 @@
   border-right: 1px solid var(--color-border);
   flex: none;
   cursor: pointer;
+  &.is-dirty{
+
+  }
   button {
     visibility: hidden;
   }
 }
-.editor-tab:hover,
-.editor-tab.tab--active {
+.tab:hover,
+.tab.tab--active {
   button {
     visibility: visible;
   }
 }
-.editor-tab.tab--active {
+.tab.tab--active {
   background: var(--color-surface-base); /* same as the editor below */
   box-shadow: inset 0 2px 0 var(--color-text-faint); /* top line, nothing at the bottom */
   height: var(--space-32); /* covers the container's bottom border */

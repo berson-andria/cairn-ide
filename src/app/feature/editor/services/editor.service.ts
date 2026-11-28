@@ -11,7 +11,7 @@ import {
 import { enhanceBuiltInLanguages } from '../setup/monaco-enhance';
 import { setupMonacoEnvironment } from '../setup/monaco-environment';
 import { registerExtraLanguages } from '../setup/monaco-languages';
-import { defineGhostTheme } from '../setup/monaco-theme';
+import { defineTheme } from '../setup/monaco-theme';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { SettingsService } from '../../../feature/setting/settings.service';
 
@@ -137,7 +137,7 @@ export class EditorService implements OnDestroy {
         const monaco = await import('monaco-editor');
         await registerExtraLanguages(monaco);
         await enhanceBuiltInLanguages(monaco);
-        defineGhostTheme(monaco);
+        defineTheme(monaco);
 
         this.monaco = monaco;
         const ts = monaco.typescript;

@@ -40,20 +40,38 @@ const LABELS: Record<GitUiStatus, string> = {
 export const statusLabel = (status: GitUiStatus): string => LABELS[status];
 
 const COLORS: Record<GitUiStatus, { background: string; color: string }> = {
-  M: { background: '#382f1c', color: '#e2c27b' },
-  A: { background: '#1f2a1e', color: '#b9d2ae' },
-  D: { background: '#3a1f1f', color: '#e8a5a5' },
-  R: { background: '#2a2f3a', color: '#a5c7e8' },
-  C: { background: '#2f2a3a', color: '#c7a5e8' },
-  T: { background: '#3a2f2a', color: '#e8c7a5' },
-  U: { background: '#1f2a1e', color: '#b9d2ae' },
-  '!': { background: '#4a1d24', color: '#ff9aa5' },
+  M: {
+    background: 'color-mix(in srgb, var(--color-warning-fg) 35%, transparent)',
+    color: 'color-mix(in srgb, var(--color-warning-fg) 50%, var(--color-text-primary))',
+  },
+  A: {
+    background: 'color-mix(in srgb, var(--color-status-done) 35%, transparent)',
+    color: 'color-mix(in srgb, var(--color-status-done) 50%, var(--color-text-primary))',
+  },
+  D: {
+    background: 'color-mix(in srgb, var(--color-status-blocked) 35%, transparent)',
+    color: 'color-mix(in srgb, var(--color-status-blocked) 50%, var(--color-text-primary))',
+  },
+  R: {
+    background: 'color-mix(in srgb, var(--color-status-running) 35%, transparent)',
+    color: 'color-mix(in srgb, var(--color-status-running) 50%, var(--color-text-primary))',
+  },
+  C: {
+    background: 'color-mix(in srgb, var(--hue-purple) 35%, transparent)',
+    color: 'color-mix(in srgb, var(--hue-purple) 50%, var(--color-text-primary))',
+  },
+  T: {
+    background: 'color-mix(in srgb, var(--hue-orange) 35%, transparent)',
+    color: 'color-mix(in srgb, var(--hue-orange) 50%, var(--color-text-primary))',
+  },
+  U: {
+    background: 'color-mix(in srgb, var(--color-status-done) 35%, transparent)',
+    color: 'color-mix(in srgb, var(--color-status-done) 50%, var(--color-text-primary))',
+  },
+  '!': {
+    background: 'color-mix(in srgb, var(--hue-red) 45%, transparent)',
+    color: 'color-mix(in srgb, var(--hue-red) 50%, var(--color-text-primary))',
+  },
 };
-
-/**
- * Colors for a badge, as an object for `[style]="statusStyle(file.status)"`.
- * (This replaces `statusClass`, which returned a half-built CSS string that only worked when concatenated
- * into a style attribute, and had no entry for conflicts.)
- */
 export const statusStyle = (status: GitUiStatus | string): { background: string; color: string } =>
   COLORS[status] ?? COLORS.M;

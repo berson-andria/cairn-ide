@@ -14,7 +14,7 @@
       >
         @for (tab of tabs(); track tab.id) {
           <div
-            class="editor-tab"
+            class="tab"
             [class.tab--active]="tab.active"
             [class.is-dirty]="tab.dirty"
             [class.is-diff]="tab.kind === 'diff'"

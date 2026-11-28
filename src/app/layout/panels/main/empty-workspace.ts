@@ -24,7 +24,7 @@ import { Component } from '@angular/core';
       width: 100%;
     }
     .s {
-      color: #a39b8b;
+      color: var(--color-text-muted);
       font-size: 12px;
     }
 

@@ -5,8 +5,9 @@ import type * as Monaco from 'monaco-editor';
  *
  *  - Background, default text, comments, line numbers, selection, line highlight, widgets, borders,
  *    scrollbars, diff and gutter colors are all read from token.scss (so they follow light/dark).
- *  - Syntax hues (keyword, string, function, type...) stay One Dark / One Light. Only the neutral
- *    syntax colors (default text, delimiters, comments) are pulled from the tokens.
+ *  - Syntax colors, default code text and comments follow One Dark Pro (dark) / One Light (light), so
+ *    code reads like it does in those reference themes. Only the light-mode comment color is pulled
+ *    from the tokens (One Light's own comment grey is too faint on the neutral light surface).
  *
  * Monaco themes are static hex objects: they cannot use CSS variables. So the theme is rebuilt from the
  * current computed token values and re-applied whenever <html data-theme> changes.
@@ -19,58 +20,58 @@ const getMode = (): Mode =>
 
 export const praideThemeName = (mode: Mode = getMode()): string => `praide-${mode}`;
 
-/** Fallbacks = the values in token.scss, used only if a variable can't be read. */
+/** Fallbacks = the values in token.scss (neutral base), used only if a variable can't be read. */
 const FALLBACKS: Record<Mode, Record<string, string>> = {
   dark: {
-    '--color-surface-base': '#1c1a17',
-    '--color-surface-panel': '#211e1a',
-    '--color-surface-raised': '#2a2620',
-    '--color-surface-hover': '#2e2a24',
-    '--color-surface-raised-hover': '#3a352d',
-    '--color-surface-annotation': '#24211b',
-    '--color-divider': '#2e2a24',
-    '--color-border': '#3a352d',
-    '--color-border-strong': '#4a443a',
-    '--color-text-primary': '#e8e2d6',
-    '--color-text-secondary': '#c9c1b0',
-    '--color-text-muted': '#a39b8b',
-    '--color-text-faint': '#7f7868',
-    '--color-text-prose': '#d8d0c0',
-    '--color-text-code-comment': '#8a8374',
+    '--color-surface-base': '#1c1d1f',
+    '--color-surface-panel': '#212225',
+    '--color-surface-raised': '#2a2b2f',
+    '--color-surface-hover': '#2f3034',
+    '--color-surface-raised-hover': '#3a3b40',
+    '--color-surface-annotation': '#232428',
+    '--color-divider': '#2f3034',
+    '--color-border': '#3a3b40',
+    '--color-border-strong': '#4a4b51',
+    '--color-text-primary': '#e6e7e9',
+    '--color-text-secondary': '#c5c7cb',
+    '--color-text-muted': '#9fa2a8',
+    '--color-text-faint': '#7c7f86',
+    '--color-text-prose': '#d5d7da',
+    '--color-text-code-comment': '#878a91',
     '--color-attention': '#e2a93b',
-    '--color-status-running': '#7fb0d9',
-    '--color-status-done': '#6f8f6b',
-    '--color-status-blocked': '#d49a8a',
-    '--color-added-bg': '#1f2a1e',
-    '--color-added-fg': '#b9d2ae',
-    '--color-removed-bg': '#2e1d1b',
-    '--color-removed-fg': '#e0b0a6',
+    '--color-status-running': '#5aa9e6',
+    '--color-status-done': '#6fae85',
+    '--color-status-blocked': '#d98f98',
+    '--color-added-bg': '#1c2b23',
+    '--color-added-fg': '#a8d5b5',
+    '--color-removed-bg': '#2f1e22',
+    '--color-removed-fg': '#e8a2aa',
     '--color-warning-fg': '#e2c27b',
   },
   light: {
-    '--color-surface-base': '#fbf8f2',
-    '--color-surface-panel': '#f3efe6',
-    '--color-surface-raised': '#ece6d8',
-    '--color-surface-hover': '#e4decf',
-    '--color-surface-raised-hover': '#d9d2c1',
-    '--color-surface-annotation': '#f0ebdf',
-    '--color-divider': '#e4decf',
-    '--color-border': '#d9d2c1',
-    '--color-border-strong': '#c4bca8',
-    '--color-text-primary': '#2a2620',
-    '--color-text-secondary': '#4a443a',
-    '--color-text-muted': '#6e6657',
-    '--color-text-faint': '#8a8372',
-    '--color-text-prose': '#3a352d',
-    '--color-text-code-comment': '#7a7362',
+    '--color-surface-base': '#fafafa',
+    '--color-surface-panel': '#f2f2f3',
+    '--color-surface-raised': '#ebebed',
+    '--color-surface-hover': '#e3e3e6',
+    '--color-surface-raised-hover': '#d8d8dc',
+    '--color-surface-annotation': '#f0f0f1',
+    '--color-divider': '#e3e3e6',
+    '--color-border': '#d8d8dc',
+    '--color-border-strong': '#c2c2c8',
+    '--color-text-primary': '#1c1d1f',
+    '--color-text-secondary': '#44454a',
+    '--color-text-muted': '#686a70',
+    '--color-text-faint': '#85878d',
+    '--color-text-prose': '#2e2f33',
+    '--color-text-code-comment': '#76787e',
     '--color-attention': '#9a610a',
     '--color-status-running': '#2f73a8',
-    '--color-status-done': '#4e7a4a',
-    '--color-status-blocked': '#a5533e',
-    '--color-added-bg': '#e3f0dd',
-    '--color-added-fg': '#2f5e2a',
-    '--color-removed-bg': '#f8e1dc',
-    '--color-removed-fg': '#8f3a2b',
+    '--color-status-done': '#3f7d58',
+    '--color-status-blocked': '#a8434f',
+    '--color-added-bg': '#e2f1e8',
+    '--color-added-fg': '#23603a',
+    '--color-removed-bg': '#f9e3e6',
+    '--color-removed-fg': '#9a3342',
     '--color-warning-fg': '#7a5a0c',
   },
 };
@@ -95,6 +96,8 @@ const alpha = (hex: string, a: number): string =>
 const bare = (hex: string): string => hex.replace('#', '');
 
 interface SyntaxPalette {
+  fg: string; // default code text, delimiters
+  comment?: string; // omit to use the --color-text-code-comment token
   keyword: string;
   string: string;
   escape: string; // also operator / predefined / enumMember
@@ -107,16 +110,19 @@ interface SyntaxPalette {
 
 const HUES: Record<Mode, SyntaxPalette> = {
   dark: {
+    fg: 'abb2bf',
+    comment: '7f848e',
     keyword: 'c678dd',
     string: '98c379',
     escape: '56b6c2',
-    number: 'd7a97f',
+    number: 'd19a66',
     red: 'e06c75',
     yellow: 'e5c07b',
     blue: '61afef',
-    invalid: 'ff616e',
+    invalid: 'f44747',
   },
   light: {
+    fg: '383a42',
     keyword: 'a626a4',
     string: '50a14f',
     escape: '0184bc',
@@ -130,38 +136,139 @@ const HUES: Record<Mode, SyntaxPalette> = {
 
 function buildRules(mode: Mode, t: Record<string, string>): Monaco.editor.ITokenThemeRule[] {
   const p = HUES[mode];
-  const fg = bare(t['--color-text-prose']);
-  const comment = bare(t['--color-text-code-comment']);
+  const fg = p.fg;
+  const comment = p.comment ?? bare(t['--color-text-code-comment']);
+  const link = mode === 'dark' ? '61afef' : '4078f2';
+
+  // Monaco matches the LONGEST token prefix, so a language-suffixed rule (e.g. 'tag.python') wins over
+  // the generic one ('tag'). Token names below are the ones Monaco's Monarch tokenizers (monaco-editor
+  // 0.58) and the JSON language service emit. Comments say which One Dark Pro scope each rule follows.
   return [
+    // ---- Base ----
     { token: '', foreground: fg },
+    { token: 'white', foreground: fg },
     { token: 'comment', foreground: comment },
-    { token: 'keyword', foreground: p.keyword },
-    { token: 'string', foreground: p.string },
-    { token: 'string.escape', foreground: p.escape },
-    { token: 'number', foreground: p.number },
-    { token: 'regexp', foreground: p.red },
-    { token: 'operator', foreground: p.escape },
-    { token: 'delimiter', foreground: fg },
-    { token: 'predefined', foreground: p.escape },
-    { token: 'constant', foreground: p.number },
-    { token: 'annotation', foreground: p.yellow },
     { token: 'invalid', foreground: p.invalid },
-    { token: 'identifier', foreground: p.red },
+    { token: 'string.invalid', foreground: p.invalid },
+    { token: 'string.escape.invalid', foreground: p.invalid },
+    { token: 'regexp.invalid', foreground: p.invalid },
+
+    // ---- Keywords, operators, punctuation ----
+    { token: 'keyword', foreground: p.keyword }, // keyword, storage.type, keyword.control
+    { token: 'keyword.other', foreground: p.keyword },
+    { token: 'operator', foreground: p.escape }, // keyword.operator.* (python, sql, rust, scss)
+    { token: 'operators', foreground: p.escape },
+    { token: 'delimiter', foreground: fg }, // punctuation (typescript/javascript also put operators here)
+    { token: 'delimiter.bracket', foreground: fg },
+    { token: 'delimiter.parenthesis', foreground: fg },
+    { token: 'delimiter.curly', foreground: fg },
+    { token: 'delimiter.square', foreground: fg },
+    { token: 'delimiter.angle', foreground: fg },
+    { token: 'predefined', foreground: p.escape }, // support.function (cyan)
+    { token: 'constant', foreground: p.number },
+    { token: 'macro', foreground: p.number },
+
+    // ---- Strings, numbers, regexp ----
+    { token: 'string', foreground: p.string },
+    { token: 'string.escape', foreground: p.escape }, // constant.character.escape
+    { token: 'string.heredoc', foreground: p.string },
+    { token: 'string.quote', foreground: p.string },
+    { token: 'number', foreground: p.number }, // constant.numeric (covers .hex .float .octal .binary)
+    { token: 'regexp', foreground: p.escape }, // string.regexp
+    { token: 'regexp.escape', foreground: p.red }, // constant.other.character-class.regexp
+    { token: 'regexp.escape.control', foreground: p.number }, // keyword.operator.quantifier.regexp
+
+    // ---- Identifiers, types ----
+    { token: 'identifier', foreground: p.red }, // variable (Monarch cannot split calls from variables)
+    { token: 'identifier.quote', foreground: p.red },
+    { token: 'type', foreground: p.yellow }, // entity.name.type
     { token: 'type.identifier', foreground: p.yellow },
-    { token: 'key', foreground: p.red },
-    { token: 'type.yaml', foreground: p.red },
-    { token: 'tag', foreground: p.red },
-    { token: 'metatag', foreground: p.red },
-    { token: 'attribute.name', foreground: p.number },
-    { token: 'attribute.value', foreground: p.string },
-    { token: 'string.key.json', foreground: p.red },
-    { token: 'string.value.json', foreground: p.string },
-    { token: 'strong', foreground: p.number, fontStyle: 'bold' },
-    { token: 'emphasis', foreground: p.keyword, fontStyle: 'italic' },
-    { token: 'string.link', foreground: p.keyword },
-    { token: 'variable.source', foreground: p.string },
+    { token: 'keyword.type', foreground: p.yellow }, // rust primitive types
     { token: 'namespace', foreground: p.yellow },
-    { token: 'type', foreground: p.yellow },
+    { token: 'annotation', foreground: p.yellow }, // java / go / c++ annotations
+    { token: 'variable', foreground: p.red },
+    { token: 'variable.predefined', foreground: p.yellow }, // variable.language ($?, $0 ...)
+    { token: 'variable.source', foreground: p.string },
+
+    // ---- Markup / tags ----
+    { token: 'tag', foreground: p.red }, // entity.name.tag
+    { token: 'metatag', foreground: p.red },
+    { token: 'attribute.name', foreground: p.number }, // entity.other.attribute-name
+    { token: 'attribute.value', foreground: p.string },
+    { token: 'key', foreground: p.red },
+
+    // ---- Python ----
+    { token: 'tag.python', foreground: p.blue }, // decorators: meta.function.decorator
+
+    // ---- JSON (JSON language service) ----
+    { token: 'string.key.json', foreground: p.red }, // support.type.property-name.json
+    { token: 'string.value.json', foreground: p.string },
+    { token: 'keyword.json', foreground: p.escape }, // true / false / null: constant.language.json
+
+    // ---- YAML ----
+    { token: 'type.yaml', foreground: p.red }, // keys
+    { token: 'keyword.yaml', foreground: p.number }, // true / false / null
+    { token: 'tag.yaml', foreground: p.yellow }, // anchors, !tags
+    { token: 'meta.directive.yaml', foreground: fg },
+    { token: 'operators.directivesEnd.yaml', foreground: fg },
+    { token: 'operators.documentEnd.yaml', foreground: fg },
+
+    // ---- CSS / SCSS ----
+    { token: 'tag.css', foreground: p.red }, // selectors
+    { token: 'tag.scss', foreground: p.red },
+    { token: 'attribute.name.css', foreground: p.escape }, // support.type.property-name.css
+    { token: 'attribute.name.scss', foreground: p.escape },
+    { token: 'attribute.value.css', foreground: p.number }, // support.constant.property-value.css
+    { token: 'attribute.value.number.css', foreground: p.number },
+    { token: 'attribute.value.unit.css', foreground: p.red }, // keyword.other.unit
+    { token: 'attribute.value.hex.css', foreground: p.number },
+    { token: 'variable.decl.scss', foreground: p.red },
+    { token: 'variable.ref.scss', foreground: p.red },
+
+    // ---- Markdown ----
+    { token: 'keyword.md', foreground: p.red }, // markup.heading
+    { token: 'strong', foreground: p.number, fontStyle: 'bold' }, // markup.bold
+    { token: 'emphasis', foreground: p.keyword, fontStyle: 'italic' }, // markup.italic
+    { token: 'string.link', foreground: link }, // link text
+    { token: 'string.target', foreground: p.escape }, // link url
+    { token: 'string.md', foreground: p.string },
+
+    // ---- INI / shell ----
+    { token: 'metatag.ini', foreground: p.blue }, // entity.name.section.group-title.ini
+    { token: 'metatag.shell', foreground: comment }, // shebang
+
+    // ---- Overrides of Monaco's stock vs / vs-dark rules ----
+    // The theme uses inherit: true, so any stock rule we do not override leaks through, and stock rules are
+    // more specific than our generic ones. For example 'meta.scss' is #A79873 in vs-dark, which is the muddy
+    // khaki on SCSS/CSS function names such as var(), rgb(), calc() and color-mix().
+    { token: 'meta', foreground: p.escape }, // support.function / url( / #{ interpolation
+    { token: 'meta.scss', foreground: p.escape },
+    { token: 'meta.tag', foreground: p.red },
+    { token: 'metatag.html', foreground: p.red },
+    { token: 'metatag.xml', foreground: p.red },
+    { token: 'metatag.content.html', foreground: p.red },
+    { token: 'metatag.php', foreground: p.red },
+    { token: 'tag.id.pug', foreground: p.blue },
+    { token: 'tag.class.pug', foreground: p.number },
+    { token: 'variable.parameter', foreground: fg },
+    { token: 'keyword.flow', foreground: p.keyword },
+    { token: 'keyword.flow.scss', foreground: p.keyword },
+    { token: 'number.hex', foreground: p.number },
+    { token: 'string.html', foreground: p.string },
+    { token: 'string.yaml', foreground: p.string },
+    { token: 'string.sql', foreground: p.string },
+    { token: 'attribute.value.html', foreground: p.string },
+    { token: 'attribute.value.xml', foreground: p.string },
+    { token: 'attribute.value.number', foreground: p.number },
+    { token: 'attribute.value.unit', foreground: p.red },
+    { token: 'operator.scss', foreground: p.escape },
+    { token: 'operator.sql', foreground: p.escape },
+    { token: 'operator.swift', foreground: p.escape },
+    { token: 'predefined.sql', foreground: p.escape },
+    { token: 'delimiter.html', foreground: fg },
+    { token: 'delimiter.xml', foreground: fg },
+
+    // ---- Semantic tokens (if a language service provides them) ----
     { token: 'class', foreground: p.yellow },
     { token: 'struct', foreground: p.yellow },
     { token: 'enum', foreground: p.yellow },
@@ -169,15 +276,13 @@ function buildRules(mode: Mode, t: Record<string, string>): Monaco.editor.IToken
     { token: 'typeParameter', foreground: p.yellow },
     { token: 'function', foreground: p.blue },
     { token: 'method', foreground: p.blue },
-    { token: 'macro', foreground: p.number },
-    { token: 'decorator', foreground: p.yellow },
-    { token: 'variable', foreground: p.red },
+    { token: 'decorator', foreground: p.blue },
+    { token: 'parameter', foreground: fg }, // variable.parameter.function is plain text in One Dark Pro
+    { token: 'property', foreground: p.red },
+    { token: 'event', foreground: p.red },
+    { token: 'enumMember', foreground: p.escape },
     { token: 'variable.constant', foreground: p.number },
     { token: 'variable.defaultLibrary', foreground: p.yellow },
-    { token: 'parameter', foreground: p.red },
-    { token: 'property', foreground: p.red },
-    { token: 'enumMember', foreground: p.escape },
-    { token: 'event', foreground: p.red },
     { token: 'modifier', foreground: p.keyword },
     { token: 'memberOperatorOverload', foreground: p.keyword },
   ];
@@ -207,12 +312,13 @@ function buildColors(mode: Mode, t: Record<string, string>): Monaco.editor.IColo
   return {
     // Editor surface and text
     'editor.background': base,
-    'editor.foreground': prose,
+    'editor.foreground': '#' + hue.fg,
     'editor.lineHighlightBackground': annotation,
-    'editor.selectionBackground': alpha(borderStrong, 0.9),
-    'editor.inactiveSelectionBackground': alpha(borderStrong, 0.5),
-    'editor.selectionHighlightBackground': alpha(borderStrong, 0.55),
-    'editor.selectionHighlightBorder': borderStrong,
+    // Selection is a translucent blue (not a grey), so it stays visible on top of the green/red diff tints.
+    'editor.selectionBackground': alpha(running, 0.4),
+    'editor.inactiveSelectionBackground': alpha(running, 0.22),
+    'editor.selectionHighlightBackground': alpha(running, 0.2),
+    'editor.selectionHighlightBorder': alpha(running, 0.5),
     'editor.wordHighlightBackground': alpha(textPrimary, 0.1),
     'editor.wordHighlightStrongBackground': alpha(textPrimary, 0.16),
     'editor.wordHighlightBorder': alpha(textMuted, 0.6),
@@ -251,10 +357,11 @@ function buildColors(mode: Mode, t: Record<string, string>): Monaco.editor.IColo
     'minimapGutter.modifiedBackground': running,
     'minimapGutter.deletedBackground': blocked,
 
-    // Diff editor (same tints as your review screens)
-    'diffEditor.insertedLineBackground': t['--color-added-bg'],
+    // Diff editor. Line tints are translucent (derived from the added/removed foreground tokens) instead of
+    // the opaque added-bg / removed-bg, so they never cover the selection layer on changed lines.
+    'diffEditor.insertedLineBackground': alpha(t['--color-added-fg'], 0.12),
     'diffEditor.insertedTextBackground': alpha(t['--color-added-fg'], 0.22),
-    'diffEditor.removedLineBackground': t['--color-removed-bg'],
+    'diffEditor.removedLineBackground': alpha(t['--color-removed-fg'], 0.12),
     'diffEditor.removedTextBackground': alpha(t['--color-removed-fg'], 0.22),
 
     // Groups, tabs, sticky scroll
@@ -272,7 +379,7 @@ function buildColors(mode: Mode, t: Record<string, string>): Monaco.editor.IColo
     'editorWidget.border': border,
     'editorHoverWidget.background': raised,
     'editorHoverWidget.border': border,
-    'editorHoverWidget.highlightForeground': textPrimary,
+    'editorHoverWidget.highlightForeground': '#' + hue.blue,
     'editorSuggestWidget.background': raised,
     'editorSuggestWidget.border': border,
     'editorSuggestWidget.foreground': prose,
@@ -314,7 +421,7 @@ function buildColors(mode: Mode, t: Record<string, string>): Monaco.editor.IColo
 }
 
 /** (Re)defines the theme for the CURRENT data-theme and applies it to every open editor. */
-export function applyGhostTheme(monaco: typeof Monaco): void {
+export function applyTheme(monaco: typeof Monaco): void {
   const mode = getMode();
   const tokens = readTokens(mode);
   const name = praideThemeName(mode);
@@ -332,13 +439,13 @@ export function applyGhostTheme(monaco: typeof Monaco): void {
  * Call once after Monaco loads. Applies the theme now and re-applies it whenever
  * <html data-theme="..."> changes. Returns a disposer.
  *
- *   const stop = defineGhostTheme(monaco);
+ *   const stop = defineTheme(monaco);
  *   monaco.editor.create(el, { theme: praideThemeName(), ... });
  */
-export function defineGhostTheme(monaco: typeof Monaco): () => void {
-  applyGhostTheme(monaco);
+export function defineTheme(monaco: typeof Monaco): () => void {
+  applyTheme(monaco);
 
-  const observer = new MutationObserver(() => applyGhostTheme(monaco));
+  const observer = new MutationObserver(() => applyTheme(monaco));
   observer.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ['data-theme'],

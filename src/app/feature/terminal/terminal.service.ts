@@ -33,23 +33,24 @@ const getMode = (): Mode =>
   document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
 
 /** Fallbacks = the values in token.scss, used only if a variable can't be read. */
+// xterm theme file: replace FALLBACKS with this. The ANSI table needs no change.
 const FALLBACKS: Record<Mode, Record<string, string>> = {
   dark: {
-    '--color-surface-panel': '#211e1a',
-    '--color-border-strong': '#4a443a',
-    '--color-text-primary': '#e8e2d6',
-    '--color-text-secondary': '#c9c1b0',
-    '--color-text-muted': '#a39b8b',
-    '--color-text-faint': '#7f7868',
+    '--color-surface-panel': '#212225',
+    '--color-border-strong': '#4a4b51',
+    '--color-text-primary': '#e6e7e9',
+    '--color-text-secondary': '#c5c7cb',
+    '--color-text-muted': '#9fa2a8',
+    '--color-text-faint': '#7c7f86',
   },
   light: {
-    '--color-surface-panel': '#f3efe6',
-    '--color-surface-raised-hover': '#d9d2c1',
-    '--color-border-strong': '#c4bca8',
-    '--color-text-primary': '#2a2620',
-    '--color-text-secondary': '#4a443a',
-    '--color-text-muted': '#6e6657',
-    '--color-text-faint': '#8a8372',
+    '--color-surface-panel': '#f2f2f3',
+    '--color-surface-raised-hover': '#d8d8dc',
+    '--color-border-strong': '#c2c2c8',
+    '--color-text-primary': '#1c1d1f',
+    '--color-text-secondary': '#44454a',
+    '--color-text-muted': '#686a70',
+    '--color-text-faint': '#85878d',
   },
 };
 

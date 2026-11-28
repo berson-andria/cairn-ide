@@ -71,7 +71,7 @@ import { lucideExternalLink, lucideX } from '@ng-icons/lucide';
       width: 100%;
     }
     .s {
-      color: #a39b8b;
+      color: var(--color-text-muted);
       font-size: 12px;
     }
     .action-list {
