@@ -29,12 +29,13 @@ import { GitClient } from '../../services/git-client.service';
 import { CommitMode } from '../../client/commit.pipeline';
 import { GitStash } from '../../parser/log.parser';
 import { Stash } from '../stash/stash';
+import { AutoExpandDirective } from '../../../../shared/directives/auto-expand';
 
 @Component({
   selector: 'git-changes',
   templateUrl: './git-changes.html',
   styleUrl: './git-changes.scss',
-  imports: [FormsModule, NgIcon, MenuDirective, FileIcon, NoRepository, Stash],
+  imports: [FormsModule, NgIcon, MenuDirective, FileIcon, NoRepository, Stash, AutoExpandDirective],
   providers: [
     provideIcons({
       lucideFileSymlink,

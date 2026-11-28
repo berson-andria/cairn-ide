@@ -257,19 +257,27 @@ button:disabled {
 }
 
 .notif {
-  color: color-mix(in srgb,  var(--color-status-running) 50%, var(--color-text-secondary));
+  color: color-mix(in srgb, var(--color-status-running) 50%, var(--color-text-secondary));
   background-color: var(--color-surface-raised);
   &:hover {
     background-color: var(--color-surface-raised-hover);
-    color: color-mix(in srgb,  var(--color-status-running) 50%, var(--color-text-secondary)) !important;
+    color: color-mix(
+      in srgb,
+      var(--color-status-running) 50%,
+      var(--color-text-secondary)
+    ) !important;
   }
 }
 .notif-action {
-  color: color-mix(in srgb,  var(--color-status-running) 50%, var(--color-text-secondary));
+  color: color-mix(in srgb, var(--color-status-running) 50%, var(--color-text-secondary));
   background-color: transparent;
   &:hover {
     background-color: var(--color-surface-raised-hover);
-    color: color-mix(in srgb,  var(--color-status-running) 50%, var(--color-text-secondary)) !important;
+    color: color-mix(
+      in srgb,
+      var(--color-status-running) 50%,
+      var(--color-text-secondary)
+    ) !important;
   }
 }
 ng-icon {
@@ -360,7 +368,8 @@ textarea[autoExpand] {
     background: var(--color-surface-raised);
   }
 
-  input {
+  input,
+  textarea {
     flex: 1;
     min-width: 0;
     padding: var(--space-2) 0;

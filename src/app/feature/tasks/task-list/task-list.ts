@@ -21,7 +21,9 @@ import { EmptyExplorer } from '../../explorer/empty-explorer';
     >
       @if (nodeStore.rootPath()) {
         <div class="rail-section--header" (click)="layoutService.toggleRailSection('Work')">
-          <span class="rail-section__title"> Tasks ● {{ tasks().length }}</span>
+          <span class="rail-section__title"> Tasks</span>
+          <!-- <span class="rail-section__title"> Tasks {{ tasks().length }}</span> -->
+
           @if (tasks().length > 0) {
             <button
               class="icon-btn"

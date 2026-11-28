@@ -83,10 +83,7 @@ type StashFilesState = { status: 'loading' } | { status: 'ready'; files: CommitF
                   <span class="file-path">{{ file.path }}</span>
                 </div>
                 <div class="actions">
-                  <span
-                    class="status"
-                    [style.background]="statusClass(LETTERS[file.status]).background"
-                  >
+                  <span class="status" [style.color]="statusClass(LETTERS[file.status]).background">
                     {{ LETTERS[file.status] }}
                   </span>
                 </div>

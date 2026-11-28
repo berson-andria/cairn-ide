@@ -52,7 +52,8 @@
 - workspace reset after selecting
 - documentation model, for every change made, the model will update the documentation(it is not app documetion, it's functions documention). this documention will then serve as base for coding agent. It should be coupled with git.
 
-
+- Add dev container
+- Git blame inline text issue
 - *BUG*: Monaco diff editor, text selection not highlighted on line that differentiate the two text.
 
 ### ADDITIONAL TASKS

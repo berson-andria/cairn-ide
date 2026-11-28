@@ -1,7 +1,10 @@
 <div class="git-change-container">
+  <div class="rail-section--header">
+    <span>Source Control</span>
+  </div>
   @if (nodeStore.rootPath()) {
     @if (git.isRepo()) {
-      <div class="header" (click)="toggleFocusSection('changes')">
+      <div class="header change-header" (click)="toggleFocusSection('changes')">
         <div class="title">
           @if (focusSection() === 'changes') {
             <ng-icon name="lucideChevronDown" />
@@ -339,14 +342,17 @@
         <div class="content">
           <div class="input-container">
             <div class="input-form">
-              <input
-                type="text"
+              <textarea
+                autoExpand
+                class="scrolling-el"
+                rows="1"
+                aria-label="Commit message"
                 [ngModel]="commitMessage()"
                 (ngModelChange)="commitMessage.set($event)"
-                placeholder="Message (Ctrl+Enter to commit on '{{ branchName() }}')"
+                placeholder="Message (⌘ + ⏎ to commit on '{{ branchName() }}')"
                 (keydown.control.enter)="commit()"
                 (keydown.meta.enter)="commit()"
-              />
+              ></textarea>
             </div>
             <div
               class="btn-group"
@@ -520,7 +526,7 @@
                       >
                         <ng-icon name="lucideMinus "></ng-icon>
                       </button>
-                      <span class="status" [style.background]="statusClass(file.status).background">
+                      <span class="status" [style.color]="statusClass(file.status).background">
                         {{ file.status }}
                       </span>
                     </div>
@@ -628,7 +634,7 @@
                       >
                         <ng-icon name="lucidePlus" />
                       </button>
-                      <span class="status" [style.background]="statusClass(file.status).background">
+                      <span class="status" [style.color]="statusClass(file.status).background">
                         {{ file.status }}
                       </span>
                     </div>
@@ -645,6 +651,7 @@
           </div>
         </div>
       }
+      <div class="divider"></div>
       <div class="header" (click)="toggleFocusSection('stash')">
         <div class="title">
           @if (focusSection() === 'stash') {

@@ -1,4 +1,5 @@
 <div class="rail-section" [class.rail-section--active]="layoutService.isRailSectionActive('Notes')">
+  <span class="rail-section--header">Notes</span>
   <div class="rail__body">
     @if (!nodeStore.rootPath()) {
       <div class="empty-state__description">Open a folder to use tasks and notes</div>

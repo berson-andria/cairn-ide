@@ -44,8 +44,8 @@ const FALLBACKS: Record<Mode, Record<string, string>> = {
     '--color-status-blocked': '#d98f98',
     '--color-added-bg': '#1c2b23',
     '--color-added-fg': '#a8d5b5',
-    '--color-removed-bg': '#2f1e22',
-    '--color-removed-fg': '#e8a2aa',
+    '--color-removed-bg': '#352428',
+    '--color-removed-fg': '#ee5a66',
     '--color-warning-fg': '#e2c27b',
   },
   light: {
@@ -70,8 +70,8 @@ const FALLBACKS: Record<Mode, Record<string, string>> = {
     '--color-status-blocked': '#a8434f',
     '--color-added-bg': '#e2f1e8',
     '--color-added-fg': '#23603a',
-    '--color-removed-bg': '#f9e3e6',
-    '--color-removed-fg': '#9a3342',
+    '--color-removed-bg': '#f6e3e5',
+    '--color-removed-fg': '#d93a47',
     '--color-warning-fg': '#7a5a0c',
   },
 };
@@ -361,8 +361,8 @@ function buildColors(mode: Mode, t: Record<string, string>): Monaco.editor.IColo
     // the opaque added-bg / removed-bg, so they never cover the selection layer on changed lines.
     'diffEditor.insertedLineBackground': alpha(t['--color-added-fg'], 0.12),
     'diffEditor.insertedTextBackground': alpha(t['--color-added-fg'], 0.22),
-    'diffEditor.removedLineBackground': alpha(t['--color-removed-fg'], 0.12),
-    'diffEditor.removedTextBackground': alpha(t['--color-removed-fg'], 0.22),
+    'diffEditor.removedLineBackground': alpha(t['--color-removed-fg'], 0.2),
+    'diffEditor.removedTextBackground': alpha(t['--color-removed-fg'], 0.3),
 
     // Groups, tabs, sticky scroll
     'editorGroup.border': divider,

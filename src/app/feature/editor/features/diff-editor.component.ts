@@ -16,7 +16,6 @@ import { EditorCommands } from '../editor.commands';
 import { EditorService } from '../services/editor.service';
 import { ModelSourceService } from '../services/model-source.service';
 import { DiffSide } from './diff-tab';
-import { NodeStore } from '../../../core/store/node.store';
 import { TabStore } from '../../../core/store/tab.store';
 
 type DiffHandle = NonNullable<Awaited<ReturnType<EditorService['mountDiffEditor']>>>;
@@ -25,41 +24,6 @@ type DiffHandle = NonNullable<Awaited<ReturnType<EditorService['mountDiffEditor'
   selector: 'diff-editor',
   standalone: true,
   template: `
-    <div class="toolbar">
-      <span class="title" [title]="path()">{{ title() }}</span>
-      <div class="actions">
-        <button type="button" title="Previous change (Shift+F7)" (click)="go('previous')">↑</button>
-        <button type="button" title="Next change (F7)" (click)="go('next')">↓</button>
-        <button
-          type="button"
-          [class.on]="inline()"
-          title="Inline view"
-          (click)="inline.set(!inline())"
-        >
-          Inline
-        </button>
-        <button
-          type="button"
-          [class.on]="hideUnchanged()"
-          title="Collapse unchanged regions"
-          (click)="hideUnchanged.set(!hideUnchanged())"
-        >
-          Collapse
-        </button>
-        <button
-          type="button"
-          [class.on]="ignoreWhitespace()"
-          title="Ignore whitespace"
-          (click)="ignoreWhitespace.set(!ignoreWhitespace())"
-        >
-          Ignore ␣
-        </button>
-        <!-- <button type="button" title="Open the file in the editor" (click)="openFile()">
-          Open file
-        </button> -->
-        <button type="button" title="Open the file in the editor">Open file</button>
-      </div>
-    </div>
     <div class="body">
       <div class="host" #host></div>
       @if (message(); as text) {
@@ -76,43 +40,6 @@ type DiffHandle = NonNullable<Awaited<ReturnType<EditorService['mountDiffEditor'
       min-width: 0;
       min-height: 0;
       background: var(--base-bg, #1e1e1e);
-    }
-    .toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      flex: none;
-      height: 28px;
-      padding: 0 8px;
-      border-bottom: 1px solid #3e4452;
-      color: var(--explorer-text);
-      font-size: 12px;
-    }
-    .title {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .actions {
-      display: flex;
-      gap: 4px;
-      flex: none;
-    }
-    .actions button {
-      padding: 2px 8px;
-      border: 1px solid transparent;
-      border-radius: 3px;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      cursor: pointer;
-    }
-    .actions button:hover {
-      background: var(--explorer-item-hover-bg, #2c313c);
-    }
-    .actions button.on {
-      border-color: #4aa5f0;
     }
     .body {
       position: relative;
